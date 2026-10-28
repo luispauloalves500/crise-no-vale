@@ -5,7 +5,7 @@ export const WORLD = {
   SEED: 1337,
   DOOR_DEPTH: 1.6,      // profundidade da zona de passagem junto à borda
   DOOR_HALF: 2.2,       // meia-largura da passagem
-  FADE: 0.35,           // segundos de escurecimento na troca de área
+  FADE: 0.4,            // segundos de escurecimento na troca de área (v4: um pouco mais longo p/ cobrir a construção sob demanda)
 };
 
 export const PLAYER = {

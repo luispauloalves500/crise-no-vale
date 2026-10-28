@@ -1,7 +1,7 @@
 // enemies.js — construção dos dinossauros (silhuetas distintas), IA (patrulha → alerta → ataque),
 // chefe Colosso, spawn por posição/borda da área e cuspe ácido.
 import * as THREE from 'three';
-import { scene, camera, resolve, castWorld, freeSpot, bounds, GLOW, flashAt } from './world.js';
+import { scene, camera, resolve, castWorld, freeSpot, bounds, GLOW, flashAt, onMaterialsReset } from './world.js';
 import { ENEMY_TYPES, COLORS } from './config.js';
 import { G } from './state.js';
 import { player, hurtPlayer } from './player.js';
@@ -129,8 +129,43 @@ function buildDino(type) {
   bar.position.y = 2.6 * T.scale; scene.add(bar);
 
   g.scale.setScalar(T.scale);
-  return { g, body, head, jaw, tail, tail2, legs, frill, mats, eyeM, eyeGlow, bar, barFg: fg };
+  const em0 = mats.map((m) => (m.emissive ? m.emissive.getHex() : 0));
+  return { type, g, body, head, jaw, tail, tail2, legs, frill, mats, em0, eyeM, eyeGlow, bar, barFg: fg };
 }
+
+// ---------- pool de inimigos (raptor / cuspidor / bruto). O Colosso é único e não entra no pool ----------
+// Reaproveitar o modelo evita recriar dezenas de meshes/materiais (e recompilar shaders) a cada encontro.
+const POOL = {}, POOL_MAX = 8;
+export const poolStats = { built: 0, reused: 0 };
+function resetParts(P) {
+  P.g.rotation.set(0, 0, 0); P.g.position.set(0, 0, 0); P.g.visible = true;
+  P.body.position.set(0, 0, 0); P.body.rotation.set(0, 0, 0);
+  P.legs.forEach((l) => l.rotation.set(0, 0, 0)); P.jaw.rotation.set(0, 0, 0);
+  P.tail.rotation.set(0, 0, 0); P.tail2.rotation.set(0, 0, 0);
+  if (P.frill) P.frill.scale.set(0.5, 1, 0.5);
+  P.mats.forEach((m, i) => { if (m.emissive) m.emissive.setHex(P.em0[i]); });
+  P.eyeGlow.forEach((sp) => { sp.material.opacity = 0.8; });
+  P.bar.visible = false; P.bar.scale.setScalar(1); P.barFg.scale.x = 0.96; P.barFg.position.x = 0; P.barFg.material.color.setHex(0xff4030);
+  return P;
+}
+function acquireParts(type) {
+  const T = ENEMY_TYPES[type], list = POOL[type];
+  if (!T.boss && list && list.length) { poolStats.reused++; return resetParts(list.pop()); }
+  poolStats.built++; return buildDino(type);
+}
+function disposeParts(P) { P.mats.forEach((m) => m.dispose()); P.eyeM.dispose(); P.eyeGlow.forEach((sp) => sp.material.dispose()); }
+/** Pré-cria modelos no pool durante a carga. Retorna os grupos (para pré-compilar shaders). */
+export function prewarmEnemies(counts = { raptor: 4, spitter: 2, brute: 2 }) {
+  const groups = [];
+  for (const type in counts) {
+    if (!ENEMY_TYPES[type] || ENEMY_TYPES[type].boss) continue;
+    const list = (POOL[type] ||= []);
+    while (list.length < counts[type]) { const P = buildDino(type); poolStats.built++; scene.remove(P.bar); list.push(P); }
+    list.forEach((P) => groups.push(P.g, P.bar));
+  }
+  return groups;
+}
+onMaterialsReset(() => { for (const t in POOL) for (const P of POOL[t]) { P.mats.forEach((m) => { m.needsUpdate = true; }); P.eyeM.needsUpdate = true; } });
 
 // ---------- spawn ----------
 /** Ponto na borda da área (side N/S/E/W ou qualquer), livre de obstáculos e longe do jogador. */
@@ -155,15 +190,15 @@ export function edgePoint(side) {
  */
 export function spawnEnemy(type, x, z, opts = {}) {
   if (x === undefined) ({ x, z } = edgePoint(opts.from));
-  const T = ENEMY_TYPES[type], parts = buildDino(type);
+  const T = ENEMY_TYPES[type], parts = acquireParts(type);
   const alert = opts.alert !== false;
-  const e = Object.assign(parts, {
+  const e = Object.assign({ parts }, parts, {
     type, cfg: T, pos: new THREE.Vector3(x, 0, z), home: { x, z }, hp: T.hp, maxHp: T.hp, yaw: Math.atan2(player.pos.x - x, player.pos.z - z),
     atkCd: 1, special: rand(1, 3), stun: 0, flashT: 0, bite: 0, lunge: 0, spitT: 0, windup: 0, charge: 0, cdx: 0, cdz: 0,
     stomp: 0, stompCd: 3, phaseIdx: 0, alert, wanderA: Math.random() * 6.28, ambientIdx: opts.ambientIdx,
     kx: 0, kz: 0, phase: 0, seed: Math.random() * 100, flank: (Math.random() < 0.5 ? -1 : 1) * rand(0.3, 0.8), dead: false, deadT: 0, fallDir: 1, remove: false,
   });
-  e.g.position.copy(e.pos); e.g.rotation.y = e.yaw; scene.add(e.g); enemies.push(e);
+  e.g.position.copy(e.pos); e.g.rotation.y = e.yaw; scene.add(e.g); scene.add(e.bar); enemies.push(e);
   if (alert) { burst(x, 0.3, z, 'dust', 10, 2); roar(T.shape === 'brute' ? (T.boss ? 0.35 : 0.55) : T.shape === 'spitter' ? 1.3 : 1.6, T.shape === 'brute' ? 0.35 : 0.12); }
   return e;
 }
@@ -173,19 +208,26 @@ export function makeNoise(x, z, r) {
 }
 function alertEnemy(e) { if (e.alert) return; e.alert = true; e.special = rand(0.5, 1.5); roar(e.cfg.shape === 'brute' ? 0.55 : 1.5, 0.12); }
 
+/** Tira o inimigo da cena: comuns voltam ao pool; o chefe (ou excesso) é descartado. */
 function disposeEnemy(e) {
+  if (e.released) return; e.released = true;
   scene.remove(e.g); scene.remove(e.bar);
-  e.mats.forEach((m) => m.dispose()); e.eyeM.dispose(); e.eyeGlow.forEach((s) => s.material.dispose());
+  const P = e.parts, list = (POOL[e.type] ||= []);
+  if (!e.cfg.boss && P && list.length < POOL_MAX) list.push(P); else disposeParts(P || e);
 }
 export function clearEnemies() {
   enemies.forEach(disposeEnemy); enemies.length = 0;
-  spits.forEach((s) => { scene.remove(s.m); s.m.material.dispose(); }); spits.length = 0;
+  spits.forEach(releaseSpit); spits.length = 0;
 }
 export const aliveCount = () => enemies.reduce((n, e) => n + (e.dead ? 0 : 1), 0);
 
 // ---------- cuspe ácido ----------
+// sprites de cuspe reaproveitados (material compartilhado — nada é criado/descartado por disparo)
+const spitMat = new THREE.SpriteMaterial({ map: GLOW, color: COLORS.spit, blending: THREE.AdditiveBlending, transparent: true, depthWrite: false });
+const spitFree = [];
+function releaseSpit(s) { scene.remove(s.m); if (spitFree.length < 24) spitFree.push(s.m); }
 function spit(e, nx, nz, dist) {
-  const m = new THREE.Sprite(new THREE.SpriteMaterial({ map: GLOW, color: COLORS.spit, blending: THREE.AdditiveBlending, transparent: true, depthWrite: false }));
+  const m = spitFree.pop() || new THREE.Sprite(spitMat);
   m.scale.setScalar(0.8);
   const hx = e.pos.x + nx * 1.2, hz = e.pos.z + nz * 1.2; m.position.set(hx, 1.8, hz); scene.add(m);
   // mira com antecipação do movimento do jogador
@@ -203,7 +245,7 @@ function updateSpits(dt) {
     if (!dead && Math.hypot(s.x - player.pos.x, s.z - player.pos.z) < player.r + 0.35) { hurtPlayer(10, s.x - s.vx, s.z - s.vz, 3); dead = true; }
     if (dead) {
       burst(s.x, 1.5, s.z, 'spit', 8, 2.5); decal(s.x, s.z, 0.9, 0x5a9a20); sfx.splat();
-      scene.remove(s.m); s.m.material.dispose(); spits.splice(i, 1);
+      releaseSpit(s); spits.splice(i, 1);
     }
   }
 }

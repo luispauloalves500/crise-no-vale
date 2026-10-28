@@ -3,7 +3,9 @@
 import { activateArea, bounds, boxes, setDoorLight, setPower, atmo, spots, bossGlow, flashAt } from './world.js';
 import { WORLD, SCORE, PLAYER } from './config.js';
 import { G, writeSave, readSave } from './state.js';
-import { AREAS, AREA, doorArrival } from './areas.js';
+import { AREAS, AREA, doorArrival, buildArea, unloadArea, isBuilt, neighbors, onAreaBuilt } from './areas.js';
+import { quality } from './quality.js';
+import { idle } from './idle.js';
 import { player, placePlayer, snapshotBag, restoreBag, resetPlayer } from './player.js';
 import { spawnEnemy, clearEnemies, enemyEvents, makeNoise } from './enemies.js';
 import { spawnPickup, clearPickups, combatEvents, resetCombat } from './combat.js';
@@ -36,9 +38,9 @@ function resetCampaign() {
 }
 
 // ---------- sala da diretoria (laboratório): porta blindada que abre com a energia ----------
-function sideDoor() { return AREA.lab.refs.sideDoor; }
+function sideDoor() { return AREA.lab.refs && AREA.lab.refs.sideDoor; }
 function setSideDoor(open, instant) {
-  const sd = sideDoor(); if (!sd) return;
+  const sd = sideDoor(); if (!sd) return; // laboratório não construído: reaplicado em onAreaBuilt
   if (sd.y0 === undefined) sd.y0 = sd.mesh.position.y;
   const list = AREA.lab.ctx.boxes, i = list.indexOf(sd.box);
   if (open && i >= 0) list.splice(i, 1);
@@ -47,7 +49,7 @@ function setSideDoor(open, instant) {
   sd.open = open; if (instant) sd.mesh.position.y = open ? sd.y0 - 3.3 : sd.y0;
 }
 function powerLampsOn(snap) {
-  AREAS.forEach((a) => (a.refs.powerLamps || []).forEach((L) => { L.on = true; if (snap && a === D.area) { L.snap = 0.9 + Math.random() * 0.6; L.boost = 1.2; } }));
+  AREAS.forEach((a) => ((a.refs && a.refs.powerLamps) || []).forEach((L) => { L.on = true; if (snap && a === D.area) { L.snap = 0.9 + Math.random() * 0.6; L.boost = 1.2; } }));
 }
 
 /** Trava da porta: true = bloqueada. */
@@ -111,8 +113,10 @@ function syncGates(a, instant) {
 /** Entra na área `id`. Vindo por uma porta (doorId da área de destino) ou num ponto fixo (at). */
 export function enterArea(id, doorId, at) {
   const a = AREA[id], prev = D.area;
+  // streaming: se a área foi descarregada (ou ainda não foi construída), constrói agora — sob a tela preta da transição
+  if (!isBuilt(a)) { const ms = buildArea(a); streamStats.syncBuilds++; streamStats.lastSyncMs = Math.round(ms); }
   if (D.event && D.event.kind !== 'rescue') D.event = null; // sair da área cancela gerador/código
-  activateArea(a, prev && prev !== a ? prev : null);
+  activateArea(a, prev && prev !== a && isBuilt(prev) ? prev : null);
   D.area = a; G.area = id;
   clearEnemies(); clearPickups(); clearFx(); ui.clearFloaters(); D.queue = []; D.boss = null;
   const p = at || (doorId ? doorArrival(a, doorId) : a.start || doorArrival(a, a.doors[0].id));
@@ -162,10 +166,39 @@ function startTransition(door) {
 function updateTransition(dt) {
   const T = D.trans; T.t += dt;
   const f = WORLD.FADE;
-  if (!T.switched && T.t >= f) { T.switched = true; enterArea(T.door.to, T.door.toDoor); }
+  if (!T.switched && T.t >= f) {
+    T.switched = true; enterArea(T.door.to, T.door.toDoor); streamAround(D.area); // sob a tela preta
+    T.t = f; T.hold = 0.06; // segura a tela preta um instante: o 1º quadro da nova área (shaders/upload) fica escondido
+  }
+  if (T.hold > 0) { T.hold -= dt; T.t = f; ui.setFade(1); return; }
   ui.setFade(T.t < f ? T.t / f : Math.max(0, 1 - (T.t - f) / f));
   if (T.t >= f * 2) { D.trans = null; ui.setFade(0); }
 }
+
+// ---------- streaming de áreas (melhor esforço) ----------
+// Mantém a área atual + vizinhas construídas; no preset Alto mantém tudo. As demais são descartadas
+// depois da transição e reconstruídas (em fatia ociosa) quando o jogador entra numa área vizinha a elas,
+// ou na hora, sob o fade, se ele chegar antes.
+export const streamStats = { syncBuilds: 0, bgBuilds: 0, unloads: 0, lastSyncMs: 0 };
+export function warmArea(a) {
+  if (isBuilt(a)) return;
+  idle(() => { if (!isBuilt(a)) { buildArea(a); streamStats.bgBuilds++; } }, 'build-' + a.id);
+}
+export function streamAround(a) {
+  if (!a) return;
+  const keep = new Set([a, ...neighbors(a)]);
+  for (const n of keep) warmArea(n);
+  if (!quality.p.stream) { AREAS.forEach(warmArea); return; }
+  for (const x of AREAS) if (!keep.has(x) && isBuilt(x)) { unloadArea(x); streamStats.unloads++; }
+}
+// reconstruiu: reaplica estado da campanha que mora nos objetos 3D
+onAreaBuilt((a) => {
+  if (a.id === 'lab') setSideDoor(!!F.power, true);
+  if (a.refs.powerLamps) a.refs.powerLamps.forEach((L) => { L.on = !!F.power; });
+  if (a.refs.heli) a.refs.heli.group.visible = false;
+  syncGates(a, true);
+  D.mapDirty = true;
+});
 
 // ---------- portas ----------
 function nearDoor(d, margin) {
@@ -324,7 +357,7 @@ export function startCampaign(fromSave) {
   clearEnemies(); clearPickups(); clearFx(); resetCombat(); ui.clearFloaters(); ui.clearMessages(); timers.length = 0;
   resetPlayer(); resetCampaign(); D.area = null;
   Object.assign(G, { score: 0, kills: 0, shots: 0, hits: 0, elapsed: 0, shake: 0, saves: 0 });
-  AREAS.forEach((a) => { if (a.refs.powerLamps) a.refs.powerLamps.forEach((L) => { L.on = false; }); });
+  AREAS.forEach((a) => { if (a.refs && a.refs.powerLamps) a.refs.powerLamps.forEach((L) => { L.on = false; }); });
   story.resetStory(s && s.story);
   if (s) {
     Object.assign(F, s.flags);
@@ -337,6 +370,7 @@ export function startCampaign(fromSave) {
     enterArea(s.area, null, s.at);
     ui.banner('JOGO CARREGADO', AREA[s.area].name, 2.2);
   } else { setPower(false); setSideDoor(false, true); enterArea('porto'); }
+  streamAround(D.area);
 }
 
 // ---------- ganchos de combate ----------
@@ -381,6 +415,11 @@ export function updateDirector(dt) {
   }
   checkDoors(dt);
   if (D.trans) return;
+  // streaming: chegando perto de um portão cuja área foi descarregada → reconstrói em segundo plano
+  if ((D.streamT = (D.streamT || 0) - dt) <= 0) {
+    D.streamT = 0.5;
+    for (const d of a.doors) if (!isBuilt(AREA[d.to]) && nearDoor(d, 12)) warmArea(AREA[d.to]);
+  }
   // portões animados
   for (const d of a.doors) {
     const ref = a.refs.doors[d.id], open = !isLocked(a.id, d.id);
@@ -440,7 +479,7 @@ export function hudData() {
   const it = D.trans ? null : nearestInteract();
   let prompt = promptFor(it);
   if (!prompt && !D.trans) for (const d of a.doors) if (isLocked(a.id, d.id) && nearDoor(d, 3)) { prompt = { text: '🔒 ' + LOCK_MSG[d.lock], locked: true }; break; }
-  const markers = {}; AREAS.forEach((x) => { if (x.refs.terminals.some((t) => t.kind === 'save')) markers[x.id] = 'save'; });
+  const markers = {}; AREAS.forEach((x) => { if (x.save) markers[x.id] = 'save'; });
   markers[target] = '★ ' + (markers[target] ? 'objetivo • save' : 'objetivo');
   const points = a.refs.terminals.map((t) => ({ x: t.x, z: t.z, col: t.kind === 'save' ? '#40ff90' : t.kind === 'generator' ? '#ffb040' : '#40c0ff' }));
   for (const d of a.doors) {
@@ -498,4 +537,4 @@ export function updateHeli(dt) {
   if (y < 9) G.shake = Math.max(G.shake, 0.06);
 }
 /** Atalho de depuração: vai direto para uma área. */
-export function debugGoto(id) { enterArea(id); }
+export function debugGoto(id) { enterArea(id); streamAround(D.area); }
