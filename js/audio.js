@@ -80,4 +80,10 @@ export const sfx = {
   bossRoar() { roar(0.32, 0.6); noise(1.6, 600, 40, 0.5, 'lowpass', 0.1); },
   objective() { tone(440, 440, 0.15, 'triangle', 0.14); tone(660, 660, 0.25, 'triangle', 0.14, 0.16); },
   heartbeat() { tone(70, 50, 0.12, 'sine', 0.35); tone(65, 45, 0.12, 'sine', 0.28, 0.18); },
+  /** chiado de rádio (início de fala/registro de rádio) */
+  radio()   { noise(0.22, 4200, 1800, 0.14, 'bandpass'); tone(1400, 1400, 0.05, 'square', 0.04, 0.2); },
+  /** "chop" do rotor (o diretor chama a cada ~0,11 s; vol cai com a distância) */
+  heli(vol = 0.3) { noise(0.09, 260, 60, vol * 0.8, 'lowpass'); },
+  /** pisada do Colosso / onda de choque */
+  stomp()   { tone(60, 28, 0.35, 'sine', 0.45); noise(0.3, 400, 50, 0.3); },
 };
