@@ -25,7 +25,7 @@ const { MATS } = W;
 export const AREAS = [
   // ------------------------------------------------------------------ 1. CAIS
   {
-    id: 'porto', name: 'CAIS DO PORTO', sub: 'Borda da selva — o barco não volta mais',
+    id: 'porto', save: true, name: 'CAIS DO PORTO', sub: 'Borda da selva — o barco não volta mais',
     map: { x: 2, y: 4 }, bounds: { minX: -22, maxX: 22, minZ: -18, maxZ: 16 },
     mood: { fog: 0x0b1620, density: 0.026, sky: 0x7a8faa, groundCol: 0x0a0f10, hemi: 1.2, moonCol: 0xa8c0f0, moon: 1.35,
       rain: 1, lightning: true, fireflies: false, exposure: 1.15 },
@@ -124,7 +124,7 @@ export const AREAS = [
 
   // ------------------------------------------------------------------ 3. LABORATÓRIO (exterior)
   {
-    id: 'lab', name: 'EXTERIOR DO LABORATÓRIO', sub: 'Estação de pesquisa Vale Verde — sem energia', subPower: 'Estação de pesquisa Vale Verde — energia restabelecida',
+    id: 'lab', save: true, name: 'EXTERIOR DO LABORATÓRIO', sub: 'Estação de pesquisa Vale Verde — sem energia', subPower: 'Estação de pesquisa Vale Verde — energia restabelecida',
     map: { x: 2, y: 2 }, bounds: { minX: -24, maxX: 24, minZ: -20, maxZ: 22 },
     mood: { fog: 0x0d1418, density: 0.028, sky: 0x8a9aa0, groundCol: 0x0c0c0a, hemi: 1.0, moonCol: 0xb0c4d8, moon: 1.0,
       rain: 0.9, lightning: true, fireflies: false, exposure: 1.1 },
@@ -234,7 +234,7 @@ export const AREAS = [
 
   // ------------------------------------------------------------------ 5. PÁTIO
   {
-    id: 'patio', name: 'PÁTIO DA INSTALAÇÃO', sub: 'Holofotes brancos — alguém pede socorro pelo rádio',
+    id: 'patio', save: true, name: 'PÁTIO DA INSTALAÇÃO', sub: 'Holofotes brancos — alguém pede socorro pelo rádio',
     map: { x: 2, y: 1 }, bounds: { minX: -24, maxX: 24, minZ: -22, maxZ: 22 },
     mood: { fog: 0x101818, density: 0.022, sky: 0xb0c8c8, groundCol: 0x0c100e, hemi: 1.15, moonCol: 0xd8f0ff, moon: 1.3,
       rain: 0.5, lightning: true, fireflies: false, exposure: 1.1, moonPos: [18, 40, 10],
@@ -337,16 +337,41 @@ export const AREAS = [
 
 export const AREA = Object.fromEntries(AREAS.map((a) => [a.id, a]));
 
-/** Constrói a geometria de todas as áreas (uma vez, na carga). */
-export function buildAreas() {
-  const DIR = { N: 'PORTÃO NORTE', S: 'PORTÃO SUL', W: 'PORTÃO OESTE', E: 'PORTÃO LESTE' };
-  AREAS.forEach((a, i) => {
-    a.ctx = W.makeCtx(mulberry32(WORLD.SEED + i * 101)); a.refs = a.build(a.ctx);
-    a.refs.logs = (a.logs || []).map((l) => ({ ...l, ...W.datapad(a.ctx, l.x, l.z, l.yaw || 0) }));
-  });
+// ---------- construção sob demanda + streaming ----------
+// Cada área usa sua PRÓPRIA semente (WORLD.SEED + índice*101): reconstruir dá exatamente o mesmo layout,
+// em qualquer ordem. a.ctx/a.refs ficam null enquanto a área não está construída.
+const DIR = { N: 'PORTÃO NORTE', S: 'PORTÃO SUL', W: 'PORTÃO OESTE', E: 'PORTÃO LESTE' };
+const builtHooks = [];
+/** fn(area) chamado logo após (re)construir uma área — o diretor reaplica estado (energia, porta da diretoria). */
+export function onAreaBuilt(fn) { builtHooks.push(fn); }
+export const isBuilt = (a) => !!(a && a.ctx);
+export const builtCount = () => AREAS.reduce((n, a) => n + (a.ctx ? 1 : 0), 0);
+/** Áreas ligadas por portas. */
+export const neighbors = (a) => a.doors.map((d) => AREA[d.to]);
+
+/** Constrói uma área (se ainda não existe). Retorna o tempo gasto em ms. */
+export function buildArea(a) {
+  if (typeof a === 'string') a = AREA[a];
+  if (a.ctx) return 0;
+  const t0 = performance.now(), i = AREAS.indexOf(a);
+  a.ctx = W.makeCtx(mulberry32(WORLD.SEED + i * 101)); a.refs = a.build(a.ctx);
+  a.refs.logs = (a.logs || []).map((l) => ({ ...l, ...W.datapad(a.ctx, l.x, l.z, l.yaw || 0) }));
   // placas com o destino em cada portão
-  AREAS.forEach((a) => a.doors.forEach((d) => { const ref = a.refs.doors[d.id]; if (ref) W.doorSign(ref, '→ ' + AREA[d.to].name, DIR[d.side]); }));
+  a.doors.forEach((d) => { const ref = a.refs.doors[d.id]; if (ref) W.doorSign(ref, '→ ' + AREA[d.to].name, DIR[d.side]); });
+  W.applyShadowTiers(a.ctx.group);
+  a.builds = (a.builds || 0) + 1;
+  for (const fn of builtHooks) fn(a);
+  return performance.now() - t0;
 }
+/** Descarrega a área (descarta geometria/materiais próprios; recursos compartilhados ficam). */
+export function unloadArea(a) {
+  if (!a.ctx) return false;
+  W.disposeGroup(a.ctx.group);
+  a.ctx = null; a.refs = null; a.unloads = (a.unloads || 0) + 1;
+  return true;
+}
+/** Constrói todas as áreas de uma vez (modo antigo / depuração). */
+export function buildAreas() { AREAS.forEach((a) => buildArea(a)); }
 
 /** Posição de chegada junto a uma porta (um pouco para dentro da área) e yaw olhando para dentro. */
 export function doorArrival(area, doorId) {

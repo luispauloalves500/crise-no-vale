@@ -4,15 +4,24 @@ import * as THREE from 'three';
 import { FX, CAMERA } from './config.js';
 import { rand, clamp, noiseTex, glowTex, texMat, corrugatedTex, rippleTex, beamTex, labelTex, mergeGeos, softSplatTex, mulberry32 } from './utils.js';
 import { G } from './state.js';
+import { quality, onQuality } from './quality.js';
 
 export const GLOW = glowTex();
 
+// ---------- recursos compartilhados (nunca descartados ao descarregar uma área) ----------
+const SHARED = new WeakSet();
+/** Marca geometria/material/textura como compartilhado (não é descartado com a área). */
+export function share(...xs) { for (const x of xs) if (x) SHARED.add(x); return xs[0]; }
+const isShared = (x) => SHARED.has(x);
+share(GLOW);
+
 // ---------- renderer / cena / câmera ----------
 export const renderer = new THREE.WebGLRenderer({ antialias: true, powerPreference: 'high-performance' });
-renderer.setPixelRatio(Math.min(window.devicePixelRatio, 1.75));
+const pixelRatio = () => Math.min(window.devicePixelRatio || 1, quality.p.pixelRatio);
+renderer.setPixelRatio(pixelRatio());
 renderer.setSize(innerWidth, innerHeight);
 renderer.shadowMap.enabled = true;
-renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+renderer.shadowMap.type = quality.p.softShadows ? THREE.PCFSoftShadowMap : THREE.BasicShadowMap;
 renderer.outputColorSpace = THREE.SRGBColorSpace;
 renderer.toneMapping = THREE.ACESFilmicToneMapping;
 renderer.toneMappingExposure = 1.15;
@@ -26,7 +35,7 @@ scene.fog = new THREE.FogExp2(0x0b1611, 0.03);
 export const camera = new THREE.PerspectiveCamera(CAMERA.FOV, innerWidth / innerHeight, 0.1, 200);
 addEventListener('resize', () => {
   camera.aspect = innerWidth / innerHeight; camera.updateProjectionMatrix();
-  renderer.setPixelRatio(Math.min(window.devicePixelRatio, 1.75));
+  renderer.setPixelRatio(pixelRatio());
   renderer.setSize(innerWidth, innerHeight);
 });
 
@@ -35,7 +44,7 @@ const hemi = new THREE.HemisphereLight(0x7a9a8a, 0x0a0f08, 1.25);
 scene.add(hemi);
 const moon = new THREE.DirectionalLight(0xa8bce0, 1.2);
 moon.position.set(-20, 40, -12); moon.castShadow = true;
-moon.shadow.mapSize.set(2048, 2048);
+moon.shadow.mapSize.set(quality.p.shadowSize, quality.p.shadowSize);
 Object.assign(moon.shadow.camera, { left: -38, right: 38, top: 38, bottom: -38, near: 1, far: 110 });
 moon.shadow.bias = -0.0008;
 scene.add(moon);
@@ -45,7 +54,8 @@ for (let i = 0; i < LAMP_POOL; i++) { const l = new THREE.PointLight(0xff8a40, 0
 
 // Extras fixos (sempre na cena, intensidade 0 quando sem uso):
 // 2 holofotes com feixe volumétrico falso (cone aditivo) + clarão pontual (explosões/energia) + brilho do chefe.
-const BEAM_TEX = beamTex();
+const BEAM_TEX = share(beamTex());
+let spotSeed = 1;
 function makeSpot() {
   const l = new THREE.SpotLight(0xffffff, 0, 80, 0.3, 0.6, 1.2);
   l.position.set(0, -50, 0); scene.add(l); scene.add(l.target);
@@ -54,7 +64,7 @@ function makeSpot() {
   const beam = new THREE.Mesh(geo, mat); beam.visible = false; beam.frustumCulled = false; scene.add(beam);
   const head = new THREE.Sprite(new THREE.SpriteMaterial({ map: GLOW, color: 0xffffff, blending: THREE.AdditiveBlending, transparent: true, depthWrite: false }));
   head.scale.setScalar(2.6); head.visible = false; scene.add(head);
-  return { l, beam, head, cfg: null, override: null, t: Math.random() * 10 };
+  return { l, beam, head, cfg: null, override: null, t: spotSeed++ * 3.7 };
 }
 /** Holofotes da área (cfg vem de mood.spots) ou controlados pelo diretor (override: {pos, target, color, intensity, angle}). */
 export const spots = [makeSpot(), makeSpot()];
@@ -94,9 +104,10 @@ function screenTex() {
   const t = new THREE.CanvasTexture(cv); t.colorSpace = THREE.SRGBColorSpace; return t;
 }
 const RIPPLE = rippleTex();
-const rip = (rx, ry) => { const t = RIPPLE.clone(); t.wrapS = t.wrapT = THREE.RepeatWrapping; t.repeat.set(rx, ry); return t; };
-export const SCREEN_TEX = screenTex();
-const SPLAT = softSplatTex();
+const rip = (rx, ry) => { const t = RIPPLE.clone(); t.wrapS = t.wrapT = THREE.RepeatWrapping; t.repeat.set(rx, ry); return share(t); };
+export const SCREEN_TEX = share(screenTex());
+const SPLAT = share(softSplatTex());
+share(RIPPLE);
 
 export const MATS = {
   concrete: texMat('#5a5d57', ['#3e443a', '#6c6e66', '#2e4a2a', '#4a4f45'], 700, 1, { roughness: 0.95 }, { streaks: 50 }),
@@ -122,10 +133,25 @@ export const MATS = {
   mud: new THREE.MeshStandardMaterial({ color: 0x1e2414, roughness: 0.2, metalness: 0.3, transparent: true, opacity: 0.92, bumpMap: rip(2, 2), bumpScale: 0.7 }),
 };
 MATS.hazard.map.repeat.set(1, 4);
+for (const m of Object.values(MATS)) share(m, m.map, m.bumpMap, m.alphaMap);
 const WET = [MATS.concrete, MATS.stone, MATS.metal, MATS.rust, MATS.crate, MATS.plank, MATS.rock, MATS.hazard];
 WET.forEach((m) => { m.userData.baseRough = m.roughness; });
-export const leafMats = [0x1f3d1c, 0x24481f, 0x173317, 0x2b4a22].map((c) => new THREE.MeshStandardMaterial({ color: c, roughness: 1, flatShading: true }));
-const gt = (base, cols) => () => noiseTex(base, cols, 1600, 1, 512, { bump: true, grain: 24 });
+export const leafMats = [0x1f3d1c, 0x24481f, 0x173317, 0x2b4a22].map((c) => share(new THREE.MeshStandardMaterial({ color: c, roughness: 1, flatShading: true })));
+// Texturas de chão: geradas UMA vez por tipo+resolução (cache) e clonadas por área — o clone
+// compartilha a mesma imagem (Source) na GPU; só a repetição muda. Resolução vem da qualidade.
+const groundCache = new Map();
+const cloneTex = (base) => { const ud = base.userData; base.userData = {}; const t = base.clone(); base.userData = ud; return t; };
+const gt = (base, cols) => {
+  const fn = () => {
+    const size = quality.p.groundTex, key = fn.key + size;
+    let src = groundCache.get(key);
+    if (!src) { src = noiseTex(base, cols, size >= 512 ? 1600 : 520, 1, size, { bump: true, grain: 24 }); groundCache.set(key, src); }
+    const t = cloneTex(src); t.userData = {};
+    if (src.userData.bump) t.userData.bump = cloneTex(src.userData.bump);
+    return t;
+  };
+  return fn;
+};
 export const groundTex = {
   jungle: gt('#1d2a17', ['#2d3a1f', '#3a2f1e', '#14200f', '#41472a']),
   mud: gt('#1a1f12', ['#262c18', '#2e2616', '#10160c', '#343a20']),
@@ -133,13 +159,21 @@ export const groundTex = {
   sand: gt('#3a3426', ['#2e2a1e', '#4a4232', '#262418']),
   stone: gt('#2e2c24', ['#3e3a2e', '#24221c', '#2a3a22']),
 };
+for (const k in groundTex) groundTex[k].key = k;
 
-const unitBox = new THREE.BoxGeometry(1, 1, 1);
+const unitBox = share(new THREE.BoxGeometry(1, 1, 1));
 export function boxMesh(mat, w, h, d) { const m = new THREE.Mesh(unitBox, mat); m.scale.set(w, h, d); return m; }
 const glowSprite = (color, scale, opacity = 0.7) => {
   const s = new THREE.Sprite(new THREE.SpriteMaterial({ map: GLOW, color, blending: THREE.AdditiveBlending, depthWrite: false, transparent: true, opacity }));
   s.scale.setScalar(scale); return s;
 };
+
+// ---------- sombras por nível (a lua é a ÚNICA luz com sombra) ----------
+// tier 'far' = árvores do anel externo/pedras distantes, 'small' = entulho miúdo, 'mid' = postes/telhado/terminais.
+const tierOn = (t) => (t === 'far' ? quality.p.shadowFar : t === 'small' ? quality.p.shadowSmall : t === 'mid' ? quality.p.shadowMid : true);
+function tier(m, t) { m.userData.shTier = t; m.castShadow = tierOn(t); return m; }
+/** Reaplica castShadow conforme a qualidade em um grupo (área já construída). */
+export function applyShadowTiers(root) { root.traverse((o) => { if (o.userData.shTier) o.castShadow = tierOn(o.userData.shTier); }); }
 
 // ---------- kit de construção (ctx = { group, boxes, circles, lamps, water, rng }) ----------
 export function makeCtx(rng) { const group = new THREE.Group(); group.visible = false; scene.add(group); return { group, boxes: [], circles: [], lamps: [], water: [], rng }; }
@@ -156,13 +190,13 @@ export function wall(ctx, x, z, w, d, h, mat = MATS.concrete) {
   for (let i = 0; i < 3; i++) {
     const s = 0.3 + rng() * 0.4; const r = boxMesh(mat, s, s * 0.6, s);
     r.position.set(x + (rng() - 0.5) * w + (d > w ? (rng() - 0.5) * 2.4 : 0), s * 0.3, z + (rng() - 0.5) * d + (w > d ? (rng() - 0.5) * 2.4 : 0));
-    r.rotation.y = rng() * 3; r.castShadow = true; ctx.group.add(r);
+    r.rotation.y = rng() * 3; tier(r, 'small'); ctx.group.add(r);
   }
   if (h > 2.3 && rng() < 0.7) { const v = boxMesh(MATS.vine, Math.max(w, 0.9) * 1.04, 0.5 + rng() * 0.7, Math.max(d, 0.9) * 1.04); v.position.set(x, h - 0.2, z); ctx.group.add(v); }
 }
 
 // caixa de madeira com quinas reforçadas e travessas em X (geometria única fundida = 1 draw call)
-const crateMat = new THREE.MeshStandardMaterial({ map: MATS.crate.map, bumpMap: MATS.crate.bumpMap, bumpScale: 1.2, roughness: 0.9, vertexColors: true });
+const crateMat = share(new THREE.MeshStandardMaterial({ map: MATS.crate.map, bumpMap: MATS.crate.bumpMap, bumpScale: 1.2, roughness: 0.9, vertexColors: true }));
 crateMat.userData.baseRough = 0.9; WET.push(crateMat);
 let CRATE_GEO = null;
 function crateGeo() {
@@ -174,7 +208,7 @@ function crateGeo() {
     for (const x of [-1, 1]) P.push({ geo: B, p: [x * 0.47, y, 0], s: [t, t, 1], c: dark });
   }
   for (const [x, z, ry] of [[0, 0.475, 0], [0, -0.475, 0], [0.475, 0, Math.PI / 2], [-0.475, 0, Math.PI / 2]]) P.push({ geo: B, p: [x, 0.5, z], r: [0, ry, Math.PI / 4], s: [1.2, 0.09, 0.04], c: dark });
-  return (CRATE_GEO = mergeGeos(P));
+  return (CRATE_GEO = share(mergeGeos(P)));
 }
 export function crate(ctx, x, z, s, mat = MATS.crate) {
   if (mat !== MATS.crate) return solid(ctx, x, z, s, s, s, mat);
@@ -191,7 +225,7 @@ export function container(ctx, x, z, w, d, h, hex = 0x8a4a2a) {
     const t = corrugatedTex('#' + hex.toString(16).padStart(6, '0'), '#5a5a5a', '#e0e0e0', 18);
     t.repeat.set(len / 2.6, 1); t.userData.bump.repeat.copy(t.repeat);
     const m = new THREE.MeshStandardMaterial({ map: t, bumpMap: t.userData.bump, bumpScale: 3, roughness: 0.6, metalness: 0.45 });
-    m.userData.baseRough = 0.6; WET.push(m); contMats[key] = m;
+    m.userData.baseRough = 0.6; WET.push(m); contMats[key] = share(m, t, t.userData.bump);
   }
   const m = solid(ctx, x, z, w, d, h, contMats[key]);
   const along = w >= d; // portas na ponta do eixo longo
@@ -205,10 +239,10 @@ export function container(ctx, x, z, w, d, h, hex = 0x8a4a2a) {
 }
 
 // ---------- árvores (variações fundidas com cor por vértice: 1 draw call por árvore) ----------
-const TREE_MAT = new THREE.MeshStandardMaterial({ vertexColors: true, flatShading: true, roughness: 0.95 });
+const TREE_MAT = share(new THREE.MeshStandardMaterial({ vertexColors: true, flatShading: true, roughness: 0.95 }));
 const LEAF = [0x1f3d1c, 0x24481f, 0x173317, 0x2b4a22, 0x2f5226, 0x355c28];
 const cyl = (rt, rb, h, seg = 6) => new THREE.CylinderGeometry(rt, rb, h, seg);
-const ICO = new THREE.IcosahedronGeometry(1, 0), CONE = new THREE.ConeGeometry(1, 1, 7);
+const ICO = share(new THREE.IcosahedronGeometry(1, 0)), CONE = share(new THREE.ConeGeometry(1, 1, 7));
 const tilt = (a, k) => [Math.sin(a) * k, 0, -Math.cos(a) * k];
 const TREE_BUILD = {
   broad(r) {
@@ -268,7 +302,7 @@ const treeCache = {};
 function treeVariants(style) {
   if (treeCache[style]) return treeCache[style];
   const r = mulberry32(style.length * 7919 + 13), arr = [];
-  for (let i = 0; i < 5; i++) arr.push(TREE_BUILD[style](r));
+  for (let i = 0; i < 5; i++) arr.push(share(TREE_BUILD[style](r)));
   return (treeCache[style] = arr);
 }
 /** Árvore: estilo vem do ctx (ctx.treeStyle) ou mistura folhosa/conífera; palm = coqueiro. */
@@ -276,17 +310,17 @@ export function tree(ctx, x, z, collide, sc, palm = false) {
   const rng = ctx.rng, style = palm ? 'palm' : (ctx.treeStyle || (rng() < 0.3 ? 'conifer' : 'broad'));
   const vs = treeVariants(style), m = new THREE.Mesh(vs[Math.floor(rng() * vs.length)], TREE_MAT);
   m.scale.set(sc, sc * (0.9 + rng() * 0.25), sc); m.rotation.y = rng() * 6.28; m.position.set(x, 0, z);
-  m.castShadow = true; ctx.group.add(m);
+  tier(m, collide ? 'near' : 'far'); ctx.group.add(m);
   if (collide) ctx.circles.push({ x, z, r: 0.45 * sc, h: 6 });
 }
-const rockGeo = new THREE.DodecahedronGeometry(1, 0);
+const rockGeo = share(new THREE.DodecahedronGeometry(1, 0));
 export function rock(ctx, x, z, s, collide = true) {
   const rng = ctx.rng, m = new THREE.Mesh(rockGeo, MATS.rock); m.scale.set(s, s * 0.7, s);
   m.position.set(x, s * 0.45, z); m.rotation.set(rng() * 3, rng() * 3, rng() * 3);
-  m.castShadow = m.receiveShadow = true; ctx.group.add(m); if (collide) ctx.circles.push({ x, z, r: s * 0.9, h: s * 1.1 });
+  m.receiveShadow = true; tier(m, collide ? 'near' : s < 0.8 ? 'small' : 'far'); ctx.group.add(m); if (collide) ctx.circles.push({ x, z, r: s * 0.9, h: s * 1.1 });
 }
-const FLAT = new THREE.PlaneGeometry(1, 1);
-const puddleMat = new THREE.MeshStandardMaterial({ color: 0x05080a, roughness: 0.03, metalness: 0.35, transparent: true, opacity: 0.85, alphaMap: SPLAT, depthWrite: false, bumpMap: rip(1, 1), bumpScale: 0.5, polygonOffset: true, polygonOffsetFactor: -2 });
+const FLAT = share(new THREE.PlaneGeometry(1, 1));
+const puddleMat = share(new THREE.MeshStandardMaterial({ color: 0x05080a, roughness: 0.03, metalness: 0.35, transparent: true, opacity: 0.85, alphaMap: SPLAT, depthWrite: false, bumpMap: rip(1, 1), bumpScale: 0.5, polygonOffset: true, polygonOffsetFactor: -2 }));
 /** Chão texturizado + manchas de terra/musgo + poças brilhantes (instanciadas: 1 draw call cada). */
 export function ground(ctx, b, tex, extra = 30, opts = {}) {
   const w = b.maxX - b.minX + extra * 2, d = b.maxZ - b.minZ + extra * 2;
@@ -355,11 +389,11 @@ export function pool(ctx, x, z, w, d, mat = MATS.water) {
   rim.rotation.x = -Math.PI / 2; rim.position.set(x, 0.015, z); rim.scale.set(w * 1.5, d * 1.5, 1); ctx.group.add(rim);
   ctx.water.push({ minX: x - w / 2, maxX: x + w / 2, minZ: z - d / 2, maxZ: z + d / 2 });
 }
-const postGeo = new THREE.CylinderGeometry(0.06, 0.09, 3, 6), bulbGeo = new THREE.SphereGeometry(0.14, 8, 6);
-const lampConeGeo = new THREE.ConeGeometry(1, 1, 16, 1, true); lampConeGeo.translate(0, -0.5, 0);
+const postGeo = share(new THREE.CylinderGeometry(0.06, 0.09, 3, 6)), bulbGeo = share(new THREE.SphereGeometry(0.14, 8, 6));
+const lampConeGeo = share(new THREE.ConeGeometry(1, 1, 16, 1, true)); lampConeGeo.translate(0, -0.5, 0);
 /** Poste com luz e cone de luz volumétrico. mode: flicker | pulse (alarme) | steady | fire. Máx. 6 luzes reais por área. */
 export function lamp(ctx, x, z, color, mode = 'flicker', base = 22, h = 3) {
-  const post = new THREE.Mesh(postGeo, MATS.post); post.scale.y = h / 3; post.position.set(x, h / 2, z); post.castShadow = true; ctx.group.add(post);
+  const post = new THREE.Mesh(postGeo, MATS.post); post.scale.y = h / 3; post.position.set(x, h / 2, z); tier(post, 'mid'); ctx.group.add(post);
   const plate = boxMesh(MATS.dark, 0.35, 0.12, 0.35); plate.position.set(x, 0.06, z); ctx.group.add(plate);
   const hood = new THREE.Mesh(new THREE.ConeGeometry(0.3, 0.22, 8, 1, true), MATS.post); hood.position.set(x, h + 0.08, z); ctx.group.add(hood);
   const bulbMat = new THREE.MeshBasicMaterial({ color });
@@ -367,23 +401,25 @@ export function lamp(ctx, x, z, color, mode = 'flicker', base = 22, h = 3) {
   const halo = glowSprite(color, 1.9); halo.position.copy(bulb.position); ctx.group.add(halo);
   const cone = new THREE.Mesh(lampConeGeo, new THREE.MeshBasicMaterial({ map: BEAM_TEX, color, transparent: true, opacity: 0.08, blending: THREE.AdditiveBlending, depthWrite: false, side: THREE.DoubleSide }));
   cone.position.set(x, h - 0.05, z); cone.scale.set(h * 0.75, h, h * 0.75); ctx.group.add(cone);
-  const L = { x, y: h - 0.1, z, color, mode, base, halo, cone, bulb, t: ctx.rng() * 10, on: true, snap: 0, boost: 0 };
+  const L = { x, y: h - 0.1, z, color, mode, base, halo, cone, bulb, t: ctx.rng() * 10, seed: lampSeed(x, z), on: true, snap: 0, boost: 0, k: -1 };
   ctx.lamps.push(L); return L;
 }
+// semente determinística por posição (não consome o rng da área → layout idêntico ao reconstruir)
+const lampSeed = (x, z) => { const v = Math.sin(x * 12.9898 + z * 78.233) * 43758.5453; return (v - Math.floor(v)) * 100; };
 /** Fogo (destroços em chamas): só luz/halo, sem poste. */
 export function fireLight(ctx, x, z, y = 0.8, base = 26) {
   const halo = glowSprite(0xff7020, 3.2, 0.8); halo.position.set(x, y + 0.4, z); ctx.group.add(halo);
-  const L = { x, y: y + 0.6, z, color: 0xff7a30, mode: 'fire', base, halo, cone: null, bulb: null, t: 0, on: true, snap: 0, boost: 0 };
+  const L = { x, y: y + 0.6, z, color: 0xff7a30, mode: 'fire', base, halo, cone: null, bulb: null, t: 0, seed: lampSeed(x, z), on: true, snap: 0, boost: 0, k: -1 };
   ctx.lamps.push(L); return L;
 }
 /** Prédio com janelas, beiral, equipamentos no teto e porta. opts.power: janelas acendem com a energia. */
 export function building(ctx, x, z, w, d, h, mat = MATS.concrete, lit = 0.3, opts = {}) {
   solid(ctx, x, z, w, d, h, mat);
   const rng = ctx.rng;
-  const ledge = boxMesh(MATS.dark, w + 0.4, 0.3, d + 0.4); ledge.position.set(x, h + 0.15, z); ledge.castShadow = true; ctx.group.add(ledge);
+  const ledge = boxMesh(MATS.dark, w + 0.4, 0.3, d + 0.4); ledge.position.set(x, h + 0.15, z); tier(ledge, 'mid'); ctx.group.add(ledge);
   for (let i = 0; i < 1 + Math.floor(rng() * 2); i++) {
     const u = boxMesh(MATS.metal, 1 + rng() * 1.2, 0.7 + rng() * 0.6, 1 + rng() * 0.8);
-    u.position.set(x + (rng() - 0.5) * (w - 2), h + 0.6, z + (rng() - 0.5) * (d - 2)); u.castShadow = true; ctx.group.add(u);
+    u.position.set(x + (rng() - 0.5) * (w - 2), h + 0.6, z + (rng() - 0.5) * (d - 2)); tier(u, 'small'); ctx.group.add(u);
   }
   const winMat = () => {
     if (rng() >= lit) return MATS.windowDark;
@@ -409,7 +445,7 @@ export function doorway(ctx, side, at, b, label = 'gate') {
   const edge = side === 'N' ? b.minZ : side === 'S' ? b.maxZ : side === 'W' ? b.minX : b.maxX;
   if (isNS) g.position.set(at, 0, edge); else { g.position.set(edge, 0, at); g.rotation.y = Math.PI / 2; }
   const inward = side === 'N' || side === 'W' ? 1 : -1;
-  const pL = boxMesh(MATS.hazard, 0.5, hgt, 0.5); pL.position.set(-span / 2, hgt / 2, 0); pL.castShadow = true;
+  const pL = boxMesh(MATS.hazard, 0.5, hgt, 0.5); pL.position.set(-span / 2, hgt / 2, 0); tier(pL, 'mid');
   const pR = pL.clone(); pR.position.x = span / 2; const top = boxMesh(MATS.metal, span + 0.6, 0.5, 0.55); top.position.y = hgt;
   const stripe = boxMesh(MATS.stripe, span, 0.12, 0.6); stripe.position.y = hgt - 0.35;
   const plate = boxMesh(MATS.post, span, 0.05, 1.4); plate.position.y = 0.025;
@@ -439,7 +475,7 @@ export function doorSign(ref, text, sub = '') {
 /** Terminal de computador (salvar / controle). Retorna o material da tela para piscar. */
 export function terminal(ctx, x, z, yaw, color = 0x40ff90) {
   const g = new THREE.Group(); g.position.set(x, 0, z); g.rotation.y = yaw;
-  const base = boxMesh(MATS.metal, 0.9, 1.1, 0.6); base.position.y = 0.55; base.castShadow = true; g.add(base);
+  const base = boxMesh(MATS.metal, 0.9, 1.1, 0.6); base.position.y = 0.55; tier(base, 'mid'); g.add(base);
   const vent = boxMesh(MATS.dark, 0.7, 0.3, 0.02); vent.position.set(0, 0.35, 0.31); g.add(vent);
   const kb = boxMesh(MATS.dark, 0.8, 0.06, 0.3); kb.position.set(0, 1.12, 0.3); kb.rotation.x = 0.2; g.add(kb);
   const head = boxMesh(MATS.dark, 0.9, 0.7, 0.5); head.position.set(0, 1.5, -0.05); head.rotation.x = -0.25; g.add(head);
@@ -453,7 +489,7 @@ export function terminal(ctx, x, z, yaw, color = 0x40ff90) {
 /** Registro achável (tablet num suporte, tela ciano piscando). */
 export function datapad(ctx, x, z, yaw = 0) {
   const g = new THREE.Group(); g.position.set(x, 0, z); g.rotation.y = yaw;
-  const stand = boxMesh(MATS.metal, 0.55, 0.75, 0.42); stand.position.y = 0.375; stand.castShadow = true; g.add(stand);
+  const stand = boxMesh(MATS.metal, 0.55, 0.75, 0.42); stand.position.y = 0.375; tier(stand, 'small'); g.add(stand);
   const pad = boxMesh(MATS.dark, 0.5, 0.04, 0.36); pad.position.set(0, 0.8, 0); pad.rotation.x = 0.35; g.add(pad);
   const screenMat = new THREE.MeshBasicMaterial({ color: 0x60e0ff, map: SCREEN_TEX });
   const scr = boxMesh(screenMat, 0.42, 0.01, 0.28); scr.position.set(0, 0.825, 0.01); scr.rotation.x = 0.35; g.add(scr);
@@ -512,16 +548,17 @@ export function helicopter(wreck = false) {
 }
 
 // ---------- vaga-lumes / chuva (globais, ligados por clima) ----------
+// Buffers alocados no MÁXIMO (Alto); a qualidade só muda quantos são desenhados/atualizados (setDrawRange).
 const FF = FX.FIREFLIES, ffSets = [];
 for (let s = 0; s < 2; s++) {
   const n = Math.floor(FF / 2), geo = new THREE.BufferGeometry(), pos = new Float32Array(n * 3), seed = [];
   for (let i = 0; i < n; i++) { pos[i * 3] = (Math.random() * 2 - 1) * 26; pos[i * 3 + 1] = 0.4 + Math.random() * 3.2; pos[i * 3 + 2] = (Math.random() * 2 - 1) * 26; seed.push(Math.random() * 10); }
   geo.setAttribute('position', new THREE.BufferAttribute(pos, 3));
   const pts = new THREE.Points(geo, new THREE.PointsMaterial({ color: 0xc8ff70, size: 0.16, map: GLOW, transparent: true, blending: THREE.AdditiveBlending, depthWrite: false }));
-  scene.add(pts); ffSets.push({ pts, geo, n, seed, phase: s * Math.PI });
+  scene.add(pts); ffSets.push({ pts, geo, n, max: n, seed, phase: s * Math.PI });
 }
 
-const RN = FX.RAIN;
+const RN = FX.RAIN; let rainN = RN;
 const rainPos = new Float32Array(RN * 6);
 const rainGeo = new THREE.BufferGeometry(); rainGeo.setAttribute('position', new THREE.BufferAttribute(rainPos, 3));
 const rainVel = new Float32Array(RN);
@@ -589,19 +626,88 @@ export function activateArea(area, prev) {
   if (area.ctx.groundMat) area.ctx.groundMat.roughness = 1 - 0.5 * wet;
   ffSets.forEach((f) => { f.pts.visible = !!M.fireflies; f.pts.material.color.setHex(M.fireflyCol ?? 0xc8ff70); });
   curLamps = area.ctx.lamps;
-  lampLights.forEach((l, i) => {
-    const L = curLamps[i];
-    if (L) { l.color.setHex(L.color); l.position.set(L.x, L.y, L.z); l.distance = L.dist || 16; }
-    else { l.intensity = 0; l.position.set(0, -50, 0); }
-  });
+  lampSlot.fill(-1); assignLamps(true);
   spots.forEach((S, i) => { S.cfg = (M.spots || [])[i] || null; S.override = null; });
   bossGlow(null);
   atmo.lightning = 0; atmo.nextBolt = rand(6, 14);
 }
 
+// ---------- pool de luzes das lâmpadas: as N mais próximas da câmera ficam com as luzes reais ----------
+const hash01 = (n) => { const v = Math.sin(n * 127.1 + 311.7) * 43758.5453; return v - Math.floor(v); };
+const lampSlot = new Array(LAMP_POOL).fill(-1);
+let assignT = 0;
+const _order = [];
+function assignLamps(force) {
+  const N = Math.min(LAMP_POOL, quality.p.lamps), n = curLamps.length;
+  _order.length = 0;
+  for (let i = 0; i < n; i++) _order.push(i);
+  if (n > N) {
+    const cx = camera.position.x, cz = camera.position.z;
+    const score = (i) => { const L = curLamps[i]; return (L.on ? 0 : 1e6) + (L.x - cx) ** 2 + (L.z - cz) ** 2; };
+    _order.sort((a, b) => score(a) - score(b));
+  }
+  for (let j = 0; j < LAMP_POOL; j++) {
+    const idx = j < N && j < n ? _order[j] : -1, l = lampLights[j];
+    if (!force && lampSlot[j] === idx) continue;
+    // lâmpada já atribuída em outro slot? (só reordena quando necessário)
+    lampSlot[j] = idx;
+    if (idx < 0) { l.intensity = 0; l.position.set(0, -50, 0); continue; }
+    const L = curLamps[idx];
+    l.color.setHex(L.color); l.position.set(L.x, L.y, L.z); l.distance = (L.dist || 16) * quality.p.lampDist;
+  }
+}
+
+/**
+ * Aplica a predefinição de qualidade ao renderizador e à cena. Mudanças que trocam o número
+ * de luzes ou o tipo de sombra forçam recompilar shaders — por isso só acontecem aqui (troca de qualidade).
+ */
+export function applyQuality(p = quality.p) {
+  renderer.setPixelRatio(pixelRatio()); renderer.setSize(innerWidth, innerHeight);
+  const type = p.softShadows ? THREE.PCFSoftShadowMap : THREE.BasicShadowMap;
+  let recompile = false;
+  if (renderer.shadowMap.type !== type) { renderer.shadowMap.type = type; recompile = true; }
+  if (moon.shadow.mapSize.x !== p.shadowSize) {
+    moon.shadow.mapSize.set(p.shadowSize, p.shadowSize);
+    if (moon.shadow.map) { moon.shadow.map.dispose(); moon.shadow.map = null; }
+  }
+  lampLights.forEach((l, i) => { const v = i < p.lamps; if (l.visible !== v) { l.visible = v; recompile = true; } });
+  spots.forEach((S, i) => { const v = i < p.spots; if (S.l.visible !== v) { S.l.visible = v; recompile = true; } if (!v) { S.beam.visible = S.head.visible = false; } });
+  rainN = Math.min(RN, p.rain); rainGeo.setDrawRange(0, rainN * 2);
+  const ffPer = Math.floor(Math.min(FF, p.fireflies) / 2);
+  ffSets.forEach((f) => { f.n = Math.min(f.max, ffPer); f.geo.setDrawRange(0, f.n); });
+  applyShadowTiers(scene);
+  if (recompile) { scene.traverse((o) => { const m = o.material; if (m) (Array.isArray(m) ? m : [m]).forEach((x) => { x.needsUpdate = true; }); }); for (const fn of extraMats) fn(); }
+  assignLamps(true);
+  return recompile;
+}
+const extraMats = [];
+/** Materiais fora da cena (ex.: inimigos no pool) que precisam de needsUpdate ao trocar sombra/luzes. */
+export function onMaterialsReset(fn) { extraMats.push(fn); }
+onQuality((p) => applyQuality(p));
+
+// ---------- descarte de áreas (streaming) ----------
+/** Descarta geometrias/materiais/texturas de um grupo, poupando os recursos compartilhados. */
+export function disposeGroup(root) {
+  const geos = new Set(), mats = new Set(), texs = new Set();
+  root.traverse((o) => {
+    if (o.isInstancedMesh) o.dispose();
+    if (o.geometry && !o.isSprite && !isShared(o.geometry)) geos.add(o.geometry);
+    const m = o.material; if (!m) return;
+    for (const x of Array.isArray(m) ? m : [m]) {
+      if (isShared(x)) continue;
+      mats.add(x);
+      for (const k of ['map', 'bumpMap', 'alphaMap', 'emissiveMap', 'normalMap', 'roughnessMap']) if (x[k] && !isShared(x[k])) texs.add(x[k]);
+    }
+  });
+  if (root.parent) root.parent.remove(root);
+  geos.forEach((g) => g.dispose()); mats.forEach((m) => m.dispose()); texs.forEach((t) => t.dispose());
+  return { geos: geos.size, mats: mats.size, texs: texs.size };
+}
+
 function updateSpots(dt) {
   for (const S of spots) {
     const o = S.override, c = S.cfg;
+    if (!S.l.visible) continue;
     if (!o && !c) { S.l.intensity = 0; S.beam.visible = S.head.visible = false; continue; }
     S.t += dt;
     let px, py, pz, tx, tz, col, inten, ang;
@@ -620,23 +726,30 @@ function updateSpots(dt) {
 
 /** Anima luzes, vaga-lumes, chuva, relâmpagos, água, holofotes e névoa da área atual. */
 export function updateWorld(dt) {
-  curLamps.forEach((L, i) => {
-    L.t += dt; let k = 0.8 + Math.random() * 0.2;
+  // tremulação DETERMINÍSTICA (seno + semente por lâmpada) — sem Math.random por quadro
+  for (const L of curLamps) {
+    L.t += dt; const t = L.t, sd = L.seed;
+    let k = 0.9 + 0.1 * Math.sin(t * 11.3 + sd) * Math.sin(t * 3.7 + sd * 1.3);
     if (!L.on) k = 0;
-    else if (L.mode === 'pulse') k = 0.5 + 0.5 * Math.sin(L.t * 4);
+    else if (L.mode === 'pulse') k = 0.5 + 0.5 * Math.sin(t * 4);
     else if (L.mode === 'steady') k = 1;
-    else if (L.mode === 'fire') k = 0.65 + 0.25 * Math.sin(L.t * 9) + Math.random() * 0.3;
-    else if (Math.sin(L.t * 1.7) > 0.97) k = Math.random() < 0.5 ? 0 : k;
-    if (L.on && L.snap > 0) { L.snap -= dt; k = Math.random() < 0.45 ? 0 : 1.6; } // lâmpadas "estalando" ao ligar
+    else if (L.mode === 'fire') k = 0.8 + 0.25 * Math.sin(t * 9) + 0.15 * Math.sin(t * 23 + sd) * Math.sin(t * 6.1 + sd * 0.7);
+    else if (Math.sin(t * 1.7) > 0.97) k = hash01(Math.floor(t * 14) + sd) < 0.5 ? 0 : k;
+    if (L.on && L.snap > 0) { L.snap -= dt; k = hash01(Math.floor(t * 18) + sd * 3) < 0.45 ? 0 : 1.6; } // lâmpadas "estalando" ao ligar
     if (L.boost > 0) { L.boost = Math.max(0, L.boost - dt * 1.4); k *= 1 + L.boost; }
+    L.k = k;
     L.halo.material.opacity = Math.min(1, 0.7 * k); L.halo.material.color.setHex(L.color);
     if (L.cone) { L.cone.material.opacity = 0.075 * Math.min(k, 1.6); L.cone.material.color.setHex(L.color); }
     if (L.bulb) L.bulb.material.color.setHex(k > 0.05 ? L.color : 0x111111);
-    const l = lampLights[i]; if (!l) return;
-    l.color.setHex(L.color); l.intensity = L.base * k;
-  });
+  }
+  assignT -= dt; if (assignT <= 0) { assignT = 0.25; assignLamps(false); }
+  for (let j = 0; j < LAMP_POOL; j++) {
+    const l = lampLights[j], L = lampSlot[j] >= 0 ? curLamps[lampSlot[j]] : null;
+    if (!L || !l.visible) { l.intensity = 0; continue; }
+    l.color.setHex(L.color); l.intensity = L.base * Math.max(0, L.k);
+  }
   for (const f of ffSets) {
-    if (!f.pts.visible) continue;
+    if (!f.pts.visible || f.n === 0) continue; // invisível: não atualiza
     const fp = f.geo.attributes.position.array, t = G.time;
     for (let i = 0; i < f.n; i++) { fp[i * 3 + 1] += Math.sin(t * 1.3 + f.seed[i]) * dt * 0.3; fp[i * 3] += Math.cos(t * 0.7 + f.seed[i]) * dt * 0.2; }
     f.geo.attributes.position.needsUpdate = true;
@@ -644,7 +757,7 @@ export function updateWorld(dt) {
   }
   if (rain.visible) {
     const cx = camera.position.x, cz = camera.position.z;
-    for (let i = 0; i < RN; i++) {
+    for (let i = 0; i < rainN; i++) {
       const o = i * 6; let y = rainPos[o + 1] - rainVel[i] * dt;
       let x = rainPos[o], z = rainPos[o + 2];
       if (y < 0 || Math.abs(x - cx) > 22 || Math.abs(z - cz) > 22) {
@@ -655,7 +768,7 @@ export function updateWorld(dt) {
       }
       rainPos[o] = x; rainPos[o + 1] = y; rainPos[o + 2] = z; rainPos[o + 3] = x + 0.05; rainPos[o + 4] = y + 0.5; rainPos[o + 5] = z + 0.02;
     }
-    rainGeo.attributes.position.needsUpdate = true;
+    rainGeo.attributes.position.needsUpdate = true; rainGeo.attributes.position.clearUpdateRanges?.(); rainGeo.attributes.position.addUpdateRange?.(0, rainN * 6);
     for (let i = 0; i < SPL; i++) if (splAge[i] > 0) { splAge[i] -= dt; if (splAge[i] <= 0) splPos[i * 3 + 1] = -50; else splPos[i * 3 + 1] += dt * 0.6; }
     splGeo.attributes.position.needsUpdate = true;
   }
