@@ -1,4 +1,4 @@
-// main.js — inicialização, máquina de estados (menu/play/pause/over/win) e laço principal.
+// main.js — inicialização, máquina de estados (menu/story/play/pause/over/win) e laço principal.
 // A progressão (áreas, portas, eventos, chefe) fica em director.js.
 import * as THREE from 'three';
 import { renderer, scene, camera, boxes, updateWorld, atmo } from './world.js';
@@ -11,7 +11,9 @@ import { enemies, spawnEnemy, updateEnemies, clearEnemies } from './enemies.js';
 import { fire, throwGrenade, updateCombat, clearPickups, pickups, damageEnemy } from './combat.js';
 import { updateSurvivor, hideSurvivor, survivor } from './npc.js';
 import { buildAreas } from './areas.js';
-import { D, startCampaign, updateDirector, hudData, interact, hasSave, setWinHandler, endStats, currentObjective, debugGoto } from './director.js';
+import { D, startCampaign, updateDirector, updateHeli, hudData, interact, hasSave, setWinHandler, endStats, currentObjective, debugGoto } from './director.js';
+import * as story from './story.js';
+import { initPost, render, toggleBloom, post } from './post.js';
 import * as ui from './ui.js';
 import { $ } from './utils.js';
 
@@ -27,7 +29,9 @@ function startGame(fromSave) {
   ui.showScreen('hud'); ui.toggleMap(false); ui.setFade(0);
   setState('play');
   startCampaign(fromSave);
-  lockPointer();
+  // novo jogo: introdução (barco, rádio, missão) — clique/Espaço avança, Enter pula
+  if (!fromSave) story.showCard(story.INTRO, () => story.say(story.LINES.enter_porto, 'enter_porto'), { full: true, cinematic: true });
+  else lockPointer();
 }
 function endGame(win) {
   if (G.state !== 'play') return;
@@ -35,6 +39,11 @@ function endGame(win) {
   if (win) { ui.banner('RESGATE!', 'O helicóptero pousa no penhasco', 3); sfx.win(); }
 }
 function showEnd() {
+  // vitória: epílogo (muda conforme os registros encontrados) antes da tela de pontos
+  if (G.state === 'win' && !story.cardOpen()) { story.clearSpeech(); story.showCard(story.epilogue(), finishEnd, { full: true }); return; }
+  finishEnd();
+}
+function finishEnd() {
   const win = G.state === 'win'; unlockPointer();
   const newBest = win ? saveBest() : false;
   ui.setHasSave(hasSave());
@@ -49,7 +58,7 @@ function setPause(p) {
   }
 }
 function toMenu() {
-  setState('menu'); clearEnemies(); clearPickups(); clearFx(); ui.clearFloaters(); ui.clearMessages(); hideSurvivor(); resetPlayer(); ui.setFade(0);
+  setState('menu'); story.clearSpeech(); clearEnemies(); clearPickups(); clearFx(); ui.clearFloaters(); ui.clearMessages(); hideSurvivor(); resetPlayer(); ui.setFade(0);
   ui.setHasSave(hasSave()); ui.showScreen('menu'); unlockPointer();
 }
 events.onDeath = () => endGame(false);
@@ -58,6 +67,12 @@ setWinHandler(() => endGame(true));
 // ---------- entrada ----------
 initInput(renderer.domElement, {
   onKey(code) {
+    if (G.state === 'story') {
+      if (code === 'Space' || code === 'KeyE') story.advanceCard();
+      else if (code === 'Enter' || code === 'Escape') story.skipCard();
+      return;
+    }
+    if (code === 'KeyB') { ui.feed(ui.STR.bloom(toggleBloom()), '#cde'); return; }
     if (G.state === 'play') {
       if (code === 'KeyR') startReload();
       if (code === 'Digit1') switchWeapon(0);
@@ -82,6 +97,7 @@ $('continueBtn').onclick = () => startGame(true);
 $('restartBtn').onclick = () => startGame(false);
 $('continueEndBtn').onclick = () => startGame(true);
 $('resumeBtn').onclick = () => setPause(false);
+$('story').addEventListener('mousedown', (e) => { if (e.button === 0) story.advanceCard(); });
 $('quitBtn').onclick = toMenu;
 atmo.onThunder = (delay) => sfx.thunder(delay);
 
@@ -90,6 +106,7 @@ const clock = new THREE.Clock();
 function update(dt) {
   G.time += dt;
   updateWorld(dt);
+  story.updateStory(dt);
   if (G.state === 'play' || G.state === 'over' || G.state === 'win') {
     if (G.state === 'play') G.elapsed += dt;
     updatePlayer(dt);
@@ -97,6 +114,7 @@ function update(dt) {
     updateEnemies(dt);
     updateSurvivor(dt);
     updateCombat(dt);
+    updateHeli(dt);
     if (G.state === 'play') updateDirector(dt);
     else { endT -= dt; if (endT <= 0) showEnd(); }
   }
@@ -107,19 +125,21 @@ function loop() {
   requestAnimationFrame(loop);
   const dt = Math.min(clock.getDelta(), 0.05);
   if (G.state !== 'pause') update(dt);
-  if (G.state === 'menu') menuCamera(dt); else if (G.state !== 'pause') updateCamera(dt);
+  if (G.state === 'menu' || story.cinematic()) menuCamera(dt); else if (G.state !== 'pause') updateCamera(dt);
   const h = D.area ? hudData() : EMPTY;
   ui.updateHUD(dt, {
     camera, player, weapon: curWeapon(), reloading: arms.reloading, reloadTotal: arms.reloadTotal, moving: player.moving,
-    enemies, pickups, boxes, lightning: atmo.lightning, bag, ...h,
+    enemies, pickups, boxes, lightning: atmo.lightning, haze: atmo.haze, bag, ...h,
   });
-  renderer.render(scene, camera);
+  render(renderer, scene, camera, dt);
 }
 
 // tela de menu: mostra o cais ao fundo
 startCampaign(false); clearEnemies(); hideSurvivor(); G.state = 'menu';
 ui.initUI(hasSave());
 ui.showScreen('menu');
+post.onAuto = () => ui.feed(ui.STR.bloomAuto, '#cde');
+initPost(renderer, scene, camera);
 loop();
 
 // gancho de depuração/testes automatizados
@@ -127,5 +147,5 @@ window.__game = {
   get state() { return G.state; }, get hp() { return player.hp; }, get area() { return D.area && D.area.id; },
   get enemies() { return enemies.length; }, get objective() { return currentObjective(); },
   get flags() { return D.flags; }, D, list: enemies, damageEnemy, player, bag, survivor, G, startGame, fire, spawnEnemy, interact, throwGrenade,
-  goto: (id) => debugGoto(id),
+  goto: (id) => debugGoto(id), story, post,
 };

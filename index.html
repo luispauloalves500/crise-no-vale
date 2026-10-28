@@ -4,28 +4,36 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width,initial-scale=1">
   <title>Crise no Vale — ação e sobrevivência em terceira pessoa</title>
-  <meta name="description" content="Jogo de ação e sobrevivência por áreas em Three.js, inspirado em Dino Crisis 2. Geometria low-poly procedural.">
+  <meta name="description" content="Jogo de ação e sobrevivência por áreas em Three.js, com história original. Geometria low-poly e texturas procedurais.">
   <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 16 16%22%3E%3Ccircle cx=%228%22 cy=%228%22 r=%227%22 fill=%22%23243%22/%3E%3Cpath d=%22M8 3v10M3 8h10%22 stroke=%22%239f6%22 stroke-width=%221.5%22/%3E%3C/svg%3E">
   <link rel="stylesheet" href="css/main.css">
   <link rel="stylesheet" href="css/hud.css">
   <!-- Three.js via import map (CDN jsDelivr, versão fixada) -->
   <script type="importmap">
-  { "imports": { "three": "https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js" } }
+  { "imports": {
+      "three": "https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js",
+      "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/"
+  } }
   </script>
   <script type="module" src="js/main.js"></script>
 </head>
 <body>
   <div id="dark"></div>
+  <div id="haze"></div>
+  <div id="grain"></div>
   <div id="vign"></div>
   <div id="flashScreen"></div>
+  <div id="powerFlash"></div>
 
   <!-- ===== HUD ===== -->
   <div id="hud">
     <div id="tl" class="panel">
       <div id="zone" class="t">CAIS DO PORTO</div>
       <div id="obj">Objetivo</div>
+      <div id="obj2"></div>
       <canvas id="minimap" width="150" height="104"></canvas>
       <div class="small-line">Pontos: <b id="score">0</b> <span id="combo"></span> <span class="k">• Tab: mapa</span></div>
+      <div class="small-line">Registros: <b id="logs">0/7</b></div>
     </div>
 
     <div id="radarWrap">
@@ -64,19 +72,27 @@
     <div id="countdown"></div>
     <div id="prompt"></div>
     <div id="feed"></div>
-    <div id="hint">WASD mover • Mouse mirar • Clique atirar • Botão dir. mirar • R recarregar • 1/2/Q arma • G granada • H kit médico • E interagir • Tab mapa • Shift correr • P/Esc pausar</div>
+    <div id="speech"></div>
+    <div id="hint">WASD mover • Mouse mirar • Clique atirar • Botão dir. mirar • R recarregar • 1/2/Q arma • G granada • H kit médico • E interagir/ler • Tab mapa • Shift correr • B bloom • P/Esc pausar</div>
 
     <div id="mapOv"><div class="box"><h2>MAPA DO VALE</h2><canvas id="bigmap" width="520" height="420"></canvas>
       <div class="small">Verde: área atual • Cinza: não visitada • Cadeado: porta trancada • Tab fecha</div></div></div>
   </div>
   <div id="fade"></div>
 
+  <!-- ===== CARTÃO DE HISTÓRIA (intro, registros, epílogo) ===== -->
+  <div id="story"><div class="card">
+    <div id="stKicker"></div><h2 id="stTitle"></h2><div id="stWho"></div>
+    <p id="stBody"></p><div id="stFoot"></div>
+  </div></div>
+
   <!-- ===== MENU ===== -->
   <div id="menu" class="ov"><div class="box">
     <h1>CRISE NO VALE</h1>
-    <div class="sub">AÇÃO E SOBREVIVÊNCIA EM TERCEIRA PESSOA • INSPIRADO EM DINO CRISIS 2</div>
-    <p>A estação de pesquisa Vale Verde caiu. Você chega pelo cais, à noite, sob chuva.
-       Atravesse as ruínas, <b>restaure a energia</b>, resgate a <b>Dra. Lima</b> e alcance o <b>heliponto</b> — algo enorme espera lá em cima.</p>
+    <div class="sub">AÇÃO E SOBREVIVÊNCIA EM TERCEIRA PESSOA • HISTÓRIA ORIGINAL</div>
+    <p>Há três dias a Estação de Pesquisa Vale Verde, da Fundação Tellus, pediu socorro — e ficou em silêncio.
+       Como a agente <b>Marina Rocha</b>, você desembarca no cais sob a tempestade. Atravesse as ruínas, <b>restaure a energia</b>,
+       resgate a <b>Dra. Helena Lima</b> e descubra o que o <b>Projeto RAIZ</b> acordou. Algo enorme espera no heliponto.</p>
     <table class="keys">
       <tr><td>W A S D</td><td>Mover (relativo à câmera) • Shift correr</td></tr>
       <tr><td>Mouse</td><td>Olhar e mirar • Clique/Espaço atirar • Botão direito zoom</td></tr>
@@ -84,13 +100,13 @@
       <tr><td>1 / 2 / Q</td><td>Pistola / Escopeta (encontre-a) / Alternar</td></tr>
       <tr><td>G</td><td>Arremessar granada</td></tr>
       <tr><td>H</td><td>Usar kit médico</td></tr>
-      <tr><td>E</td><td>Interagir (terminais, gerador, sobrevivente)</td></tr>
+      <tr><td>E</td><td>Interagir (terminais, gerador, sobrevivente, registros)</td></tr>
       <tr><td>Tab</td><td>Mapa das áreas</td></tr>
-      <tr><td>V • M • P/Esc</td><td>Trocar ombro • Som • Pausar</td></tr>
+      <tr><td>V • M • B • P/Esc</td><td>Trocar ombro • Som • Bloom • Pausar</td></tr>
     </table>
     <p class="foes">Inimigos: <b class="c-raptor">Raptor</b> (bote rápido) •
       <b class="c-spitter">Cuspidor</b> (ácido de longe) • <b class="c-brute">Bruto</b> (investida) • <b class="c-boss">Colosso</b> (???)<br>
-      <b class="c-save">Terminais verdes</b> salvam o progresso e restauram a vida.</p>
+      <b class="c-save">Terminais verdes</b> salvam o progresso e restauram a vida. <b class="c-log">Tablets azuis</b> guardam os 7 registros da estação.</p>
     <button id="startBtn" disabled>CARREGANDO…</button>
     <div><button id="continueBtn" class="ghost hidden">CONTINUAR DO ÚLTIMO TERMINAL</button></div>
     <div id="best" class="small"></div>
