@@ -11,15 +11,20 @@ canvas#game{display:block;position:fixed;inset:0}
 #dark{position:fixed;inset:0;pointer-events:none;
   background:radial-gradient(ellipse at center,rgba(0,0,0,0) 55%,rgba(0,0,0,.55) 100%)}
 #flashScreen{position:fixed;inset:0;pointer-events:none;background:#cfe0ff;opacity:0}
+#fade{position:fixed;inset:0;pointer-events:none;background:#000;opacity:0;z-index:5}
 
 /* painéis do HUD */
 #hud{position:fixed;inset:0;pointer-events:none;display:none}
 #hud.on{display:block}
 .panel{position:absolute;background:rgba(5,12,8,.62);border:1px solid rgba(140,200,140,.25);
   border-radius:6px;padding:10px 14px;text-shadow:0 1px 2px #000}
-#tl{top:14px;left:14px;min-width:190px}
-#tl .t{font-size:13px;letter-spacing:3px;color:#9fd38f;font-weight:bold}
-#tl div{font-size:15px;margin-top:4px}
+#tl{top:14px;left:14px;width:250px}
+#tl .t{font-size:14px;letter-spacing:3px;color:#9fd38f;font-weight:bold}
+#tl #obj{font-size:14px;margin-top:4px;color:#f0d68a;line-height:1.3}
+#tl #obj:before{content:'▸ ';color:#9fd38f}
+#tl .small-line{font-size:13px;margin-top:4px}
+#tl .k{color:#789;font-size:11px}
+#minimap{display:block;margin-top:6px}
 #bl{bottom:14px;left:14px;width:280px}
 #br{bottom:14px;right:14px;text-align:right;min-width:210px}
 .lbl{font-size:12px;letter-spacing:2px;color:#9fb79a}
@@ -37,7 +42,7 @@ canvas#game{display:block;position:fixed;inset:0}
 .box .sub{color:#8fb08a;letter-spacing:2px;font-size:14px;margin:6px 0 16px}
 .box p{line-height:1.5;color:#c8d6c4}
 .foes{font-size:14px}
-.c-raptor{color:#e0a050}.c-spitter{color:#8fe070}.c-brute{color:#e05a4a}.c-med{color:#f66}.c-ammo{color:#ec5}
+.c-boss{color:#ff6aff}.c-save{color:#60ff90}.c-raptor{color:#e0a050}.c-spitter{color:#8fe070}.c-brute{color:#e05a4a}.c-med{color:#f66}.c-ammo{color:#ec5}
 table.keys{margin:10px auto;border-collapse:collapse;font-size:15px;text-align:left}
 table.keys td{padding:2px 10px}
 table.keys td:first-child{color:#f0d68a;font-weight:bold;text-align:right}
