@@ -1,7 +1,8 @@
 // state.js — estado de execução compartilhado entre módulos (evita imports circulares).
 export const G = {
   state: 'menu',      // menu | play | pause | over | win | ended
-  wave: 0,
+  area: 'porto',      // id da área atual
+  saves: 0,           // vezes que salvou (entra no ranking)
   score: 0,
   kills: 0,
   shots: 0,
@@ -23,3 +24,8 @@ export function saveBest() {
   if (G.score > G.best) { G.best = G.score; try { localStorage.setItem('crise-no-vale-best', String(G.best)); } catch (e) { /* ignore */ } return true; }
   return false;
 }
+
+export const SAVE_KEY = 'crise-no-vale-save';
+export function readSave() { try { const s = localStorage.getItem(SAVE_KEY); return s ? JSON.parse(s) : null; } catch (e) { return null; } }
+export function writeSave(data) { try { localStorage.setItem(SAVE_KEY, JSON.stringify(data)); return true; } catch (e) { return false; } }
+export function clearSave() { try { localStorage.removeItem(SAVE_KEY); } catch (e) { /* ignore */ } }

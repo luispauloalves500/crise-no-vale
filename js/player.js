@@ -1,7 +1,7 @@
 // player.js — personagem (malha low-poly), movimento, vida, armas e câmera em terceira pessoa.
 import * as THREE from 'three';
-import { scene, camera, resolve, castWorld, GLOW } from './world.js';
-import { PLAYER, CAMERA, WEAPONS, COLORS } from './config.js';
+import { scene, camera, resolve, castWorld, inWater, bounds, GLOW } from './world.js';
+import { PLAYER, CAMERA, WEAPONS, COLORS, GRENADE, INVENTORY, PICKUPS } from './config.js';
 import { G } from './state.js';
 import { keys } from './input.js';
 import { sfx, roar } from './audio.js';
@@ -63,9 +63,12 @@ pg.add(torch); const torchT = new THREE.Object3D(); torchT.position.set(0.38, 0.
 export const weapons = WEAPONS.map((w) => ({ ...w, mag: w.size, res: w.startRes }));
 export const arms = { cur: 0, cool: 0, reloading: 0, reloadTotal: 1, flashT: 0 };
 export const curWeapon = () => weapons[arms.cur];
+/** Inventário: armas possuídas, granadas e kits médicos guardados. */
+export const bag = { owned: [true, false], grenades: GRENADE.START, meds: INVENTORY.MED_START };
 
 export function switchWeapon(i) {
   if (i === arms.cur || player.dead) return;
+  if (!bag.owned[i]) { ui.feed('Você ainda não tem: ' + weapons[i].name, '#a09070'); return; }
   arms.cur = i; arms.reloading = 0; arms.cool = 0.25; sfx.swap(); ui.feed(weapons[i].name, '#d8c27a');
   pistolMesh.visible = i === 0; shotgunMesh.visible = i === 1;
 }
@@ -108,11 +111,32 @@ export function hurtPlayer(d, fromX, fromZ, knock) {
   if (player.hp <= 0) { player.dead = true; roar(0.9, 0.4); if (events.onDeath) events.onDeath(); }
 }
 export function heal(n) { player.hp = Math.min(PLAYER.HP, player.hp + n); }
+/** Usa um kit médico do inventário (tecla H). */
+export function useMed() {
+  if (player.dead) return false;
+  if (bag.meds <= 0) { ui.feed('Sem kits médicos', '#a09070'); return false; }
+  if (player.hp >= PLAYER.HP) { ui.feed('Vida já está cheia', '#a09070'); return false; }
+  bag.meds--; heal(PICKUPS.MED_HEAL); sfx.pickup(); ui.feed('+' + PICKUPS.MED_HEAL + ' VIDA (kit médico)', '#ff7070'); return true;
+}
+/** Coloca o jogador num ponto (troca de área / carregar jogo). */
+export function placePlayer(x, z, yaw) {
+  player.pos.set(x, 0, z); player.kx = player.kz = 0; G.yaw = yaw; G.pitch = -0.12;
+  pg.position.set(x, 0, z); pg.rotation.y = yaw; snapCamera();
+}
+export function snapshotBag() {
+  return { owned: [...bag.owned], grenades: bag.grenades, meds: bag.meds, hp: player.hp, cur: arms.cur, ammo: weapons.map((w) => ({ mag: w.mag, res: w.res === Infinity ? -1 : w.res })) };
+}
+export function restoreBag(s) {
+  bag.owned = [...s.owned]; bag.grenades = s.grenades; bag.meds = s.meds; player.hp = PLAYER.HP; // terminal restaura a vida
+  s.ammo.forEach((a, i) => { weapons[i].mag = a.mag; weapons[i].res = a.res < 0 ? Infinity : a.res; });
+  arms.cur = bag.owned[s.cur] ? s.cur : 0; pistolMesh.visible = arms.cur === 0; shotgunMesh.visible = arms.cur === 1;
+}
 
 export function resetPlayer() {
   Object.assign(player, { hp: PLAYER.HP, inv: 0, kx: 0, kz: 0, dead: false, phase: 0, moving: false });
   player.pos.set(0, 0, 0); pg.rotation.set(0, 0, 0); pg.position.set(0, 0, 0); pg.visible = true;
   weapons.forEach((w) => { w.mag = w.size; w.res = w.startRes; });
+  bag.owned = [true, false]; bag.grenades = GRENADE.START; bag.meds = INVENTORY.MED_START;
   arms.cur = 0; arms.cool = 0; arms.reloading = 0; pistolMesh.visible = true; shotgunMesh.visible = false;
   G.yaw = Math.PI; G.pitch = -0.12; G.aiming = false;
   snapCamera();
@@ -129,7 +153,7 @@ export function updatePlayer(dt) {
   const fx = Math.sin(G.yaw), fz = Math.cos(G.yaw), rx = -fz, rz = fx;
   let mx = fx * iz + rx * ix, mz = fz * iz + rz * ix; const ml = Math.hypot(mx, mz);
   const run = (keys.ShiftLeft || keys.ShiftRight) && iz > 0 && !G.aiming;
-  const sp = (run ? PLAYER.RUN : PLAYER.WALK) * (iz < 0 ? PLAYER.BACK_MULT : 1) * (arms.reloading > 0 ? PLAYER.RELOAD_MULT : 1) * (G.aiming ? PLAYER.AIM_MULT : 1);
+  const sp = (run ? PLAYER.RUN : PLAYER.WALK) * (iz < 0 ? PLAYER.BACK_MULT : 1) * (arms.reloading > 0 ? PLAYER.RELOAD_MULT : 1) * (G.aiming ? PLAYER.AIM_MULT : 1) * (inWater(player.pos.x, player.pos.z) ? PLAYER.WATER_MULT : 1);
   if (ml > 0) { mx /= ml; mz /= ml; }
   player.moving = ml > 0; player.running = run && ml > 0;
   player.vx = mx * sp; player.vz = mz * sp;
@@ -154,6 +178,13 @@ export function updatePlayer(dt) {
 const pivot = new THREE.Vector3(0, CAMERA.HEIGHT, 0);
 let camDist = CAMERA.DIST, shoulderCur = CAMERA.SHOULDER, recoil = 0;
 const look = new THREE.Vector3();
+/** Distância até sair do retângulo da área (a câmera não atravessa o muro de borda). */
+function boundRay(ox, oz, dx, dz) {
+  let t = Infinity;
+  if (dx > 1e-4) t = Math.min(t, (bounds.maxX - ox) / dx); else if (dx < -1e-4) t = Math.min(t, (bounds.minX - ox) / dx);
+  if (dz > 1e-4) t = Math.min(t, (bounds.maxZ - oz) / dz); else if (dz < -1e-4) t = Math.min(t, (bounds.minZ - oz) / dz);
+  return Math.max(0, t);
+}
 function snapCamera() { pivot.set(player.pos.x, CAMERA.HEIGHT, player.pos.z); camDist = CAMERA.DIST; recoil = 0; }
 
 export function updateCamera(dt) {
@@ -171,7 +202,7 @@ export function updateCamera(dt) {
   const pitch = G.pitch + recoil;
   const want = G.aiming ? CAMERA.AIM_DIST : CAMERA.DIST;
   const back = Math.cos(pitch) * want;
-  const hit = castWorld(hx, hz, -fx, -fz, back + 0.4, 1.8);
+  const hit = Math.min(castWorld(hx, hz, -fx, -fz, back + 0.4, 1.8), boundRay(hx, hz, -fx, -fz) + 0.6);
   const target = clamp(hit - 0.35, CAMERA.MIN_DIST, back);
   camDist = target < camDist ? damp(camDist, target, 30, dt) : damp(camDist, target, 5, dt);
   const up = -Math.sin(pitch) * want * (camDist / Math.max(back, 0.01));

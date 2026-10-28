@@ -2,28 +2,21 @@
 import * as THREE from 'three';
 import { $, wrapAngle } from './utils.js';
 import { G } from './state.js';
-import { ENEMY_TYPES, PLAYER, COMBO } from './config.js';
+import { ENEMY_TYPES, PLAYER, COMBO, INVENTORY, GRENADE } from './config.js';
+import { AREAS, AREA } from './areas.js';
 
 // ---------- textos (PT-BR) ----------
 export const STR = {
-  start: 'COMEÇAR',
-  wave: (n) => `ONDA ${n}`,
-  waveClear: 'ÁREA LIMPA',
-  waveClearSub: (n) => `Onda ${n} concluída — prepare-se...`,
-  nextIn: (s) => `Próxima onda em ${s}`,
-  winTitle: 'VOCÊ SOBREVIVEU',
-  winBanner: 'Você sobreviveu ao vale!',
+  start: 'NOVO JOGO',
+  winTitle: 'RESGATE CONCLUÍDO',
   loseTitle: 'VOCÊ FOI DEVORADO',
   status: [['ESTÁVEL', '#4c4'], ['CUIDADO', '#ec4'], ['PERIGO', '#f44']],
   reloading: 'RECARREGANDO...',
   pressR: 'PRESSIONE R',
   noAmmo: 'SEM MUNIÇÃO',
   noShells: 'Sem cartuchos! Troque para a pistola (1)',
-  med: (n) => `+${n} Vida (Kit Médico)`,
   ammo: (n) => `+${n} Cartuchos de escopeta`,
   ammoFull: 'Cartuchos no máximo',
-  hpFull: 'Vida cheia',
-  incoming: (name, dir) => `${name.toUpperCase()} se aproximando pelo ${dir}`,
   dirs: ['NORTE', 'NORDESTE', 'LESTE', 'SUDESTE', 'SUL', 'SUDOESTE', 'OESTE', 'NOROESTE'],
   combo: (n) => `x${n}`,
   muted: (m) => (m ? 'Som desligado' : 'Som ligado'),
@@ -42,16 +35,22 @@ export function cardinal(x, z) {
 
 // ---------- elementos ----------
 const el = {};
-['hud', 'menu', 'pause', 'end', 'startBtn', 'restartBtn', 'resumeBtn', 'quitBtn', 'loadErr', 'best', 'hpnum', 'hpfill', 'hpghost', 'status',
-  'wname', 'ammo', 'pips', 'reloadFill', 'reloadTxt', 'wave', 'enemies', 'score', 'combo', 'cross', 'hitmark', 'dmgDir', 'floaters',
+['hud', 'menu', 'pause', 'end', 'startBtn', 'continueBtn', 'continueEndBtn', 'restartBtn', 'resumeBtn', 'quitBtn', 'loadErr', 'best', 'hpnum', 'hpfill', 'hpghost', 'status',
+  'wname', 'ammo', 'pips', 'reloadFill', 'reloadTxt', 'zone', 'obj', 'minimap', 'inv', 'prompt', 'bossbar', 'bossName', 'bossFill', 'meter', 'meterLbl', 'meterFill',
+  'mapOv', 'bigmap', 'fade', 'pauseObj', 'score', 'combo', 'cross', 'hitmark', 'dmgDir', 'floaters',
   'banner', 'bTitle', 'bSub', 'announce', 'countdown', 'feed', 'vign', 'flashScreen', 'endTitle', 'endText', 'radar'].forEach((id) => { el[id] = $(id); });
 export { el };
 
-export function initUI() {
+export function initUI(hasSave) {
   el.loadErr.remove();
   el.startBtn.disabled = false; el.startBtn.textContent = STR.start;
   el.best.textContent = STR.best(G.best);
+  setHasSave(hasSave);
 }
+export function setHasSave(on) { el.continueBtn.classList.toggle('hidden', !on); el.continueEndBtn.classList.toggle('hidden', !on); }
+export function setFade(v) { el.fade.style.opacity = v.toFixed(3); }
+export function toggleMap(on) { el.mapOv.classList.toggle('on', on); if (on) lastMini = -1e9; } // força redesenho imediato
+export const mapOpen = () => el.mapOv.classList.contains('on');
 
 // ---------- telas ----------
 export function showScreen(name) {
@@ -60,16 +59,21 @@ export function showScreen(name) {
   el.end.classList.toggle('hidden', name !== 'end');
   el.hud.classList.toggle('on', name === 'hud' || name === 'pause');
   if (name === 'menu') el.best.textContent = STR.best(G.best);
+  if (name !== 'hud') toggleMap(false);
 }
+export function setPauseText(t) { el.pauseObj.textContent = t; }
 export function showEnd(win, stats, newBest) {
   el.endTitle.textContent = win ? STR.winTitle : STR.loseTitle;
   el.endTitle.style.color = win ? '#cfe9a8' : '#ff7a6a';
   const m = Math.floor(stats.elapsed / 60), s = Math.floor(stats.elapsed % 60);
   el.endText.innerHTML =
+    (win ? 'Você e a Dra. Lima embarcaram no helicóptero. O vale fica para trás.<br><br>' : `Última área: <b>${stats.area}</b><br>`) +
     `Pontos: <b>${stats.score}</b>${newBest ? ` <span style="color:#ffd060">— ${STR.newBest}</span>` : ''}<br>` +
-    `Ondas concluídas: <b>${stats.waves}/${stats.total}</b><br>` +
-    `Dinossauros abatidos: <b>${stats.kills}</b><br>` +
-    `Precisão: <b>${stats.acc}%</b> • Tempo: <b>${m}:${String(s).padStart(2, '0')}</b>`;
+    `Áreas visitadas: <b>${stats.visited}/${stats.total}</b> • Objetivos: <b>${stats.objectives}</b><br>` +
+    `Dinossauros abatidos: <b>${stats.kills}</b> • Saves: <b>${stats.saves}</b><br>` +
+    `Precisão: <b>${stats.acc}%</b> • Tempo: <b>${m}:${String(s).padStart(2, '0')}</b>` +
+    (win ? `<br><br>CLASSIFICAÇÃO: <b style="font-size:28px;color:#ffd060">${stats.rank}</b>` : '');
+  el.continueEndBtn.style.display = win ? 'none' : '';
   showScreen('end');
 }
 
@@ -156,8 +160,18 @@ export function updateHUD(dt, d) {
   el.reloadTxt.textContent = d.reloading > 0 ? STR.reloading : (w.mag === 0 ? (w.res > 0 ? STR.pressR : STR.noAmmo) : '');
   el.reloadFill.style.width = d.reloading > 0 ? (100 * (1 - d.reloading / d.reloadTotal)) + '%' : '0';
 
-  el.wave.textContent = `${G.wave + 1}/${d.wavesTotal}`;
-  el.enemies.textContent = d.enemiesLeft;
+  // área, objetivo, inventário, prompt, chefe, medidor
+  if (el.zone.textContent !== d.area.name) el.zone.textContent = d.area.name;
+  if (el.obj.textContent !== d.objective) el.obj.textContent = d.objective;
+  const invH = `Kits <b>${d.bag.meds}/${INVENTORY.MED_MAX}</b><span class="key">H</span> &nbsp; Granadas <b>${d.bag.grenades}/${GRENADE.MAX}</b><span class="key">G</span>` +
+    (d.bag.owned[1] ? "" : "<br><span style=\"color:#789\">Escopeta: não encontrada</span>");
+  if (el.inv.dataset.k !== invH) { el.inv.dataset.k = invH; el.inv.innerHTML = invH; }
+  const pr = d.prompt ? (d.prompt.locked ? d.prompt.text : `<span class="key">E</span>${d.prompt.text}`) : '';
+  if (el.prompt.dataset.k !== pr) { el.prompt.dataset.k = pr; el.prompt.innerHTML = pr; el.prompt.style.display = pr ? 'block' : 'none'; el.prompt.classList.toggle('locked', !!(d.prompt && d.prompt.locked)); }
+  el.bossbar.style.display = d.boss ? 'block' : 'none';
+  if (d.boss) { el.bossName.textContent = d.boss.cfg.name.toUpperCase() + (d.boss.stun > 0 ? ' — ATORDOADO!' : ''); el.bossFill.style.width = Math.max(0, 100 * d.boss.hp / d.boss.maxHp) + '%'; }
+  el.meter.style.display = d.meter ? 'block' : 'none';
+  if (d.meter) { el.meterLbl.textContent = d.meter.label; el.meterFill.style.width = (100 * d.meter.k) + '%'; }
   el.score.textContent = G.score;
   el.combo.textContent = G.combo > 1 ? STR.combo(Math.min(G.combo, COMBO.MAX)) : '';
 
@@ -177,11 +191,47 @@ export function updateHUD(dt, d) {
   if (cdT > 0) { cdT -= dt; el.countdown.style.opacity = Math.min(1, cdT * 2); }
 
   drawRadar(d);
+  if (d.mapDirty || G.time - lastMini > 0.5) { lastMini = G.time; drawAreaMap(el.minimap, d, 1); if (mapOpen()) drawAreaMap(el.bigmap, d, 2.8); }
+}
+let lastMini = -1;
+
+// ---------- mapa esquemático das áreas (mini no HUD e grande com Tab) ----------
+const MAPC = { visited: 'rgba(110,150,110,.55)', unknown: 'rgba(70,80,75,.35)', cur: 'rgba(120,255,140,.85)' };
+function drawAreaMap(cv, d, k) {
+  const c = cv.getContext('2d'), Wd = cv.width, Ht = cv.height;
+  c.clearRect(0, 0, Wd, Ht);
+  const cell = k === 1 ? 27 : 34 * k, ox = Wd / 2 - 2 * cell, oy = Ht / 2 - 2.5 * cell;
+  const rectOf = (a) => { const w = (a.bounds.maxX - a.bounds.minX) / 48 * cell * 0.62, h = (a.bounds.maxZ - a.bounds.minZ) / 48 * cell * 0.62; return [ox + a.map.x * cell - w / 2, oy + a.map.y * cell - h / 2, w, h]; };
+  // ligações
+  for (const a of AREAS) for (const dr of a.doors) {
+    const b = AREA[dr.to]; if (a.id > b.id) continue;
+    const [ax, ay, aw, ah] = rectOf(a), [bx, by, bw, bh] = rectOf(b);
+    const locked = d.isLocked(a.id, dr.id) || d.isLocked(b.id, dr.toDoor);
+    c.strokeStyle = locked ? 'rgba(255,80,60,.8)' : 'rgba(200,220,180,.6)'; c.lineWidth = 2 * Math.max(1, k / 2);
+    c.setLineDash(d.visited.has(a.id) && d.visited.has(b.id) ? [] : [3 * k, 3 * k]);
+    c.beginPath(); c.moveTo(ax + aw / 2, ay + ah / 2); c.lineTo(bx + bw / 2, by + bh / 2); c.stroke(); c.setLineDash([]);
+    if (locked && k > 1) { const mx = (ax + aw / 2 + bx + bw / 2) / 2, my = (ay + ah / 2 + by + bh / 2) / 2; c.fillStyle = '#ff6050'; c.font = `bold ${10 * k}px Trebuchet MS`; c.textAlign = 'center'; c.textBaseline = 'middle'; c.fillText('🔒', mx, my); }
+  }
+  for (const a of AREAS) {
+    const [x, y, w, h] = rectOf(a), cur = a.id === d.area.id, vis = d.visited.has(a.id);
+    c.fillStyle = cur ? 'rgba(40,110,50,.9)' : vis ? 'rgba(30,50,35,.9)' : 'rgba(20,24,22,.85)'; c.fillRect(x, y, w, h);
+    c.strokeStyle = cur ? MAPC.cur : vis ? MAPC.visited : MAPC.unknown; c.lineWidth = cur ? 2 : 1; c.strokeRect(x, y, w, h);
+    if (k > 1) {
+      c.fillStyle = vis ? '#dfe8d8' : '#6a7a70'; c.font = `bold ${4 * k}px Trebuchet MS`; c.textAlign = 'center'; c.textBaseline = 'middle';
+      c.fillText(vis ? a.name : '???', x + w / 2, y + h / 2 - 2 * k);
+      if (d.markers[a.id]) { c.fillStyle = '#f0d68a'; c.font = `${3.4 * k}px Trebuchet MS`; c.fillText(d.markers[a.id], x + w / 2, y + h / 2 + 3 * k); }
+    }
+    if (cur) { // jogador dentro da área
+      const px = x + (d.player.pos.x - a.bounds.minX) / (a.bounds.maxX - a.bounds.minX) * w, py = y + (d.player.pos.z - a.bounds.minZ) / (a.bounds.maxZ - a.bounds.minZ) * h;
+      c.fillStyle = '#fff'; c.beginPath(); c.arc(px, py, 2 * Math.max(1, k / 1.6), 0, 7); c.fill();
+    }
+  }
 }
 
 // ---------- radar ----------
 const rctx = el.radar.getContext('2d');
 const RANGE = 26;
+const PICK_COL = { med: '#ff6666', ammo: '#eecc44', grenade: '#70c0ff', shotgun: '#ffffff' };
 function drawRadar(d) {
   const c = rctx, S = el.radar.width, H = S / 2, R = H - 3, sc = R / RANGE;
   const px = d.player.pos.x, pz = d.player.pos.z;
@@ -199,7 +249,8 @@ function drawRadar(d) {
   }
   // limite da arena
   c.strokeStyle = 'rgba(255,200,80,.35)'; c.lineWidth = 1; c.beginPath();
-  [[-29, -29], [29, -29], [29, 29], [-29, 29]].forEach(([x, z], i) => { const p = toR(x, z); i ? c.lineTo(p[0], p[1]) : c.moveTo(p[0], p[1]); });
+  const B = d.area.bounds;
+  [[B.minX, B.minZ], [B.maxX, B.minZ], [B.maxX, B.maxZ], [B.minX, B.maxZ]].forEach(([x, z], i) => { const p = toR(x, z); i ? c.lineTo(p[0], p[1]) : c.moveTo(p[0], p[1]); });
   c.closePath(); c.stroke();
   // anéis e varredura
   c.strokeStyle = 'rgba(120,200,120,.22)';
@@ -211,9 +262,11 @@ function drawRadar(d) {
   c.fillStyle = 'rgba(255,255,220,.06)'; c.beginPath(); c.moveTo(H, H); c.arc(H, H, R, -Math.PI / 2 - 0.5, -Math.PI / 2 + 0.5); c.fill();
   // pickups
   for (const p of d.pickups) {
-    const [x, y] = toR(p.x, p.z); c.fillStyle = p.kind === 'med' ? '#ff6666' : '#eecc44';
+    const [x, y] = toR(p.x, p.z); c.fillStyle = PICK_COL[p.kind] || '#eecc44';
     c.fillRect(x - 2.5, y - 2.5, 5, 5);
   }
+  // terminais / objetivos
+  for (const t of d.points) { const [x, y] = toR(t.x, t.z); c.fillStyle = t.col; c.fillRect(x - 3.5, y - 3.5, 7, 7); }
   c.restore();
   // inimigos (fora do alcance viram setas na borda)
   for (const e of d.enemies) {
@@ -225,7 +278,7 @@ function drawRadar(d) {
       const a = Math.atan2(dy, dx); x = H + Math.cos(a) * (R - 4); y = H + Math.sin(a) * (R - 4);
       c.save(); c.translate(x, y); c.rotate(a); c.beginPath(); c.moveTo(5, 0); c.lineTo(-3, -4); c.lineTo(-3, 4); c.fill(); c.restore();
     } else {
-      const sz = e.type === 'brute' ? 5.5 : 3.4, pulse = e.flashT > 0 ? 1.6 : 1;
+      const sz = e.cfg.boss ? 8 : e.cfg.shape === 'brute' ? 5.5 : 3.4, pulse = e.flashT > 0 ? 1.6 : 1;
       c.globalAlpha = 0.6 + 0.4 * Math.abs(Math.sin(G.time * 4 + e.seed)); c.beginPath(); c.arc(x, y, sz * pulse, 0, 7); c.fill(); c.globalAlpha = 1;
     }
   }
