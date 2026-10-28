@@ -108,6 +108,27 @@ Tudo é procedural, sem arquivos de imagem ou modelo:
   - Helicóptero de resgate com rotor, luzes de navegação e holofote de busca.
 - **Pós-processamento** opcional (bloom em meia resolução), granulado de filme e vinheta.
 
+## Desempenho e qualidade
+
+O jogo foi ajustado para não travar ("engasgar") em máquinas modestas:
+
+- **Carregamento progressivo.** Uma tela "Carregando…" com barra mostra o progresso. Só o cais é montado antes do menu; os modelos de inimigos vão para um pool e os shaders são pré-compilados. As outras áreas são construídas em segundo plano, uma por fatia ociosa do navegador, e o menu mostra "Áreas prontas: n/6".
+- **Qualidade gráfica** (menu principal e pausa): **Auto**, **Baixo**, **Médio** ou **Alto**. A escolha fica salva no navegador.
+
+| | Baixo | Médio | Alto |
+|---|---|---|---|
+| Mapa de sombras | 512, simples | 1024, suave | 2048, suave |
+| Sombras de árvores distantes e objetos pequenos | não | não | sim |
+| Resolução máxima (pixel ratio) | 1× | 1,25× | 1,75× |
+| Gotas de chuva / vaga-lumes | 250 / 40 | 500 / 80 | 900 / 140 |
+| Bloom (padrão; a tecla B continua valendo) | desligado | ligado | ligado |
+| Textura do chão | 256 px | 512 px | 512 px |
+| Postes iluminados / holofotes | 4 (alcance menor) / 1 | 6 / 2 | 6 / 2 |
+| Áreas na memória | atual + vizinhas | atual + vizinhas | todas |
+
+- **Auto** escolhe pelo aparelho (memória, núcleos, celular, GPU; renderizador por software cai em Baixo). Se o FPS ficar abaixo de ~36 por 6 s durante o jogo, ele desce um nível.
+- O bloom ainda se desliga sozinho se o FPS cair, como antes.
+
 ## Estrutura
 
 ```
@@ -121,6 +142,8 @@ js/areas.js       definição das 6 áreas (portas, itens, patrulhas, encontros,
 js/director.js    progressão: troca de área, travas, eventos, encontros, save/load, objetivos, registros, helicóptero
 js/story.js       roteiro: introdução, registros, falas/legendas, cartões de história e epílogo
 js/post.js        bloom opcional (addons do Three r160), com fallback
+js/quality.js     predefinições de qualidade (Auto/Baixo/Médio/Alto) e queda automática
+js/idle.js        fila de tarefas em fatias ociosas (construção de áreas em segundo plano)
 js/player.js      jogador, armas, inventário, câmera em terceira pessoa
 js/enemies.js     raptor, cuspidor, bruto e Colosso (IA, ataques)
 js/npc.js         sobrevivente (seguir, ser atacada)
@@ -135,6 +158,6 @@ js/utils.js       utilitários
 
 ### Depuração
 
-No console, `__game` expõe o estado (`area`, `flags`, `objective`, `hp`, `enemies`). Também tem `__game.goto('patio')` para pular de área, `__game.story` (ex.: `__game.story.skipCard()`) e `__game.post` (bloom).
+No console, `__game` expõe o estado (`area`, `flags`, `objective`, `hp`, `enemies`). Também tem `__game.goto('patio')` para pular de área, `__game.story` (ex.: `__game.story.skipCard()`) e `__game.post` (bloom). Para desempenho: `__game.quality`, `__game.setQuality('baixo')`, `__game.areas()` (áreas construídas), `__game.streamStats`, `__game.poolStats`, `__game.hudStats` e `__game.renderInfo()`.
 
 Os saves antigos continuam compatíveis: o campo `story` (registros lidos e falas já ditas) é opcional.

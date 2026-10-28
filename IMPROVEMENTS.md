@@ -1,5 +1,78 @@
 # Melhorias
 
+## v4: desempenho (menos travadas)
+
+### Carregamento
+- **Sem construção síncrona de todas as áreas na partida.** `buildAreas()` deu lugar a `buildArea(id)`.
+- **Tela de carregamento** em português com barra e etapas: qualidade, cais, criaturas e shaders.
+- O jogo libera o menu quando o cais está pronto. As outras áreas são construídas **uma por fatia ociosa** (`requestIdleCallback`, ou rAF quando ele não existe) por `js/idle.js`.
+- **Pré-compilação de shaders** (`renderer.compileAsync`, com fallback para `compile`), incluindo os modelos de inimigos do pool. Isso evita o engasgo do primeiro encontro.
+
+### Qualidade gráfica (`js/quality.js`)
+- Predefinições **Baixo / Médio / Alto** mais **Auto**, salvas no `localStorage` (`crise-no-vale-quality`).
+- Seletor no menu principal e na pausa. Na primeira vez, o seletor aparece destacado, com o palpite do Auto.
+- O que cada nível controla:
+  - mapa de sombras (512/1024/2048) e tipo de sombra (Basic ou PCFSoft);
+  - sombras de árvores distantes e objetos pequenos;
+  - limite de pixel ratio (1/1,25/1,75);
+  - chuva (250/500/900) e vaga-lumes (40/80/140);
+  - bloom (desligado por padrão no Baixo);
+  - textura do chão (256 ou 512);
+  - número de postes acesos e holofotes.
+- O padrão do Auto é decidido por memória, núcleos, celular e nome da GPU (software → Baixo). Durante o jogo, ele desce um nível se o FPS ficar baixo por 6 s, com 20 s de espera entre as quedas.
+- Trocar o nível só recompila materiais quando muda o tipo de sombra ou o número de luzes. Isso acontece apenas no clique, nunca durante o jogo normal.
+
+### Sombras
+- O padrão é Médio (1024). A lua continua sendo a única luz com sombra.
+- Os objetos receberam níveis de sombra:
+  - perto: sempre projeta;
+  - médio: postes, beirais e pilares;
+  - longe: anéis de árvores fora da área jogável;
+  - pequeno: entulho, pedrinhas, unidades de telhado.
+- `applyShadowTiers` aplica esses níveis em cada área e a cada troca de qualidade.
+
+### Chuva e vaga-lumes
+- Os buffers são alocados no máximo. O preset só muda o `drawRange` e o laço atualiza apenas as partículas ativas.
+- A chuva continua presa à câmera. Os vaga-lumes não são atualizados quando estão invisíveis.
+
+### Iluminação
+- O pool de 6 PointLights foi mantido, sem mudar a contagem de luzes durante o jogo.
+- A cada 0,25 s, as luzes vão para os **N postes mais próximos da câmera**, com preferência pelos acesos.
+- O pisca-pisca agora é **determinístico** (seno + semente pela posição + hash), sem `Math.random` por quadro.
+- Os holofotes não usados ficam desligados. No Baixo há 4 postes com alcance de 75% e 1 holofote.
+
+### Streaming de áreas (melhor esforço)
+- Ficam na memória a área atual e as vizinhas. As demais são descartadas com `disposeGroup`.
+  - Um registro `SHARED` (WeakSet) protege materiais, geometrias e texturas compartilhados (MATS, árvores, caixas etc.).
+  - A geometria de Sprite nunca é descartada.
+- Uma área é reconstruída de forma determinística (semente por área) quando:
+  - o jogador entra numa vizinha (fatia ociosa);
+  - ou ele se aproxima a até 12 m de uma porta;
+  - ou, em último caso, na hora, sob a tela preta da transição.
+- Depois de reconstruída, a área reaplica o estado da campanha: energia, porta lateral, portões e heliponto.
+- `FADE` passou de 0,35 para 0,4 s, e a tela fica preta por mais 0,06 s depois da troca, para esconder o primeiro quadro.
+- No Alto, todas as áreas ficam na memória.
+- **Limitação:** é "melhor esforço". Num aparelho muito lento, uma reconstrução síncrona ainda pode ocorrer sob o fade. Os contadores ficam em `__game.streamStats`.
+
+### Inimigos
+- **Pool** para raptor, cuspidor e bruto (até 8 por tipo). O modelo volta ao pool ao sumir e é reiniciado (pose, emissivo, olhos, barra de vida) ao reaparecer.
+- O Colosso continua único.
+- O cuspe ácido reaproveita sprites e usa um material compartilhado.
+- Ao carregar, ficam no pool 4 raptores, 2 cuspidores e 2 brutos.
+
+### HUD
+- O radar é desenhado a ~12 Hz, em vez de todo quadro.
+- O minimapa é redesenhado quando algo muda ou a cada 0,5 s.
+- O mapa grande (Tab) só é desenhado com o mapa aberto (quando algo muda ou a cada 0,25 s).
+
+### Texturas
+- No Baixo, o chão usa ruído de 256 px.
+- As texturas de chão ficam em cache por tipo e tamanho, e os clones compartilham a mesma imagem na GPU.
+
+### Mantido
+- O `dt` continua limitado a 0,05.
+- Textos em português, saves (compatíveis), Continuar, história e registros, e `__game.goto`.
+
 ## v3: história expandida e gráficos
 
 ### História (tudo original, em português)
