@@ -1,0 +1,66 @@
+/* hud.css — elementos do HUD em jogo */
+#hpnum{float:right}
+#hpbar{position:relative;height:14px;background:#1b221c;border:1px solid #384;border-radius:3px;overflow:hidden;margin:5px 0}
+#hpfill,#hpghost{position:absolute;left:0;top:0;height:100%;width:100%}
+#hpfill{background:#4c4;transition:width .12s}
+#hpghost{background:#e8e0c0;opacity:.55;transition:width .6s ease .25s}
+#status{font-weight:bold;letter-spacing:3px;font-size:14px;color:#4c4}
+
+#wname{font-size:13px;letter-spacing:2px;color:#d8c27a}
+#ammo{font-size:34px;font-weight:bold}
+#ammo small{font-size:18px;color:#aab}
+#pips{display:flex;justify-content:flex-end;gap:2px;margin:2px 0 4px;height:8px}
+#pips i{width:5px;height:8px;background:#e8d080;border-radius:1px}
+#pips i.e{background:#333}
+#reload{position:relative;height:16px;color:#f6b04a;font-size:13px;letter-spacing:2px}
+#reloadFill{position:absolute;right:0;bottom:0;height:3px;width:0;background:#f6b04a}
+
+/* radar */
+#radarWrap{position:absolute;top:14px;right:14px;width:170px;text-align:center}
+#radar{border-radius:50%;background:rgba(5,15,8,.65);border:1px solid rgba(140,200,140,.4);box-shadow:0 0 12px rgba(0,0,0,.6)}
+#radarLbl{font-size:10px;letter-spacing:3px;color:#7fa27a;margin-top:2px}
+
+/* retícula dinâmica (abre com dispersão/recuo, fica vermelha sobre inimigo) */
+#cross{position:absolute;left:50%;top:50%;width:0;height:0;--g:10px}
+#cross .cl{position:absolute;background:#e9ffe0;box-shadow:0 0 3px #000}
+#cross .cl.t,#cross .cl.b{width:2px;height:9px;left:-1px}
+#cross .cl.l,#cross .cl.r{height:2px;width:9px;top:-1px}
+#cross .cl.t{top:calc(-1 * var(--g) - 9px)} #cross .cl.b{top:var(--g)}
+#cross .cl.l{left:calc(-1 * var(--g) - 9px)} #cross .cl.r{left:var(--g)}
+#cross .dot{position:absolute;left:-2px;top:-2px;width:4px;height:4px;border-radius:50%;background:#fff}
+#cross.enemy .cl,#cross.enemy .dot{background:#ff5a4a}
+
+/* hit marker em X */
+#hitmark{position:absolute;left:50%;top:50%;width:0;height:0;opacity:0}
+#hitmark i{position:absolute;width:12px;height:2px;background:#fff;box-shadow:0 0 3px #000;left:-6px;top:-1px}
+#hitmark i:nth-child(1){transform:rotate(45deg) translateX(-12px)}
+#hitmark i:nth-child(2){transform:rotate(45deg) translateX(12px)}
+#hitmark i:nth-child(3){transform:rotate(-45deg) translateX(-12px)}
+#hitmark i:nth-child(4){transform:rotate(-45deg) translateX(12px)}
+#hitmark.kill i{background:#ff4030;width:16px;left:-8px}
+
+/* indicador de direção do dano */
+#dmgDir{position:absolute;left:50%;top:50%;width:240px;height:240px;margin:-120px 0 0 -120px;opacity:0;
+  border-radius:50%;border-top:6px solid rgba(255,40,30,.85);filter:blur(1px);transition:opacity .5s}
+
+/* números de dano flutuantes */
+#floaters{position:absolute;inset:0;overflow:hidden}
+.fl{position:absolute;font-weight:bold;font-size:16px;color:#fff;text-shadow:0 1px 3px #000,0 0 4px #000;
+  transform:translate(-50%,-50%);white-space:nowrap}
+.fl.crit{color:#ffd040;font-size:20px}
+.fl.kill{color:#ff6a50;font-size:18px;letter-spacing:1px}
+
+/* banners e avisos */
+#banner{position:absolute;top:24%;width:100%;text-align:center;opacity:0;transition:opacity .4s}
+#banner h2{margin:0;font-size:46px;letter-spacing:8px;color:#e8f6d0;text-shadow:0 0 18px #3a6,0 2px 4px #000}
+#banner p{margin:6px 0 0;font-size:17px;color:#bcd}
+#announce{position:absolute;top:14px;left:50%;transform:translateX(-50%);text-align:center;font-size:15px;
+  letter-spacing:2px;font-weight:bold;text-shadow:0 1px 3px #000}
+#announce div{background:rgba(30,5,5,.55);border:1px solid rgba(255,90,70,.35);padding:4px 12px;border-radius:4px;margin-bottom:4px;
+  animation:annIn .25s ease-out}
+@keyframes annIn{from{transform:translateY(-8px);opacity:0}to{transform:none;opacity:1}}
+#countdown{position:absolute;top:38%;width:100%;text-align:center;font-size:64px;font-weight:bold;color:#cfe9a8;
+  text-shadow:0 0 18px #2c7a3c,0 2px 6px #000;opacity:0}
+#feed{position:absolute;left:50%;bottom:120px;transform:translateX(-50%);text-align:center;font-size:16px;
+  color:#bfffaf;text-shadow:0 1px 3px #000;transition:opacity .3s}
+#combo{color:#ffd060;font-size:13px}
