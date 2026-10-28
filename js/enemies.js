@@ -1,14 +1,14 @@
 // enemies.js — construção dos dinossauros (silhuetas distintas), IA (patrulha → alerta → ataque),
 // chefe Colosso, spawn por posição/borda da área e cuspe ácido.
 import * as THREE from 'three';
-import { scene, camera, resolve, castWorld, freeSpot, bounds, GLOW } from './world.js';
+import { scene, camera, resolve, castWorld, freeSpot, bounds, GLOW, flashAt } from './world.js';
 import { ENEMY_TYPES, COLORS } from './config.js';
 import { G } from './state.js';
 import { player, hurtPlayer } from './player.js';
 import { survivor, hurtSurvivor } from './npc.js';
 import { roar, sfx } from './audio.js';
 import { burst, decal, shockwave } from './fx.js';
-import { rand, lerpAngle } from './utils.js';
+import { rand, lerpAngle, noiseTex } from './utils.js';
 
 export const enemies = [];
 export const spits = [];
@@ -22,6 +22,15 @@ const eyeGeo = new THREE.SphereGeometry(1, 6, 5);
 const frillGeo = new THREE.CylinderGeometry(0.55, 0.55, 0.04, 14);
 const barBg = new THREE.MeshBasicMaterial({ color: 0x000000, transparent: true, opacity: 0.6, depthTest: false });
 const barGeo = new THREE.PlaneGeometry(1, 1);
+// pele: textura de escamas em cinza (multiplica a cor do tipo) + relevo, compartilhada por todos
+const scaleTex = noiseTex('#c4c4c4', ['#7a7a7a', '#ffffff', '#9a9a9a', '#5a5a5a'], 900, 1, 128, { bump: true, grain: 30 });
+const ovoid = new THREE.IcosahedronGeometry(1, 1);
+const toothGeo = new THREE.ConeGeometry(0.025, 0.09, 4);
+const toothM = new THREE.MeshStandardMaterial({ color: 0xe8e0c8, roughness: 0.5 });
+const scarM = new THREE.MeshBasicMaterial({ color: 0xff5020 });   // cicatrizes incandescentes do Colosso (V-7)
+function ov(sx, sy, sz, mat, x, y, z, parent) {
+  const m = new THREE.Mesh(ovoid, mat); m.scale.set(sx, sy, sz); m.position.set(x, y, z); m.castShadow = true; parent.add(m); return m;
+}
 
 function bx(w, h, d, mat, x, y, z, parent) {
   const m = new THREE.Mesh(unit, mat); m.scale.set(w, h, d); m.position.set(x, y, z); m.castShadow = true; parent.add(m); return m;
@@ -32,8 +41,8 @@ function cn(r, h, mat, x, y, z, rx, parent) {
 
 function buildDino(type) {
   const T = ENEMY_TYPES[type], g = new THREE.Group(), body = new THREE.Group(); g.add(body);
-  const skin = new THREE.MeshStandardMaterial({ color: T.color, roughness: 0.85, flatShading: true });
-  const belly = new THREE.MeshStandardMaterial({ color: T.belly, roughness: 0.9, flatShading: true });
+  const skin = new THREE.MeshStandardMaterial({ color: T.color, roughness: 0.62, flatShading: true, map: scaleTex, bumpMap: scaleTex.userData.bump, bumpScale: 2 });
+  const belly = new THREE.MeshStandardMaterial({ color: T.belly, roughness: 0.8, flatShading: true, map: scaleTex });
   const stripe = new THREE.MeshStandardMaterial({ color: T.stripe, roughness: 0.9, flatShading: true });
   const eyeM = new THREE.MeshBasicMaterial({ color: T.eye });
   const mats = [skin, belly, stripe];
@@ -41,7 +50,9 @@ function buildDino(type) {
 
   // corpo: raptor é baixo e alongado; bruto é volumoso
   const bw = raptor ? 0.52 : big ? 0.8 : 0.6, bh = raptor ? 0.55 : big ? 0.8 : 0.62, bl = raptor ? 1.45 : big ? 1.5 : 1.3;
-  bx(bw, bh, bl, skin, 0, 1.25, 0, body); bx(bw * 0.8, 0.3, bl * 0.75, belly, 0, 1.02, 0.05, body);
+  // tronco orgânico (icosaedro esticado) + peito e ancas
+  ov(bw * 0.62, bh * 0.62, bl * 0.58, skin, 0, 1.25, 0, body); ov(bw * 0.5, 0.2, bl * 0.42, belly, 0, 1.03, 0.08, body);
+  ov(bw * 0.56, bh * 0.5, bl * 0.25, skin, 0, 1.32, 0.42, body); ov(bw * 0.58, bh * 0.55, bl * 0.28, skin, 0, 1.22, -0.4, body);
   // listras nas costas (raptor e cuspidor) / placas dorsais (bruto)
   if (big) { for (let i = 0; i < 5; i++) cn(0.12, 0.38, stripe, 0, 1.72, 0.55 - i * 0.32, -0.25, body); }
   else for (let i = 0; i < 4; i++) bx(bw * 1.02, 0.08, 0.1, stripe, 0, 1.4, 0.45 - i * 0.3, body);
@@ -53,6 +64,13 @@ function buildDino(type) {
   bx((raptor ? 0.34 : 0.42) * hs, 0.36 * hs, (raptor ? 0.8 : 0.72) * hs, skin, 0, 0.04, 0.2 * hs, head);
   const jaw = new THREE.Group(); jaw.position.set(0, -0.12 * hs, -0.05); head.add(jaw);
   bx(0.34 * hs, 0.12 * hs, 0.62 * hs, belly, 0, -0.04, 0.28 * hs, jaw);
+  // dentes (superior e inferior) e narinas
+  for (let i = 0; i < 4; i++) for (const sd of [-1, 1]) {
+    const z = (0.3 + i * 0.1) * hs, x = sd * 0.15 * hs;
+    const up = new THREE.Mesh(toothGeo, toothM); up.scale.setScalar(hs); up.position.set(x, -0.15 * hs, z); up.rotation.x = Math.PI; head.add(up);
+    const lo = new THREE.Mesh(toothGeo, toothM); lo.scale.setScalar(hs); lo.position.set(x, 0.04, z - 0.25 * hs); jaw.add(lo);
+  }
+  ov(0.12 * hs, 0.06 * hs, 0.14 * hs, skin, 0, 0.18 * hs, 0.1 * hs, head);   // arcada sobre os olhos
   // olhos + brilho (visíveis na neblina)
   const eyeGlow = [];
   [-1, 1].forEach((s) => {
@@ -68,6 +86,9 @@ function buildDino(type) {
     if (boss) { // coroa de espinhos e placas vermelhas: silhueta de chefe
       for (let i = 0; i < 5; i++) cn(0.06, 0.32, hornM, (i - 2) * 0.12 * hs, 0.32 * hs, -0.1 * hs, -0.9, head);
       for (let i = 0; i < 4; i++) bx(0.95, 0.12, 0.2, stripe, 0, 1.62, 0.5 - i * 0.35, body);
+      // cicatrizes incandescentes e "escoras" de couro nas costas
+      for (let i = 0; i < 5; i++) { const c = bx(0.03, 0.42, 0.05, scarM, (i % 2 ? 1 : -1) * 0.41, 1.3, 0.45 - i * 0.24, body); c.rotation.x = 0.5; c.castShadow = false; }
+      bx(0.03, 0.25, 0.04, scarM, 0.19 * hs, 0.15 * hs, 0.3 * hs, head).castShadow = false;
     }
     bx(0.1, 0.1, 0.3, skin, -0.38, 1.1, 0.75, body).rotation.x = 0.6; bx(0.1, 0.1, 0.3, skin, 0.38, 1.1, 0.75, body).rotation.x = 0.6;
   } else {
@@ -85,16 +106,17 @@ function buildDino(type) {
   }
   // cauda (bem longa no raptor — contrapeso visual)
   const tail = new THREE.Group(); tail.position.set(0, 1.3, -bl / 2); body.add(tail);
-  bx(big ? 0.55 : 0.4, big ? 0.55 : 0.4, 0.9, skin, 0, 0, -0.4, tail);
+  ov(big ? 0.3 : 0.22, big ? 0.3 : 0.22, 0.55, skin, 0, 0, -0.4, tail);
   const tail2 = new THREE.Group(); tail2.position.set(0, 0.02, -0.85); tail.add(tail2);
-  bx(0.24, 0.24, raptor ? 1.4 : 1.0, skin, 0, 0.02, raptor ? -0.7 : -0.5, tail2);
+  ov(0.13, 0.13, raptor ? 0.78 : 0.56, skin, 0, 0.02, raptor ? -0.7 : -0.5, tail2);
   if (!big) bx(0.26, 0.06, 0.1, stripe, 0, 0.14, -0.3, tail2);
   // pernas
   const legs = [-1, 1].map((s) => {
     const p = new THREE.Group(); p.position.set(s * (bw / 2 - 0.02), 1.05, -0.05); body.add(p);
-    bx(big ? 0.3 : 0.2, 0.55, big ? 0.4 : 0.3, skin, 0, -0.25, 0, p);
+    ov(big ? 0.2 : 0.14, 0.34, big ? 0.26 : 0.2, skin, 0, -0.22, 0, p);   // coxa
     const low = new THREE.Group(); low.position.set(0, -0.5, 0); p.add(low);
     bx(0.14, 0.55, 0.16, skin, 0, -0.25, -0.06, low); bx(0.2, 0.08, 0.36, belly, 0, -0.52, 0.08, low);
+    for (const cx of [-0.06, 0.06]) cn(0.025, 0.12, toothM, cx, -0.52, 0.28, 1.5, low);   // garras
     if (raptor) cn(0.04, 0.22, stripe, 0, -0.42, 0.22, 1.2, low); // garra em foice
     return p;
   });
@@ -251,7 +273,8 @@ function updateEnemy(e, dt) {
       // pisão: agacha, depois onda de choque em anel
       e.stomp -= dt; spd = 0;
       if (e.stomp <= 0) {
-        shockwave(e.pos.x, e.pos.z, T.stompR); sfx.crash(); G.shake = Math.max(G.shake, 0.7);
+        shockwave(e.pos.x, e.pos.z, T.stompR); shockwave(e.pos.x, e.pos.z, T.stompR * 0.55, 0xff7040); sfx.crash(); if (sfx.stomp) sfx.stomp();
+        flashAt(e.pos.x, 0.6, e.pos.z, 0xff8040, 60); decal(e.pos.x, e.pos.z, 3.2, 0x14100a); G.shake = Math.max(G.shake, 0.7);
         const pd = Math.hypot(player.pos.x - e.pos.x, player.pos.z - e.pos.z);
         if (pd < T.stompR) hurtPlayer(T.stompDmg, e.pos.x, e.pos.z, 14);
       }

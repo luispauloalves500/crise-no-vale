@@ -3,7 +3,7 @@
 // Coordenadas locais centradas na origem. Norte = -Z, Leste = +X.
 import * as THREE from 'three';
 import * as W from './world.js';
-import { mulberry32 } from './utils.js';
+import { mulberry32, labelTex } from './utils.js';
 import { WORLD } from './config.js';
 
 const { MATS } = W;
@@ -18,6 +18,7 @@ const { MATS } = W;
  *  pickups: [{id, kind, x, z}]                  itens fixos do mapa (somem ao serem pegos)
  *  ambient: [{type, x, z}]                      inimigos de patrulha (mortos continuam mortos)
  *  encounters: [{id, on, ...}]                  emboscadas / matilhas roteirizadas (ver director.js)
+ *  logs: [{id, x, z, yaw}]                      registros (tablets) com a história — texto em story.js
  *  build(ctx) -> refs                           monta a geometria; refs usados pelo diretor
  */
 
@@ -35,25 +36,29 @@ export const AREAS = [
       { id: 'p1gren', kind: 'grenade', x: 16, z: -3 },
     ],
     ambient: [{ type: 'raptor', x: -8, z: -12 }, { type: 'raptor', x: 10, z: -13 }],
+    logs: [{ id: 'log1', x: -1.6, z: 10.6, yaw: 0.4 }],
     encounters: [
       { id: 'porto-crates', on: 'zone', zone: { x: 0, z: -2, r: 5 }, msg: 'Algo se mexe entre os contêineres!',
         spawn: [{ type: 'raptor', from: 'E' }, { type: 'raptor', from: 'W', delay: 0.8 }] },
     ],
     build(ctx) {
       const b = this.bounds;
-      W.ground(ctx, b, W.groundTex.sand);
+      W.ground(ctx, b, W.groundTex.sand, 30, { puddles: 8, patchCol: 0x1a160c });
       // mar ao sul + píer de tábuas
       const sea = new THREE.Mesh(new THREE.PlaneGeometry(140, 40), MATS.water); sea.rotation.x = -Math.PI / 2; sea.position.set(0, -0.2, b.maxZ + 21); ctx.group.add(sea);
       W.solid(ctx, 0, b.maxZ - 1, 10, 6, 0.25, MATS.plank, 0, false);
       W.solid(ctx, 0, b.maxZ + 8, 4, 16, 0.25, MATS.plank, -0.1, false);
       for (let i = 0; i < 6; i++) W.solid(ctx, (i % 2 ? 1.8 : -1.8), b.maxZ + 2 + i * 2.6, 0.3, 0.3, 1.2, MATS.bark, -0.8, false);
       // contêineres enferrujados formando corredores
-      [[-12, -4, 6, 2.6, MATS.rust], [-12, -7, 6, 2.6, MATS.metal], [12, 2, 2.6, 6, MATS.rust], [8, -8, 6, 2.6, MATS.metal], [-5, 4, 2.6, 5, MATS.rust], [17, -12, 6, 2.6, MATS.rust]]
-        .forEach(([x, z, w, d, m]) => W.solid(ctx, x, z, w, d, 2.6, m));
-      W.solid(ctx, -12, -5.5, 6, 5.6, 0.2, MATS.rust, 2.6, false);
+      [[-12, -4, 6, 2.6, 0x8a4a2a], [-12, -7, 6, 2.6, 0x2a5a6a], [12, 2, 2.6, 6, 0x8a4a2a], [8, -8, 6, 2.6, 0x7a6a24], [-5, 4, 2.6, 5, 0x6a2a24], [17, -12, 6, 2.6, 0x2a5a6a]]
+        .forEach(([x, z, w, d, c]) => W.container(ctx, x, z, w, d, 2.6, c));
+      W.solid(ctx, -12, -5.5, 6.1, 5.7, 0.2, MATS.rust, 2.6, false);
       [[-3, 8, 1.2], [3.6, 6.5, 1], [14, 8, 1.2], [-16, 10, 1.1], [6, -2, 1], [-18, -12, 1.2]].forEach((c) => W.crate(ctx, ...c));
       // guindaste / galpão
       W.building(ctx, -17, 1, 6, 8, 4.5, MATS.metal, 0.15);
+      // barco abandonado no fim do píer (quem trouxe a agente já fugiu — este é o da estação, afundado)
+      const hull = new THREE.Mesh(new THREE.CylinderGeometry(1.1, 0.7, 6, 8, 1, false, 0, Math.PI), MATS.rust);
+      hull.rotation.set(Math.PI / 2, 0, Math.PI); hull.position.set(5, -0.35, b.maxZ + 12); hull.rotation.y = 0.3; ctx.group.add(hull);
       W.solid(ctx, 17, 10, 0.5, 0.5, 9, MATS.stripe); W.solid(ctx, 13.5, 10, 7.5, 0.5, 0.5, MATS.stripe, 9, false);
       // cerca do lado norte com o portão das ruínas
       W.perimeter(ctx, b, 2.2, MATS.metal, [{ side: 'N', at: 0, half: 2.4 }, { side: 'S', at: 0, half: 30 }], 0.3);
@@ -81,6 +86,7 @@ export const AREAS = [
       { id: 'p2ammo2', kind: 'ammo', x: 6, z: -20 },
     ],
     ambient: [{ type: 'spitter', x: -5, z: -18 }, { type: 'raptor', x: 4, z: -24 }],
+    logs: [{ id: 'log2', x: -5, z: 4, yaw: Math.PI / 2 }],
     encounters: [
       { id: 'ruinas-ambush', on: 'enter', first: true, delay: 1.2, msg: 'EMBOSCADA! Raptores no corredor!',
         spawn: [{ type: 'raptor', x: -4, z: 4 }, { type: 'raptor', x: 4, z: 6, delay: 0.5 }, { type: 'raptor', from: 'S', delay: 4 }] },
@@ -98,6 +104,11 @@ export const AREAS = [
       W.wall(ctx, -3, -23, 5, 0.9, 2.2, MATS.stone);
       // altar com a escopeta
       W.solid(ctx, 0, -2, 2.4, 1.4, 0.6, MATS.stone, 0, false);
+      // laje rachada do altar: a câmara selada onde acharam o âmbar (brilho âmbar saindo das frestas)
+      const slab = W.boxMesh(MATS.stone, 3.4, 0.12, 2.2); slab.position.set(0, 0.06, -4.2); slab.rotation.y = 0.12; ctx.group.add(slab);
+      const crack = new THREE.Mesh(new THREE.PlaneGeometry(2.6, 0.12), new THREE.MeshBasicMaterial({ color: 0xffa030 }));
+      crack.rotation.set(-Math.PI / 2, 0, 0.5); crack.position.set(0, 0.13, -4.2); ctx.group.add(crack);
+      Object.assign(W.fireLight(ctx, 0, -4.2, -0.3, 8), { color: 0xffa030, mode: 'pulse' });
       [[-2.5, 22, 0.8], [5, 1, 0.9], [-5, -14, 1.1], [3, -27, 0.7]].forEach(([x, z, s]) => W.rock(ctx, x, z, s));
       // raízes/arcos pendurados
       for (let z = -24; z < 26; z += 9) { const a = W.boxMesh(MATS.stone, 16, 0.8, 1.2); a.position.set(0, 6.2, z); a.castShadow = true; ctx.group.add(a); const v = W.boxMesh(MATS.vine, 14, 1.2, 1.4); v.position.set(0, 5.6, z + 0.2); ctx.group.add(v); }
@@ -106,14 +117,14 @@ export const AREAS = [
       W.grass(ctx, b, 160, 0x3a3a1e);
       // tochas (luzes laranja) + braseiro
       W.lamp(ctx, -6, 24, 0xff7a20, 'flicker', 18, 2.2); W.lamp(ctx, 6, 12, 0xff8a30, 'flicker', 18, 2.2); W.lamp(ctx, 0, -2, 0xffaa40, 'steady', 14, 1.6);
-      W.lamp(ctx, -6, -12, 0xff7a20, 'flicker', 18, 2.2); W.lamp(ctx, 6, -24, 0xff8a30, 'flicker', 18, 2.2);
+      W.lamp(ctx, -6, -12, 0xff7a20, 'flicker', 18, 2.2);
       return { doors: { S: W.doorway(ctx, 'S', 0, b), N: W.doorway(ctx, 'N', 2, b) }, terminals: [] };
     },
   },
 
   // ------------------------------------------------------------------ 3. LABORATÓRIO (exterior)
   {
-    id: 'lab', name: 'EXTERIOR DO LABORATÓRIO', sub: 'Estação de pesquisa Vale Verde — sem energia',
+    id: 'lab', name: 'EXTERIOR DO LABORATÓRIO', sub: 'Estação de pesquisa Vale Verde — sem energia', subPower: 'Estação de pesquisa Vale Verde — energia restabelecida',
     map: { x: 2, y: 2 }, bounds: { minX: -24, maxX: 24, minZ: -20, maxZ: 22 },
     mood: { fog: 0x0d1418, density: 0.028, sky: 0x8a9aa0, groundCol: 0x0c0c0a, hemi: 1.0, moonCol: 0xb0c4d8, moon: 1.0,
       rain: 0.9, lightning: true, fireflies: false, exposure: 1.1 },
@@ -125,21 +136,35 @@ export const AREAS = [
     pickups: [
       { id: 'p3med', kind: 'med', x: 18, z: 14 },
       { id: 'p3ammo', kind: 'ammo', x: -18, z: -12 },
+      { id: 'p3gren', kind: 'grenade', x: -14, z: 15.2 }, // dentro da sala da diretoria
     ],
     ambient: [{ type: 'spitter', x: 12, z: -10 }, { type: 'spitter', x: -12, z: -6 }, { type: 'raptor', x: 16, z: 2 }, { type: 'brute', x: -4, z: -12 }],
+    logs: [{ id: 'log3', x: 21.5, z: 17, yaw: -Math.PI / 2 }, { id: 'log5', x: -20.4, z: 15.4, yaw: Math.PI / 2 }],
+
     encounters: [
       { id: 'lab-return', on: 'enter', flag: 'power', msg: 'Os alarmes atraíram uma matilha!',
         spawn: [{ type: 'raptor', from: 'W' }, { type: 'raptor', from: 'E', delay: 0.4 }, { type: 'raptor', from: 'N', delay: 1.2 }, { type: 'spitter', from: 'E', delay: 2 }, { type: 'raptor', from: 'W', delay: 3 }] },
     ],
     build(ctx) {
       const b = this.bounds;
-      W.ground(ctx, b, W.groundTex.paving);
+      W.ground(ctx, b, W.groundTex.paving, 30, { puddles: 12 });
       W.perimeter(ctx, b, 3, MATS.concrete, [{ side: 'S', at: 0, half: 2.4 }, { side: 'W', at: 6, half: 2.4 }, { side: 'N', at: 0, half: 2.4 }], 0.6);
       // fachada do laboratório ao norte
-      W.building(ctx, -14, -16, 16, 6, 8, MATS.concrete, 0.05); W.building(ctx, 14, -16, 16, 6, 8, MATS.concrete, 0.05);
+      W.building(ctx, -14, -16, 16, 6, 8, MATS.concrete, 0.55, { power: true }); W.building(ctx, 14, -16, 16, 6, 8, MATS.concrete, 0.55, { power: true });
+      const sign = new THREE.Mesh(new THREE.PlaneGeometry(6, 1.2), new THREE.MeshBasicMaterial({ map: labelTex('FUNDAÇÃO TELLUS', 'ESTAÇÃO DE PESQUISA VALE VERDE'), transparent: true }));
+      sign.position.set(-14, 6.4, -12.94); ctx.group.add(sign);
       // prédios / anexos
-      W.building(ctx, 17, 8, 8, 10, 5, MATS.metal, 0.1);
-      W.building(ctx, -17, 14, 10, 6, 4, MATS.concrete, 0.1);
+      W.building(ctx, 17, 8, 8, 10, 5, MATS.metal, 0.4, { power: true });
+      // sala da diretoria (anexo oeste): porta blindada só abre com energia
+      const R = { x0: -22, x1: -12, z0: 11, z1: 17, h: 4 };
+      W.solid(ctx, -20.1, R.z0, 3.8, 0.4, R.h); W.solid(ctx, -13.9, R.z0, 3.8, 0.4, R.h); W.solid(ctx, -17, R.z0 - 0.02, 2.4, 0.45, 0.8, MATS.concrete, R.h - 0.8, false);
+      W.solid(ctx, -17, R.z1, 10.4, 0.4, R.h); W.solid(ctx, R.x0, 14, 0.4, 6, R.h); W.solid(ctx, R.x1, 14, 0.4, 6, R.h);
+      for (const bz of [12.5, 15.5]) { const beam = W.boxMesh(MATS.metal, 10.4, 0.3, 0.3); beam.position.set(-17, R.h - 0.1, bz); ctx.group.add(beam); }
+      W.solid(ctx, -17, 16.2, 3, 0.8, 0.9, MATS.plank); W.solid(ctx, -21.4, 13, 0.6, 2.4, 2.2, MATS.metal);
+      W.solid(ctx, -12.6, 12.8, 0.6, 1.8, 1.6, MATS.metal);
+      const slab = W.solid(ctx, -17, R.z0, 2.4, 0.3, 3.2, MATS.metal); const slabBox = ctx.boxes[ctx.boxes.length - 1];
+      const dsign = new THREE.Mesh(new THREE.PlaneGeometry(2.2, 0.55), new THREE.MeshBasicMaterial({ map: labelTex('DIRETORIA', 'ACESSO RESTRITO — O. BRANDT'), transparent: true }));
+      dsign.position.set(-17, 3.6, R.z0 - 0.25); dsign.rotation.y = Math.PI; ctx.group.add(dsign);
       // tanques e tubos
       [[-6, 2], [-9, 4]].forEach(([x, z]) => { const t = new THREE.Mesh(new THREE.CylinderGeometry(1.4, 1.4, 3.6, 12), MATS.metal); t.position.set(x, 1.8, z); t.castShadow = true; ctx.group.add(t); ctx.circles.push({ x, z, r: 1.4, h: 3.6 }); });
       W.solid(ctx, -7.5, 3, 4, 0.4, 0.4, MATS.rust, 3.2, false);
@@ -149,7 +174,9 @@ export const AREAS = [
       W.treeRing(ctx, { ...b, minZ: b.minZ + 8 }, 50, 2, 12);
       // luzes: sódio + alarme vermelho junto ao portão
       const lamps = [W.lamp(ctx, -8, 10, 0xffb050), W.lamp(ctx, 9, 2, 0xffa040), W.lamp(ctx, -18, 4, 0xffb050), W.lamp(ctx, 4, -11, 0xff2020, 'pulse', 28), W.lamp(ctx, -4, -11, 0xff2020, 'pulse', 28)];
+      const roomLamp = W.lamp(ctx, -17, 14, 0xfff0d0, 'steady', 18, 3.4); roomLamp.on = false;
       return {
+        sideDoor: { mesh: slab, box: slabBox }, powerLamps: [roomLamp],
         doors: { S: W.doorway(ctx, 'S', 0, b), W: W.doorway(ctx, 'W', 6, b), N: W.doorway(ctx, 'N', 0, b) },
         terminals: [{ id: 'save-lab', kind: 'save', ...W.terminal(ctx, 6, 18, Math.PI), x: 6, z: 18 }],
         alarmLamps: lamps.slice(3),
@@ -171,10 +198,12 @@ export const AREAS = [
       { id: 'p4gren', kind: 'grenade', x: 12, z: 12 },
     ],
     ambient: [{ type: 'raptor', x: 0, z: 8 }, { type: 'raptor', x: -10, z: -10 }, { type: 'spitter', x: -16, z: 0 }, { type: 'spitter', x: 8, z: -8 }, { type: 'raptor', x: -18, z: 12 }],
+    logs: [{ id: 'log4', x: -19.4, z: -2.6, yaw: -Math.PI / 2 }],
     encounters: [],
     build(ctx) {
       const b = this.bounds, rng = ctx.rng;
-      W.ground(ctx, b, W.groundTex.mud);
+      ctx.treeStyle = 'swamp';
+      W.ground(ctx, b, W.groundTex.mud, 30, { patchCol: 0x0a1006, puddles: 14 });
       // poças (lentas) e água parada
       [[10, 4, 8, 6], [-2, -2, 7, 9], [-14, -10, 9, 5], [-8, 12, 10, 4], [16, -12, 6, 6]].forEach(([x, z, w, d]) => W.pool(ctx, x, z, w, d, MATS.mud));
       // árvores mortas e troncos caídos
@@ -208,7 +237,8 @@ export const AREAS = [
     id: 'patio', name: 'PÁTIO DA INSTALAÇÃO', sub: 'Holofotes brancos — alguém pede socorro pelo rádio',
     map: { x: 2, y: 1 }, bounds: { minX: -24, maxX: 24, minZ: -22, maxZ: 22 },
     mood: { fog: 0x101818, density: 0.022, sky: 0xb0c8c8, groundCol: 0x0c100e, hemi: 1.15, moonCol: 0xd8f0ff, moon: 1.3,
-      rain: 0.5, lightning: true, fireflies: false, exposure: 1.1, moonPos: [18, 40, 10] },
+      rain: 0.5, lightning: true, fireflies: false, exposure: 1.1, moonPos: [18, 40, 10],
+      spots: [{ x: -22.5, h: 9.5, z: -20.5, tx: -4, tz: 0, color: 0xe8fff0, sweep: 10, speed: 0.35 }, { x: 22.5, h: 9.5, z: 20.5, tx: 2, tz: 4, color: 0xd8fff0, sweep: 9, speed: 0.27 }] },
     doors: [{ id: 'S', side: 'S', at: 0, to: 'lab', toDoor: 'N' }, { id: 'E', side: 'E', at: -10, to: 'heliponto', toDoor: 'W', lock: 'heliCode' }],
     pickups: [
       { id: 'p5ammo', kind: 'ammo', x: -18, z: -16 },
@@ -218,6 +248,7 @@ export const AREAS = [
     ],
     ambient: [{ type: 'raptor', x: 10, z: -10 }, { type: 'raptor', x: -10, z: -4 }, { type: 'spitter', x: 16, z: -18 }, { type: 'raptor', x: 0, z: -14 }],
     survivor: { x: -18, z: 16, name: 'Dra. Lima' },
+    logs: [{ id: 'log6', x: 13, z: 19, yaw: Math.PI }],
     controlZone: { x: 18, z: -16, r: 3 },
     encounters: [
       { id: 'escort-1', on: 'flag', flag: 'escort', msg: 'Raptores atrás da Dra. Lima!',
@@ -227,10 +258,12 @@ export const AREAS = [
     ],
     build(ctx) {
       const b = this.bounds;
-      W.ground(ctx, b, W.groundTex.paving);
+      W.ground(ctx, b, W.groundTex.paving, 30, { puddles: 12 });
       W.perimeter(ctx, b, 4, MATS.concrete, [{ side: 'S', at: 0, half: 2.4 }, { side: 'E', at: -10, half: 2.4 }], 0.8);
       // galpões
-      W.building(ctx, -16, -12, 12, 8, 6, MATS.metal, 0.2); W.building(ctx, 15, 6, 10, 10, 6, MATS.metal, 0.2);
+      W.building(ctx, -16, -12, 12, 8, 6, MATS.metal, 0.5, { power: true }); W.building(ctx, 15, 6, 10, 10, 6, MATS.metal, 0.5, { power: true });
+      // torres dos holofotes
+      for (const [x, z] of [[-22.5, -20.5], [22.5, 20.5]]) { W.solid(ctx, x, z, 0.6, 0.6, 9.2, MATS.metal); const hd = W.boxMesh(MATS.dark, 1.2, 0.8, 1.2); hd.position.set(x, 9.6, z); ctx.group.add(hd); }
       // cabine da guarda (sudoeste) onde está a sobrevivente
       W.solid(ctx, -21, 13, 0.4, 6, 2.8, MATS.concrete); W.solid(ctx, -18, 10.2, 6, 0.4, 2.8, MATS.concrete);
       W.solid(ctx, -18.5, 14, 4, 6.4, 0.2, MATS.metal, 2.8, false);
@@ -261,20 +294,22 @@ export const AREAS = [
     id: 'heliponto', name: 'HELIPONTO DO PENHASCO', sub: 'Ponto de extração — algo enorme guarda a pista',
     map: { x: 3, y: 1 }, bounds: { minX: -24, maxX: 24, minZ: -24, maxZ: 22 },
     mood: { fog: 0x1a0a0c, density: 0.024, sky: 0xa05050, groundCol: 0x0a0404, hemi: 0.95, moonCol: 0xffb0a0, moon: 1.0,
-      rain: 1, lightning: true, fireflies: false, exposure: 1.15, moonPos: [-10, 40, 20] },
+      rain: 1, lightning: true, fireflies: false, exposure: 1.15, moonPos: [-10, 40, 20],
+      spots: [{ x: 20, h: 10, z: -20, tx: 0, tz: -8, color: 0xffe0d0, sweep: 9, speed: 0.3 }, { x: -21.5, h: 7.5, z: 19, tx: 0, tz: -4, color: 0xffd8c8, sweep: 8, speed: 0.42 }] },
     doors: [{ id: 'W', side: 'W', at: -10, to: 'patio', toDoor: 'E', lock: 'bossLock' }],
     pickups: [
       { id: 'p6ammo', kind: 'ammo', x: -18, z: 14 }, { id: 'p6ammo2', kind: 'ammo', x: 18, z: 14 },
       { id: 'p6med', kind: 'med', x: -20, z: 0 }, { id: 'p6gren', kind: 'grenade', x: 20, z: 0 },
     ],
     ambient: [],
+    logs: [{ id: 'log7', x: 6.6, z: -19.2, yaw: 0.3 }],
     helipad: { x: 0, z: -15, r: 4 },
     encounters: [
       { id: 'boss', on: 'enter', first: true, delay: 1.5, boss: true, msg: 'O COLOSSO bloqueia o heliponto!', spawn: [{ type: 'colossus', x: 0, z: -8 }] },
     ],
     build(ctx) {
       const b = this.bounds, rng = ctx.rng;
-      W.ground(ctx, b, W.groundTex.paving, 8);
+      W.ground(ctx, b, W.groundTex.paving, 8, { puddles: 10 });
       // penhasco ao redor (pedras grandes fora dos limites)
       for (let i = 0; i < 40; i++) { const a = rng() * Math.PI * 2, d = 30 + rng() * 8; W.rock(ctx, Math.cos(a) * d, Math.sin(a) * d, 2 + rng() * 3, false); }
       W.perimeter(ctx, b, 1.1, MATS.stripe, [{ side: 'W', at: -10, half: 2.4 }], 0.3);
@@ -285,9 +320,17 @@ export const AREAS = [
       W.building(ctx, 0, 19.5, 14, 3, 4, MATS.concrete, 0.4);
       // antena com luz vermelha
       W.solid(ctx, 20, -20, 0.5, 0.5, 10, MATS.metal);
+      W.solid(ctx, -21.5, 19, 0.5, 0.5, 7.5, MATS.metal);
+      // destroços do helicóptero do diretor Brandt (derrubado pelo Colosso) — ainda em chamas
+      const wreck = W.helicopter(true); wreck.group.position.set(11.5, -0.4, -21); wreck.group.rotation.y = -0.6; ctx.group.add(wreck.group);
+      wreck.group.traverse((o) => { if (o.isMesh) o.castShadow = true; });
+      ctx.boxes.push({ minX: 9.4, maxX: 13.6, minZ: -23.4, maxZ: -18.8, h: 2.6 });
+      W.fireLight(ctx, 11, -20.2, 1.2, 30);
+      // helicóptero de resgate (aparece no fim)
+      const heli = W.helicopter(false); heli.group.visible = false; ctx.group.add(heli.group);
       W.lamp(ctx, -12, -15, 0xff3020, 'pulse', 30, 3); W.lamp(ctx, 12, -15, 0xff3020, 'pulse', 30, 3); W.lamp(ctx, -16, 10, 0xffa060); W.lamp(ctx, 16, 10, 0xffa060);
       W.lamp(ctx, 0, -20, 0xfff0c0, 'steady', 18, 3);
-      return { doors: { W: W.doorway(ctx, 'W', -10, b) }, terminals: [] };
+      return { doors: { W: W.doorway(ctx, 'W', -10, b) }, terminals: [], heli, wreck };
     },
   },
 ];
@@ -296,7 +339,13 @@ export const AREA = Object.fromEntries(AREAS.map((a) => [a.id, a]));
 
 /** Constrói a geometria de todas as áreas (uma vez, na carga). */
 export function buildAreas() {
-  AREAS.forEach((a, i) => { a.ctx = W.makeCtx(mulberry32(WORLD.SEED + i * 101)); a.refs = a.build(a.ctx); });
+  const DIR = { N: 'PORTÃO NORTE', S: 'PORTÃO SUL', W: 'PORTÃO OESTE', E: 'PORTÃO LESTE' };
+  AREAS.forEach((a, i) => {
+    a.ctx = W.makeCtx(mulberry32(WORLD.SEED + i * 101)); a.refs = a.build(a.ctx);
+    a.refs.logs = (a.logs || []).map((l) => ({ ...l, ...W.datapad(a.ctx, l.x, l.z, l.yaw || 0) }));
+  });
+  // placas com o destino em cada portão
+  AREAS.forEach((a) => a.doors.forEach((d) => { const ref = a.refs.doors[d.id]; if (ref) W.doorSign(ref, '→ ' + AREA[d.to].name, DIR[d.side]); }));
 }
 
 /** Posição de chegada junto a uma porta (um pouco para dentro da área) e yaw olhando para dentro. */

@@ -1,22 +1,22 @@
 // fx.js — partículas (sangue/faíscas/poeira/ácido), traçantes e manchas no chão, tudo com pool.
 import * as THREE from 'three';
-import { scene, GLOW } from './world.js';
+import { scene, GLOW, flashAt } from './world.js';
 import { FX, COLORS } from './config.js';
-import { rand, RingPool, splatTex } from './utils.js';
+import { rand, RingPool, softSplatTex } from './utils.js';
 
 const pGeo = new THREE.BoxGeometry(0.09, 0.09, 0.09);
 const pMats = {
   blood: new THREE.MeshBasicMaterial({ color: COLORS.blood }),
-  spark: new THREE.MeshBasicMaterial({ color: COLORS.spark }),
+  spark: new THREE.MeshBasicMaterial({ color: COLORS.spark, blending: THREE.AdditiveBlending, transparent: true, depthWrite: false }),
   spit: new THREE.MeshBasicMaterial({ color: COLORS.spit }),
   dust: new THREE.MeshBasicMaterial({ color: COLORS.dust }),
-  fire: new THREE.MeshBasicMaterial({ color: COLORS.fire }),
+  fire: new THREE.MeshBasicMaterial({ color: COLORS.fire, blending: THREE.AdditiveBlending, transparent: true, depthWrite: false }),
 };
 
 // ---------- partículas ----------
 const particles = new RingPool(FX.MAX_PARTICLES, () => {
   const m = new THREE.Mesh(pGeo, pMats.blood); m.visible = false; m.frustumCulled = false; scene.add(m);
-  return { m, vx: 0, vy: 0, vz: 0, life: 0, grav: 12 };
+  return { m, vx: 0, vy: 0, vz: 0, life: 0, life0: 1, s0: 1, grav: 12, shrink: false };
 });
 /** Explosão de partículas. kind: blood | spark | spit | dust | fire */
 export function burst(x, y, z, kind, n, sp, dirX = 0, dirZ = 0) {
@@ -26,7 +26,8 @@ export function burst(x, y, z, kind, n, sp, dirX = 0, dirZ = 0) {
     const s = kind === 'dust' ? rand(1, 2.2) : rand(0.7, 1.4); p.m.scale.setScalar(s);
     p.vx = (rand(-1, 1) + dirX * 1.2) * sp; p.vy = rand(0.5, 1.6) * sp; p.vz = (rand(-1, 1) + dirZ * 1.2) * sp;
     p.grav = kind === 'dust' ? 3 : kind === 'fire' ? -1.5 : 12;
-    p.life = rand(0.3, 0.7) * (kind === 'dust' ? 1.6 : 1);
+    p.life = p.life0 = rand(0.3, 0.7) * (kind === 'dust' ? 1.6 : 1); p.s0 = s; p.shrink = kind === 'spark' || kind === 'fire'; p.spark = kind === 'spark';
+    if (kind === 'spark') p.m.scale.set(s * 0.5, s * 0.5, s * 2.2);
   }
 }
 
@@ -42,7 +43,7 @@ export function tracer(a, b) {
 }
 
 // ---------- manchas no chão ----------
-const splat = splatTex();
+const splat = softSplatTex();
 const decalGeo = new THREE.PlaneGeometry(1, 1); decalGeo.rotateX(-Math.PI / 2);
 const decals = new RingPool(FX.MAX_DECALS, () => {
   const m = new THREE.Mesh(decalGeo, new THREE.MeshBasicMaterial({ map: splat, color: COLORS.blood, transparent: true, opacity: 0, depthWrite: false, polygonOffset: true, polygonOffsetFactor: -2 }));
@@ -70,8 +71,20 @@ const flashes = new RingPool(4, () => {
   const s = new THREE.Sprite(new THREE.SpriteMaterial({ map: GLOW, color: 0xffa040, transparent: true, opacity: 0, depthWrite: false, blending: THREE.AdditiveBlending }));
   s.visible = false; scene.add(s); return { s, life: 0 };
 });
+// ---------- fumaça (sprites macios que sobem e crescem) ----------
+const smokes = new RingPool(18, () => {
+  const s = new THREE.Sprite(new THREE.SpriteMaterial({ map: GLOW, color: 0x3a3632, transparent: true, opacity: 0, depthWrite: false }));
+  s.visible = false; scene.add(s); return { s, life: 0, max: 1, vy: 0, g: 1 };
+});
+export function smoke(x, y, z, n = 6, size = 1.5) {
+  for (let i = 0; i < n; i++) {
+    const p = smokes.next(); p.s.visible = true; p.life = p.max = rand(1.2, 2.2); p.vy = rand(0.6, 1.4); p.g = size * rand(0.8, 1.3);
+    p.s.position.set(x + rand(-0.6, 0.6), y + rand(0, 0.5), z + rand(-0.6, 0.6)); p.s.scale.setScalar(p.g);
+  }
+}
 export function explosion(x, z, r) {
   const f = flashes.next(); f.s.visible = true; f.life = 0.35; f.s.position.set(x, 1.2, z); f.s.scale.setScalar(r * 2.6);
+  flashAt(x, 1.4, z, 0xffa040, 220); smoke(x, 0.8, z, 8, r * 0.9);
   burst(x, 0.6, z, 'fire', 34, 6); burst(x, 0.4, z, 'spark', 18, 8); shockwave(x, z, r, 0xffa050);
   decal(x, z, r * 0.8, 0x111111);
 }
@@ -82,6 +95,13 @@ export function updateFx(dt) {
     w.life -= dt; const k = 1 - w.life / w.max;
     w.m.scale.setScalar(0.3 + k * w.r); w.m.material.opacity = 0.85 * (1 - k);
     if (w.life <= 0) w.m.visible = false;
+  });
+  smokes.forEach((p) => {
+    if (!p.s.visible) return;
+    p.life -= dt; const k = 1 - p.life / p.max;
+    p.s.position.y += p.vy * dt; p.s.scale.setScalar(p.g * (1 + k * 1.6));
+    p.s.material.opacity = 0.5 * Math.sin(Math.PI * Math.min(1, k * 1.2));
+    if (p.life <= 0) p.s.visible = false;
   });
   flashes.forEach((f) => {
     if (!f.s.visible) return;
@@ -94,6 +114,8 @@ export function updateFx(dt) {
     p.vy -= p.grav * dt;
     const pos = p.m.position; pos.x += p.vx * dt; pos.y += p.vy * dt; pos.z += p.vz * dt;
     if (pos.y < 0.04) { pos.y = 0.04; p.vx *= 0.6; p.vz *= 0.6; p.vy = 0; }
+    if (p.shrink) { const k = Math.max(0.05, p.life / p.life0); if (p.spark) p.m.scale.set(p.s0 * 0.5 * k, p.s0 * 0.5 * k, p.s0 * 2.2 * k); else p.m.scale.setScalar(p.s0 * k); }
+    if (p.spark) p.m.lookAt(pos.x + p.vx, pos.y + p.vy, pos.z + p.vz);
   });
   tracers.forEach((t) => {
     if (!t.m.visible) return;
@@ -112,4 +134,5 @@ export function clearFx() {
   decals.forEach((d) => { d.m.visible = false; });
   rings.forEach((w) => { w.m.visible = false; });
   flashes.forEach((f) => { f.s.visible = false; });
+  smokes.forEach((p) => { p.s.visible = false; });
 }
