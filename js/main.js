@@ -1,23 +1,27 @@
 // main.js — inicialização, máquina de estados (menu/story/play/pause/over/win) e laço principal.
 // A progressão (áreas, portas, eventos, chefe) fica em director.js.
 import * as THREE from 'three';
-import { renderer, scene, camera, boxes, updateWorld, atmo } from './world.js';
+import { renderer, scene, camera, boxes, updateWorld, atmo, bounds } from './world.js';
 import { G, saveBest } from './state.js';
 import { initInput, lockPointer, unlockPointer, clearInput, keys, mouse } from './input.js';
 import { initAudio, sfx, toggleMute } from './audio.js';
 import { updateFx, clearFx } from './fx.js';
 import { player, bag, events, resetPlayer, updatePlayer, updateCamera, menuCamera, switchWeapon, startReload, arms, curWeapon, useMed } from './player.js';
-import { enemies, spawnEnemy, updateEnemies, clearEnemies } from './enemies.js';
+import { enemies, spawnEnemy, updateEnemies, clearEnemies, prewarmEnemies, poolStats } from './enemies.js';
 import { fire, throwGrenade, updateCombat, clearPickups, pickups, damageEnemy } from './combat.js';
 import { updateSurvivor, hideSurvivor, survivor } from './npc.js';
-import { buildAreas } from './areas.js';
-import { D, startCampaign, updateDirector, updateHeli, hudData, interact, hasSave, setWinHandler, endStats, currentObjective, debugGoto } from './director.js';
+import { AREAS, AREA, buildArea, builtCount, isBuilt } from './areas.js';
+import { D, startCampaign, updateDirector, updateHeli, hudData, interact, hasSave, setWinHandler, endStats, currentObjective, debugGoto, warmArea, streamStats } from './director.js';
+import { readSave } from './state.js';
+import { quality, setQualityMode, autoQualityTick, applyQualityNow, onQuality, MODE_LABEL, PRESETS } from './quality.js';
+import { nextFrame, idleBusy } from './idle.js';
 import * as story from './story.js';
 import { initPost, render, toggleBloom, post } from './post.js';
 import * as ui from './ui.js';
 import { $ } from './utils.js';
 
-buildAreas();
+// v4: as áreas NÃO são mais construídas todas de uma vez aqui — veja boot() no fim do arquivo.
+const loadErr = $('loadErr'); if (loadErr) loadErr.remove(); // módulos carregaram: o aviso de file:// não se aplica
 
 // ---------- estados ----------
 let endT = 0;
@@ -73,6 +77,7 @@ initInput(renderer.domElement, {
       return;
     }
     if (code === 'KeyB') { ui.feed(ui.STR.bloom(toggleBloom()), '#cde'); return; }
+    if (G.state === 'loading') return;
     if (G.state === 'play') {
       if (code === 'KeyR') startReload();
       if (code === 'Digit1') switchWeapon(0);
@@ -123,7 +128,8 @@ function update(dt) {
 const EMPTY = { area: null };
 function loop() {
   requestAnimationFrame(loop);
-  const dt = Math.min(clock.getDelta(), 0.05);
+  const raw = clock.getDelta(), dt = Math.min(raw, 0.05);
+  if (G.state === 'play' && !D.trans && autoQualityTick(dt, raw)) ui.feed(ui.STR.qualityAuto(quality.p.label), '#fc8');
   if (G.state !== 'pause') update(dt);
   if (G.state === 'menu' || story.cinematic()) menuCamera(dt); else if (G.state !== 'pause') updateCamera(dt);
   const h = D.area ? hudData() : EMPTY;
@@ -134,13 +140,65 @@ function loop() {
   render(renderer, scene, camera, dt);
 }
 
-// tela de menu: mostra o cais ao fundo
-startCampaign(false); clearEnemies(); hideSurvivor(); G.state = 'menu';
-ui.initUI(hasSave());
-ui.showScreen('menu');
-post.onAuto = () => ui.feed(ui.STR.bloomAuto, '#cde');
-initPost(renderer, scene, camera);
-loop();
+// ---------- qualidade gráfica ----------
+function refreshQualityUI() { ui.updateQualityUI(quality.mode, quality.id, quality.p.label); }
+ui.bindQuality((mode) => {
+  setQualityMode(mode); refreshQualityUI();
+  document.querySelectorAll('.qsel.first').forEach((q) => { q.classList.remove('first'); q.querySelector('span').textContent = 'QUALIDADE GRÁFICA'; });
+  ui.feed(ui.STR.quality(MODE_LABEL[mode] + (mode === 'auto' ? ' → ' + quality.p.label : '')), '#cde');
+  if (!quality.p.stream && D.area) AREAS.forEach(warmArea); // Alto: mantém todas as áreas prontas
+});
+// a predefinição Auto pode baixar sozinha — mantém os botões em dia
+onQuality(() => refreshQualityUI());
+
+// ---------- carregamento progressivo ----------
+// 1) cais (área inicial) → 2) modelos de inimigos no pool → 3) pré-compilação de shaders → menu.
+// As demais áreas são construídas em segundo plano, uma por fatia ociosa (idle.js).
+async function compileShaders(extra) {
+  const tmp = [];
+  for (const o of extra) if (!o.parent) { scene.add(o); tmp.push({ o, v: o.visible }); o.visible = true; o.position.y = -40; }
+  try {
+    if (renderer.compileAsync) await renderer.compileAsync(scene, camera);
+    else renderer.compile(scene, camera);
+  } catch (e) { console.warn('pré-compilação de shaders falhou (segue sem):', e && e.message); }
+  for (const { o, v } of tmp) { scene.remove(o); o.visible = v; o.position.y = 0; }
+}
+async function boot() {
+  G.state = 'loading';
+  const steps = 4; let n = 0;
+  const step = async (txt) => { ui.setLoading(n++ / steps, txt); await nextFrame(); };
+  applyQualityNow(); refreshQualityUI();
+  if (quality.firstRun) document.querySelectorAll('#menu .qsel').forEach((q) => { q.classList.add('first'); q.querySelector('span').textContent = `PRIMEIRA VEZ? ESCOLHA A QUALIDADE (AUTO DETECTOU: ${quality.p.label.toUpperCase()})`; });
+  await step(`Carregando… qualidade ${quality.p.label}${quality.mode === 'auto' ? ' (auto)' : ''}`);
+  await step('Carregando… 1/' + AREAS.length + ' ' + AREA.porto.name.toLowerCase());
+  buildArea(AREA.porto);
+  await step('Carregando… criaturas');
+  const warm = prewarmEnemies();
+  // tela de menu: mostra o cais ao fundo
+  startCampaign(false); clearEnemies(); hideSurvivor();
+  await step('Carregando… preparando shaders');
+  await compileShaders(warm);
+  ui.setLoading(1, 'Pronto!');
+  G.state = 'menu';
+  ui.initUI(hasSave());
+  ui.showScreen('menu');
+  post.onAuto = () => ui.feed(ui.STR.bloomAuto, '#cde');
+  initPost(renderer, scene, camera);
+  loop();
+  ui.hideLoading();
+  // continuar: deixa a área do save pronta em segundo plano
+  const sv = readSave(); if (sv && AREA[sv.area]) warmArea(AREA[sv.area]);
+  bgStatus();
+}
+// linha discreta no menu: quantas áreas já estão prontas
+function bgStatus() {
+  const t = setInterval(() => {
+    if (G.state !== 'menu') { ui.setBgStatus(''); return; }
+    ui.setBgStatus(idleBusy() ? `Preparando áreas em segundo plano… ${builtCount()}/${AREAS.length}` : `Áreas prontas: ${builtCount()}/${AREAS.length}`);
+  }, 300);
+  return t;
+}
+boot().catch((e) => { console.error(e); ui.loadingError('Falha ao carregar: ' + (e && e.message ? e.message : e)); });
 
 // gancho de depuração/testes automatizados
 window.__game = {
@@ -148,4 +206,8 @@ window.__game = {
   get enemies() { return enemies.length; }, get objective() { return currentObjective(); },
   get flags() { return D.flags; }, D, list: enemies, damageEnemy, player, bag, survivor, G, startGame, fire, spawnEnemy, interact, throwGrenade,
   goto: (id) => debugGoto(id), story, post,
+  // v4: desempenho
+  quality, setQuality: (m) => { setQualityMode(m); refreshQualityUI(); }, PRESETS, poolStats, streamStats, bounds, hudStats: ui.hudStats,
+  areas: () => AREAS.map((a) => ({ id: a.id, built: isBuilt(a), builds: a.builds || 0, unloads: a.unloads || 0 })),
+  renderInfo: () => ({ calls: renderer.info.render.calls, triangles: renderer.info.render.triangles, programs: renderer.info.programs.length, geometries: renderer.info.memory.geometries, textures: renderer.info.memory.textures, pixelRatio: renderer.getPixelRatio(), shadowMap: renderer.shadowMap.type }),
 };

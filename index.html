@@ -86,6 +86,17 @@
     <p id="stBody"></p><div id="stFoot"></div>
   </div></div>
 
+  <!-- ===== CARREGANDO (v4: áreas construídas aos poucos) ===== -->
+  <div id="loading"><div class="box">
+    <h1>CRISE NO VALE</h1>
+    <div class="sub">CARREGANDO O VALE…</div>
+    <div class="lbar"><div id="loadFill"></div></div>
+    <div id="loadTxt" class="small">Iniciando…</div>
+    <div id="loadErr">Não foi possível iniciar o jogo. Se você abriu o arquivo direto (file://),
+      rode um servidor local: <code>npx serve</code> ou <code>python3 -m http.server</code>.
+      Verifique também sua conexão (o Three.js vem de CDN).</div>
+  </div></div>
+
   <!-- ===== MENU ===== -->
   <div id="menu" class="ov"><div class="box">
     <h1>CRISE NO VALE</h1>
@@ -110,10 +121,11 @@
     <button id="startBtn" disabled>CARREGANDO…</button>
     <div><button id="continueBtn" class="ghost hidden">CONTINUAR DO ÚLTIMO TERMINAL</button></div>
     <div id="best" class="small"></div>
+    <div class="qsel"><span>QUALIDADE GRÁFICA</span>
+      <button class="ghost" data-q="auto">Auto</button><button class="ghost" data-q="baixo">Baixo</button><button class="ghost" data-q="medio">Médio</button><button class="ghost" data-q="alto">Alto</button>
+      <div class="small qnote"></div></div>
+    <div id="bgLoad" class="small"></div>
     <div class="small">Clique na tela para travar o mouse. Esc libera o mouse e pausa.</div>
-    <div id="loadErr">Não foi possível iniciar o jogo. Se você abriu o arquivo direto (file://),
-      rode um servidor local: <code>npx serve</code> ou <code>python3 -m http.server</code>.
-      Verifique também sua conexão (o Three.js vem de CDN).</div>
   </div></div>
 
   <!-- ===== PAUSA ===== -->
@@ -122,6 +134,9 @@
     <p id="pauseObj"></p>
     <button id="resumeBtn">CONTINUAR</button>
     <div><button id="quitBtn" class="ghost">MENU PRINCIPAL</button></div>
+    <div class="qsel"><span>QUALIDADE GRÁFICA</span>
+      <button class="ghost" data-q="auto">Auto</button><button class="ghost" data-q="baixo">Baixo</button><button class="ghost" data-q="medio">Médio</button><button class="ghost" data-q="alto">Alto</button>
+      <div class="small qnote"></div></div>
   </div></div>
 
   <!-- ===== FIM ===== -->

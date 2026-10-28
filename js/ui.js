@@ -26,6 +26,8 @@ export const STR = {
   lockHint: 'Clique na tela para travar o mouse',
   bloom: (on) => (on === null ? 'Bloom indisponível neste navegador' : on ? 'Bloom ligado' : 'Bloom desligado'),
   bloomAuto: 'Bloom desligado automaticamente (FPS baixo) — B religa',
+  quality: (label) => `Qualidade gráfica: ${label}`,
+  qualityAuto: (label) => `FPS baixo — qualidade automática reduzida para ${label}`,
 };
 /** Clarão quente quando a energia volta. */
 export function powerFlash() { el.powerFlash.classList.remove('go'); void el.powerFlash.offsetWidth; el.powerFlash.classList.add('go'); }
@@ -46,14 +48,14 @@ const el = {};
 export { el };
 
 export function initUI(hasSave) {
-  el.loadErr.remove();
+  if (el.loadErr && el.loadErr.isConnected) el.loadErr.remove();
   el.startBtn.disabled = false; el.startBtn.textContent = STR.start;
   el.best.textContent = STR.best(G.best);
   setHasSave(hasSave);
 }
 export function setHasSave(on) { el.continueBtn.classList.toggle('hidden', !on); el.continueEndBtn.classList.toggle('hidden', !on); }
 export function setFade(v) { el.fade.style.opacity = v.toFixed(3); }
-export function toggleMap(on) { el.mapOv.classList.toggle('on', on); if (on) lastMini = -1e9; } // força redesenho imediato
+export function toggleMap(on) { el.mapOv.classList.toggle('on', on); if (on) { lastMini = -1e9; lastBig = -1e9; } } // força redesenho imediato
 export const mapOpen = () => el.mapOv.classList.contains('on');
 
 // ---------- telas ----------
@@ -198,10 +200,42 @@ export function updateHUD(dt, d) {
   if (feedT > 0) { feedT -= dt; if (feedT <= 0) el.feed.style.opacity = 0; }
   if (cdT > 0) { cdT -= dt; el.countdown.style.opacity = Math.min(1, cdT * 2); }
 
-  drawRadar(d);
-  if (d.mapDirty || G.time - lastMini > 0.5) { lastMini = G.time; drawAreaMap(el.minimap, d, 1); if (mapOpen()) drawAreaMap(el.bigmap, d, 2.8); }
+  // v4: radar a ~12 Hz; minimapa a cada 0,5 s ou quando algo muda; mapa grande só aberto (e sujo ou a cada 0,25 s)
+  radarT -= dt; if (radarT <= 0) { radarT = RADAR_DT; drawRadar(d); hudStats.radar++; }
+  if (d.mapDirty) bigDirty = true;
+  if (d.mapDirty || G.time - lastMini > 0.5) { lastMini = G.time; drawAreaMap(el.minimap, d, 1); hudStats.mini++; }
+  if (mapOpen() && (bigDirty || G.time - lastBig > 0.25)) { lastBig = G.time; bigDirty = false; drawAreaMap(el.bigmap, d, 2.8); hudStats.big++; }
 }
-let lastMini = -1;
+let lastMini = -1, lastBig = -1, bigDirty = true, radarT = 0;
+const RADAR_DT = 1 / 12;
+/** Contadores de redesenho do HUD (depuração/teste). */
+export const hudStats = { radar: 0, mini: 0, big: 0 };
+
+// ---------- tela de carregamento ----------
+export function setLoading(k, txt) {
+  const fill = $('loadFill'), t = $('loadTxt');
+  if (fill) fill.style.width = Math.round(Math.max(0, Math.min(1, k)) * 100) + '%';
+  if (t && txt) t.textContent = txt;
+}
+export function hideLoading() { const o = $('loading'); if (o) o.classList.add('hidden'); }
+export function loadingError(msg) { const t = $('loadTxt'); if (t) { t.textContent = msg; t.classList.add('err'); } }
+/** Linha discreta no menu sobre áreas sendo preparadas em segundo plano. */
+export function setBgStatus(txt) { const b = $('bgLoad'); if (b) b.textContent = txt || ''; }
+
+// ---------- seletor de qualidade (menu principal e pausa) ----------
+const Q_NOTE = {
+  auto: 'Auto: escolhe pelo seu aparelho e baixa um nível se o FPS cair.',
+  baixo: 'Baixo: sombras simples 512, sem bloom, menos chuva/luzes, resolução 1×.',
+  medio: 'Médio: sombras suaves 1024, bloom, chuva moderada (recomendado).',
+  alto: 'Alto: sombras 2048 em tudo, chuva cheia, resolução até 1,75×, todas as áreas na memória.',
+};
+export function bindQuality(onPick) {
+  document.querySelectorAll('.qsel button[data-q]').forEach((b) => b.addEventListener('click', (ev) => { ev.stopPropagation(); onPick(b.dataset.q); b.blur(); }));
+}
+export function updateQualityUI(mode, id, label) {
+  document.querySelectorAll('.qsel button[data-q]').forEach((b) => b.classList.toggle('on', b.dataset.q === mode));
+  document.querySelectorAll('.qnote').forEach((n) => { n.textContent = Q_NOTE[mode] + (mode === 'auto' ? ` (atual: ${label})` : ''); });
+}
 
 // ---------- mapa esquemático das áreas (mini no HUD e grande com Tab) ----------
 const MAPC = { visited: 'rgba(110,150,110,.55)', unknown: 'rgba(70,80,75,.35)', cur: 'rgba(120,255,140,.85)' };
