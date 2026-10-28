@@ -24,7 +24,7 @@ export function clearInput() { for (const k in keys) keys[k] = false; mouse.down
 export function initInput(cvs, h) {
   canvas = cvs; handlers = h;
   addEventListener('keydown', (e) => {
-    if (['Space', 'ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight'].includes(e.code)) e.preventDefault();
+    if (['Space', 'Tab', 'ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight'].includes(e.code)) e.preventDefault();
     const first = !keys[e.code];
     keys[e.code] = true;
     if (first && handlers.onKey) handlers.onKey(e.code);
