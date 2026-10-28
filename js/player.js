@@ -37,14 +37,32 @@ const armR = new THREE.Group(); armR.position.set(0.38, 1.5, 0); pg.add(armR);
 part(B(0.16, 0.16, 0.6), suit, 0, -0.08, 0.25, armR);
 const armL = new THREE.Group(); armL.position.set(-0.38, 1.5, 0); pg.add(armL);
 part(B(0.16, 0.16, 0.6), suit, 0.12, -0.08, 0.25, armL); armL.rotation.y = -0.45;
+// detalhes: cinto, bolsos, ombreiras, joelheiras, mãos, rádio e faixa refletiva
+const beltM = new THREE.MeshStandardMaterial({ color: 0x1a1612, roughness: 0.6, metalness: 0.2 });
+const reflM = new THREE.MeshStandardMaterial({ color: 0x9aa890, emissive: 0x2a3a2a, roughness: 0.4 });
+part(B(0.66, 0.1, 0.4), beltM, 0, 0.92, 0);
+for (const x of [-0.22, 0.22]) part(B(0.13, 0.15, 0.08), packM, x, 0.9, 0.22);   // bolsos frontais
+part(B(0.12, 0.2, 0.14), beltM, 0.36, 0.86, 0.02);                               // coldre
+part(B(0.67, 0.05, 0.41), reflM, 0, 1.5, 0);                                     // faixa do colete
+part(B(0.08, 0.16, 0.06), gunM, -0.2, 1.48, 0.21);                               // rádio no peito
+part(new THREE.CylinderGeometry(0.11, 0.12, 0.1, 10), skinM, 0, 1.66, 0);        // pescoço
+part(B(0.3, 0.08, 0.1), beltM, 0, 1.92, 0.12).rotation.x = -0.2;                 // faixa/óculos na testa
+for (const leg of [legL, legR]) part(B(0.24, 0.16, 0.08), beltM, 0, -0.5, 0.13, leg);   // joelheiras
+for (const [arm, x] of [[armR, 0], [armL, 0.12]]) {
+  part(B(0.22, 0.12, 0.24), vest, x, 0.04, 0.02, arm);                             // ombreira
+  part(new THREE.SphereGeometry(0.085, 8, 6), skinM, x, -0.08, 0.58, arm);         // mão
+}
 
 // armas visíveis (troca de modelo)
 const pistolMesh = new THREE.Group(); armR.add(pistolMesh);
 part(B(0.1, 0.16, 0.42), gunM, 0, -0.06, 0.68, pistolMesh);
+part(B(0.08, 0.06, 0.3), gunM, 0, 0.04, 0.74, pistolMesh);                 // ferrolho
+part(B(0.08, 0.2, 0.1), gunM, 0, -0.2, 0.58, pistolMesh).rotation.x = 0.25; // empunhadura
 const shotgunMesh = new THREE.Group(); armR.add(shotgunMesh); shotgunMesh.visible = false;
 part(B(0.09, 0.09, 0.95), gunM, 0, -0.04, 0.85, shotgunMesh);
 part(B(0.12, 0.12, 0.35), woodM, 0, -0.1, 0.62, shotgunMesh);
 part(B(0.1, 0.16, 0.3), woodM, 0, -0.14, 0.25, shotgunMesh);
+part(new THREE.CylinderGeometry(0.035, 0.035, 0.9, 8), gunM, 0, -0.11, 0.85, shotgunMesh).rotation.x = Math.PI / 2; // tubo do carregador
 
 export const gunTip = new THREE.Object3D(); gunTip.position.set(0, -0.05, 0.98); armR.add(gunTip);
 // clarão do disparo: sprite + "estrela" de dois planos + luz forte

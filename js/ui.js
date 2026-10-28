@@ -24,7 +24,11 @@ export const STR = {
   best: (n) => (n > 0 ? `Recorde: ${n} pontos` : ''),
   newBest: 'NOVO RECORDE!',
   lockHint: 'Clique na tela para travar o mouse',
+  bloom: (on) => (on === null ? 'Bloom indisponível neste navegador' : on ? 'Bloom ligado' : 'Bloom desligado'),
+  bloomAuto: 'Bloom desligado automaticamente (FPS baixo) — B religa',
 };
+/** Clarão quente quando a energia volta. */
+export function powerFlash() { el.powerFlash.classList.remove('go'); void el.powerFlash.offsetWidth; el.powerFlash.classList.add('go'); }
 
 /** Direção cardeal de um ponto (x,z) visto do centro. Norte = -Z. */
 export function cardinal(x, z) {
@@ -38,7 +42,7 @@ const el = {};
 ['hud', 'menu', 'pause', 'end', 'startBtn', 'continueBtn', 'continueEndBtn', 'restartBtn', 'resumeBtn', 'quitBtn', 'loadErr', 'best', 'hpnum', 'hpfill', 'hpghost', 'status',
   'wname', 'ammo', 'pips', 'reloadFill', 'reloadTxt', 'zone', 'obj', 'minimap', 'inv', 'prompt', 'bossbar', 'bossName', 'bossFill', 'meter', 'meterLbl', 'meterFill',
   'mapOv', 'bigmap', 'fade', 'pauseObj', 'score', 'combo', 'cross', 'hitmark', 'dmgDir', 'floaters',
-  'banner', 'bTitle', 'bSub', 'announce', 'countdown', 'feed', 'vign', 'flashScreen', 'endTitle', 'endText', 'radar'].forEach((id) => { el[id] = $(id); });
+  'banner', 'bTitle', 'bSub', 'announce', 'countdown', 'feed', 'vign', 'flashScreen', 'endTitle', 'endText', 'radar', 'obj2', 'logs', 'haze', 'powerFlash', 'speech'].forEach((id) => { el[id] = $(id); });
 export { el };
 
 export function initUI(hasSave) {
@@ -67,7 +71,8 @@ export function showEnd(win, stats, newBest) {
   el.endTitle.style.color = win ? '#cfe9a8' : '#ff7a6a';
   const m = Math.floor(stats.elapsed / 60), s = Math.floor(stats.elapsed % 60);
   el.endText.innerHTML =
-    (win ? 'Você e a Dra. Lima embarcaram no helicóptero. O vale fica para trás.<br><br>' : `Última área: <b>${stats.area}</b><br>`) +
+    (win ? 'A agente Rocha e a Dra. Lima deixaram o Vale Verde a bordo do Garça-1.<br><br>' : `Última área: <b>${stats.area}</b><br>`) +
+    `Registros encontrados: <b>${stats.logs}/${stats.logsTotal}</b><br>` +
     `Pontos: <b>${stats.score}</b>${newBest ? ` <span style="color:#ffd060">— ${STR.newBest}</span>` : ''}<br>` +
     `Áreas visitadas: <b>${stats.visited}/${stats.total}</b> • Objetivos: <b>${stats.objectives}</b><br>` +
     `Dinossauros abatidos: <b>${stats.kills}</b> • Saves: <b>${stats.saves}</b><br>` +
@@ -138,7 +143,7 @@ export function updateHUD(dt, d) {
   updateFloaters(dt, d.camera);
   flashT = Math.max(flashT, d.lightning * 0.35);
   el.flashScreen.style.opacity = flashT.toFixed(3); flashT = Math.max(0, flashT - dt * 2);
-  if (G.state === 'menu') return;
+  if (G.state === 'menu') { el.haze.style.opacity = 0; return; }
 
   const hp = Math.ceil(d.player.hp);
   el.hpnum.textContent = hp; el.hpfill.style.width = hp + '%';
@@ -163,10 +168,13 @@ export function updateHUD(dt, d) {
   // área, objetivo, inventário, prompt, chefe, medidor
   if (el.zone.textContent !== d.area.name) el.zone.textContent = d.area.name;
   if (el.obj.textContent !== d.objective) el.obj.textContent = d.objective;
+  const sub = d.sub || ''; if (el.obj2.textContent !== sub) el.obj2.textContent = sub;
+  const lg = `${d.logs || 0}/${d.logsTotal || 7}`; if (el.logs.textContent !== lg) el.logs.textContent = lg;
+  el.haze.style.opacity = (d.haze || 0).toFixed(3);
   const invH = `Kits <b>${d.bag.meds}/${INVENTORY.MED_MAX}</b><span class="key">H</span> &nbsp; Granadas <b>${d.bag.grenades}/${GRENADE.MAX}</b><span class="key">G</span>` +
     (d.bag.owned[1] ? "" : "<br><span style=\"color:#789\">Escopeta: não encontrada</span>");
   if (el.inv.dataset.k !== invH) { el.inv.dataset.k = invH; el.inv.innerHTML = invH; }
-  const pr = d.prompt ? (d.prompt.locked ? d.prompt.text : `<span class="key">E</span>${d.prompt.text}`) : '';
+  const pr = d.prompt && G.state === 'play' ? (d.prompt.locked ? d.prompt.text : `<span class="key">E</span>${d.prompt.text}`) : '';
   if (el.prompt.dataset.k !== pr) { el.prompt.dataset.k = pr; el.prompt.innerHTML = pr; el.prompt.style.display = pr ? 'block' : 'none'; el.prompt.classList.toggle('locked', !!(d.prompt && d.prompt.locked)); }
   el.bossbar.style.display = d.boss ? 'block' : 'none';
   if (d.boss) { el.bossName.textContent = d.boss.cfg.name.toUpperCase() + (d.boss.stun > 0 ? ' — ATORDOADO!' : ''); el.bossFill.style.width = Math.max(0, 100 * d.boss.hp / d.boss.maxHp) + '%'; }
