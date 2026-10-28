@@ -1,0 +1,111 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>Crise no Vale — sobrevivência em terceira pessoa</title>
+  <meta name="description" content="Mini-jogo de sobrevivência em Three.js, inspirado em Dino Crisis 2. Geometria low-poly procedural.">
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 16 16%22%3E%3Ccircle cx=%228%22 cy=%228%22 r=%227%22 fill=%22%23243%22/%3E%3Cpath d=%22M8 3v10M3 8h10%22 stroke=%22%239f6%22 stroke-width=%221.5%22/%3E%3C/svg%3E">
+  <link rel="stylesheet" href="css/main.css">
+  <link rel="stylesheet" href="css/hud.css">
+  <!-- Three.js via import map (CDN jsDelivr, versão fixada) -->
+  <script type="importmap">
+  { "imports": { "three": "https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js" } }
+  </script>
+  <script type="module" src="js/main.js"></script>
+</head>
+<body>
+  <div id="dark"></div>
+  <div id="vign"></div>
+  <div id="flashScreen"></div>
+
+  <!-- ===== HUD ===== -->
+  <div id="hud">
+    <div id="tl" class="panel">
+      <div class="t">CRISE NO VALE</div>
+      <div>Onda: <b id="wave">1/5</b></div>
+      <div>Inimigos: <b id="enemies">0</b></div>
+      <div>Pontos: <b id="score">0</b> <span id="combo"></span></div>
+    </div>
+
+    <div id="radarWrap">
+      <canvas id="radar" width="170" height="170"></canvas>
+      <div id="radarLbl">RADAR</div>
+    </div>
+
+    <div id="bl" class="panel">
+      <div class="lbl">VIDA <span id="hpnum">100</span></div>
+      <div id="hpbar"><div id="hpghost"></div><div id="hpfill"></div></div>
+      <div id="status">ESTÁVEL</div>
+    </div>
+
+    <div id="br" class="panel">
+      <div id="wname">PISTOLA</div>
+      <div class="lbl">MUNIÇÃO</div>
+      <div id="ammo">12 <small>/ ∞</small></div>
+      <div id="pips"></div>
+      <div id="reload"><div id="reloadFill"></div><span id="reloadTxt"></span></div>
+    </div>
+
+    <div id="cross">
+      <i class="cl t"></i><i class="cl b"></i><i class="cl l"></i><i class="cl r"></i>
+      <div class="dot"></div>
+    </div>
+    <div id="hitmark"><i></i><i></i><i></i><i></i></div>
+    <div id="dmgDir"></div>
+    <div id="floaters"></div>
+
+    <div id="banner"><h2 id="bTitle"></h2><p id="bSub"></p></div>
+    <div id="announce"></div>
+    <div id="countdown"></div>
+    <div id="feed"></div>
+    <div id="hint">WASD mover • Mouse mirar • Clique/Espaço atirar • Botão direito mirar • R recarregar • 1/2/Q arma • Shift correr • V ombro • M som • P/Esc pausar</div>
+  </div>
+
+  <!-- ===== MENU ===== -->
+  <div id="menu" class="ov"><div class="box">
+    <h1>CRISE NO VALE</h1>
+    <div class="sub">MINI-JOGO DE SOBREVIVÊNCIA • INSPIRADO EM DINO CRISIS 2</div>
+    <p>O posto de pesquisa no vale foi tomado pela selva. Dinossauros cercam as ruínas.
+       Sobreviva a <b>5 ondas</b> e limpe a área.</p>
+    <table class="keys">
+      <tr><td>W A S D</td><td>Mover (relativo à câmera)</td></tr>
+      <tr><td>Mouse</td><td>Olhar e mirar (câmera atrás do personagem)</td></tr>
+      <tr><td>Clique / Espaço</td><td>Atirar</td></tr>
+      <tr><td>Botão direito</td><td>Mirar com precisão (zoom)</td></tr>
+      <tr><td>R</td><td>Recarregar</td></tr>
+      <tr><td>1 / 2 / Q</td><td>Pistola / Escopeta / Alternar</td></tr>
+      <tr><td>Shift</td><td>Correr</td></tr>
+      <tr><td>V</td><td>Trocar ombro da câmera</td></tr>
+      <tr><td>← →</td><td>Girar câmera (alternativa ao mouse)</td></tr>
+      <tr><td>M</td><td>Som liga/desliga</td></tr>
+      <tr><td>P / Esc</td><td>Pausar</td></tr>
+    </table>
+    <p class="foes">Inimigos: <b class="c-raptor">Raptor</b> (rápido, dá botes) •
+      <b class="c-spitter">Cuspidor</b> (ataca de longe) • <b class="c-brute">Bruto</b> (investida pesada)<br>
+      Pegue <b class="c-med">Kits Médicos</b> e <b class="c-ammo">Caixas de Munição</b>.</p>
+    <button id="startBtn" disabled>CARREGANDO…</button>
+    <div id="best" class="small"></div>
+    <div class="small">Clique na tela para travar o mouse. Esc libera o mouse e pausa.</div>
+    <div id="loadErr">Não foi possível iniciar o jogo. Se você abriu o arquivo direto (file://),
+      rode um servidor local: <code>npx serve</code> ou <code>python3 -m http.server</code>.
+      Verifique também sua conexão (o Three.js vem de CDN).</div>
+  </div></div>
+
+  <!-- ===== PAUSA ===== -->
+  <div id="pause" class="ov hidden"><div class="box">
+    <h1 class="h-mid">PAUSADO</h1>
+    <p>Clique em continuar ou pressione P.</p>
+    <button id="resumeBtn">CONTINUAR</button>
+    <div><button id="quitBtn" class="ghost">MENU PRINCIPAL</button></div>
+  </div></div>
+
+  <!-- ===== FIM ===== -->
+  <div id="end" class="ov hidden"><div class="box">
+    <h1 id="endTitle" class="h-mid">VOCÊ FOI DEVORADO</h1>
+    <p id="endText"></p>
+    <button id="restartBtn">JOGAR NOVAMENTE</button>
+    <div class="small">ou pressione Enter</div>
+  </div></div>
+</body>
+</html>

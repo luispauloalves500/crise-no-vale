@@ -1,0 +1,53 @@
+/* main.css — layout geral, menus e "moldura" do HUD */
+*{box-sizing:border-box}
+html,body{margin:0;height:100%;overflow:hidden;background:#050806;
+  font-family:"Trebuchet MS",Verdana,sans-serif;color:#dfe8d8;user-select:none}
+canvas#game{display:block;position:fixed;inset:0}
+.hidden{display:none !important}
+
+/* camadas de tela cheia */
+#vign{position:fixed;inset:0;pointer-events:none;opacity:0;transition:opacity .25s;
+  background:radial-gradient(ellipse at center,rgba(0,0,0,0) 45%,rgba(160,0,0,.75) 100%)}
+#dark{position:fixed;inset:0;pointer-events:none;
+  background:radial-gradient(ellipse at center,rgba(0,0,0,0) 55%,rgba(0,0,0,.55) 100%)}
+#flashScreen{position:fixed;inset:0;pointer-events:none;background:#cfe0ff;opacity:0}
+
+/* painéis do HUD */
+#hud{position:fixed;inset:0;pointer-events:none;display:none}
+#hud.on{display:block}
+.panel{position:absolute;background:rgba(5,12,8,.62);border:1px solid rgba(140,200,140,.25);
+  border-radius:6px;padding:10px 14px;text-shadow:0 1px 2px #000}
+#tl{top:14px;left:14px;min-width:190px}
+#tl .t{font-size:13px;letter-spacing:3px;color:#9fd38f;font-weight:bold}
+#tl div{font-size:15px;margin-top:4px}
+#bl{bottom:14px;left:14px;width:280px}
+#br{bottom:14px;right:14px;text-align:right;min-width:210px}
+.lbl{font-size:12px;letter-spacing:2px;color:#9fb79a}
+#hint{position:absolute;bottom:14px;left:50%;transform:translateX(-50%);font-size:12px;color:#9ab;
+  background:rgba(0,0,0,.4);padding:5px 10px;border-radius:4px;white-space:nowrap}
+@media (max-width:1100px){#hint{display:none}}
+
+/* overlays (menu / pausa / fim) */
+.ov{position:fixed;inset:0;display:flex;align-items:center;justify-content:center;
+  background:radial-gradient(ellipse at center,rgba(10,30,15,.82),rgba(0,0,0,.95))}
+.box{max-width:640px;max-height:96vh;overflow:auto;padding:28px 38px;text-align:center;
+  border:1px solid rgba(140,200,140,.3);border-radius:10px;background:rgba(4,10,6,.7)}
+.box h1{margin:0;font-size:54px;letter-spacing:6px;color:#cfe9a8;text-shadow:0 0 22px #2c7a3c,0 3px 6px #000}
+.box h1.h-mid{font-size:42px}
+.box .sub{color:#8fb08a;letter-spacing:2px;font-size:14px;margin:6px 0 16px}
+.box p{line-height:1.5;color:#c8d6c4}
+.foes{font-size:14px}
+.c-raptor{color:#e0a050}.c-spitter{color:#8fe070}.c-brute{color:#e05a4a}.c-med{color:#f66}.c-ammo{color:#ec5}
+table.keys{margin:10px auto;border-collapse:collapse;font-size:15px;text-align:left}
+table.keys td{padding:2px 10px}
+table.keys td:first-child{color:#f0d68a;font-weight:bold;text-align:right}
+button{margin-top:14px;font:bold 18px "Trebuchet MS",sans-serif;letter-spacing:3px;padding:12px 34px;
+  background:#2f6b3a;color:#efe;border:1px solid #6c6;border-radius:6px;cursor:pointer}
+button:hover:not(:disabled){background:#3d8a4b}
+button:disabled{opacity:.5;cursor:wait}
+button.ghost{background:transparent;font-size:14px;padding:8px 20px;border-color:#486}
+.small{font-size:12px;color:#789;margin-top:12px}
+code{background:#0c1a10;padding:1px 5px;border-radius:3px;color:#cfe9a8}
+/* aparece só se o JS não iniciar (ex.: módulo bloqueado em file://) — main.js remove este aviso */
+#loadErr{color:#f99;font-size:13px;margin-top:12px;opacity:0;animation:revealErr .3s ease 3s forwards}
+@keyframes revealErr{to{opacity:1}}
