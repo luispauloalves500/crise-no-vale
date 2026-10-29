@@ -34,7 +34,7 @@
       <div id="obj">Objetivo</div>
       <div id="obj2"></div>
       <canvas id="minimap" width="150" height="104"></canvas>
-      <div class="small-line">Pontos: <b id="score">0</b> <span id="combo"></span> <span class="k">• Tab: mapa</span></div>
+      <div class="small-line">Pontos: <b id="score">0</b> <span id="combo"></span> <span class="epv">PE <b id="ep">0</b></span> <span class="k">• Tab: mapa</span></div>
       <div class="small-line">Registros: <b id="logs">0/13</b></div>
     </div>
 
@@ -136,7 +136,7 @@
           <b class="c-spitter">Cuspidor</b> — ácido de longe<br>
           <b class="c-brute">Bruto</b> — investida pesada; bata-o numa parede<br>
           <b class="c-boss">Colosso</b> e <b class="c-boss">Matriarca</b> — ???</p>
-        <p class="foes"><b class="c-save">Terminais verdes</b> salvam o progresso e restauram a vida.<br>
+        <p class="foes"><b class="c-save">Terminais verdes</b> salvam o progresso, restauram a vida e têm a <b>loja</b>: gaste os <b>PE</b> (Pontos de Extinção) que os abates rendem.<br>
           <b class="c-log">Tablets azuis</b> guardam os 9 registros da estação — reúna todos para outro final.</p>
       </details>
       <details class="sset"><summary>AJUSTES — CONTROLES, SOM E ACESSIBILIDADE</summary>
@@ -153,6 +153,18 @@
     </div>
     <div id="bgLoad" class="small"></div>
     <div class="small hint">Clique na tela para travar o mouse • Esc libera o mouse e pausa</div>
+  </div></div>
+
+  <!-- ===== v10: TERMINAL TELLUS (salvar · loja · sair) ===== -->
+  <div id="terminal" class="ov term-ov hidden"><div class="box term-box" role="dialog" aria-label="Terminal Tellus">
+    <div class="term-head"><span class="term-logo">TERMINAL TELLUS</span><span id="termArea"></span></div>
+    <div id="termBody"></div>
+    <div class="term-foot">
+      <span class="term-ep">PE <b id="termEp">0</b></span>
+      <span id="termMsg"></span>
+      <button id="termBack" class="ghost">SAIR</button>
+    </div>
+    <div id="termKeys" class="term-keys"></div>
   </div></div>
 
   <!-- ===== PAUSA ===== -->

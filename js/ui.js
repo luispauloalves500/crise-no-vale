@@ -44,7 +44,7 @@ export function cardinal(x, z) {
 const el = {};
 ['hud', 'menu', 'pause', 'end', 'startBtn', 'continueBtn', 'continueEndBtn', 'restartBtn', 'resumeBtn', 'quitBtn', 'loadErr', 'best', 'hpnum', 'hpfill', 'hpghost', 'status',
   'wname', 'ammo', 'pips', 'reloadFill', 'reloadTxt', 'zone', 'obj', 'minimap', 'inv', 'prompt', 'bossbar', 'bossName', 'bossFill', 'meter', 'meterLbl', 'meterFill',
-  'mapOv', 'bigmap', 'fade', 'pauseObj', 'score', 'combo', 'cross', 'hitmark', 'dmgDir', 'floaters',
+  'mapOv', 'bigmap', 'fade', 'pauseObj', 'score', 'ep', 'combo', 'cross', 'hitmark', 'dmgDir', 'floaters',
   'banner', 'bTitle', 'bSub', 'announce', 'countdown', 'feed', 'vign', 'splat', 'flashScreen', 'endTitle', 'endText', 'radar', 'obj2', 'logs', 'haze', 'powerFlash', 'speech'].forEach((id) => { el[id] = $(id); });
 export { el };
 
@@ -76,7 +76,7 @@ export function showEnd(win, stats, newBest) {
   el.endText.innerHTML =
     (win ? (stats.ending ? stats.ending.line : 'A agente Rocha e a Dra. Lima deixaram o Vale Verde a bordo do Garça-1.') + '<br><br>' : `Última área: <b>${stats.area}</b><br>`) +
     `Registros encontrados: <b>${stats.logs}/${stats.logsTotal}</b><br>` +
-    `Pontos: <b>${stats.score}</b>${newBest ? ` <span style="color:#ffd060">— ${STR.newBest}</span>` : ''}<br>` +
+    `Pontos: <b>${stats.score}</b>${newBest ? ` <span style="color:#ffd060">— ${STR.newBest}</span>` : ''} • PE ganhos: <b>${stats.epTotal || 0}</b><br>` +
     `Áreas visitadas: <b>${stats.visited}/${stats.total}</b> • Objetivos: <b>${stats.objectives}</b><br>` +
     `Dinossauros abatidos: <b>${stats.kills}</b> • Saves: <b>${stats.saves}</b><br>` +
     `Precisão: <b>${stats.acc}%</b> • Tempo: <b>${m}:${String(s).padStart(2, '0')}</b>` +
@@ -200,7 +200,7 @@ export function updateHUD(dt, d) {
   const ws = (d.weapons || []).map((w, i) => d.bag.owned[i]
     ? `<span class="w${i === d.cur ? ' cur' : ''}"><span class="key">${i + 1}</span>${SHORT[w.id] || w.name} <b>${w.res === Infinity ? '∞' : w.mag + '+' + w.res}</b></span>`
     : `<span class="w off"><span class="key">${i + 1}</span>${SHORT[w.id] || w.name} —</span>`).join(' ');
-  const invH = (ws ? ws + '<br>' : '') + `Kits <b>${d.bag.meds}/${INVENTORY.MED_MAX}</b><span class="key">H</span> &nbsp; Granadas <b>${d.bag.grenades}/${GRENADE.MAX}</b><span class="key">G</span>` +
+  const invH = (ws ? ws + '<br>' : '') + `Kits <b>${d.bag.meds}/${d.medMax || INVENTORY.MED_MAX}</b><span class="key">H</span> &nbsp; Granadas <b>${d.bag.grenades}/${d.grenadeMax || GRENADE.MAX}</b><span class="key">G</span>` +
     (d.bag.armor > 0 ? ` &nbsp; <span class="arm">Colete <b>${d.bag.armor}</b></span>` : '');
   if (el.inv.dataset.k !== invH) { el.inv.dataset.k = invH; el.inv.innerHTML = invH; }
   const pr = d.prompt && G.state === 'play' ? (d.prompt.locked ? d.prompt.text : `<span class="key">E</span>${d.prompt.text}`) : '';
@@ -210,6 +210,7 @@ export function updateHUD(dt, d) {
   el.meter.style.display = d.meter ? 'block' : 'none';
   if (d.meter) { el.meterLbl.textContent = d.meter.label; el.meterFill.style.width = (100 * d.meter.k) + '%'; }
   el.score.textContent = G.score;
+  if (el.ep.textContent !== String(G.ep)) el.ep.textContent = G.ep; // v10: Pontos de Extinção
   el.combo.textContent = G.combo > 1 ? STR.combo(Math.min(G.combo, COMBO.MAX)) : '';
 
   // retícula: abre com recuo e ao andar, fecha mirando

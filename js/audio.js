@@ -229,6 +229,10 @@ export const sfx = {
   thunder(delay = 0) { noise(2.2, 400, 40, 0.7, 'lowpass', delay, true, brownB); noise(0.5, 3000, 300, 0.25, 'lowpass', delay); },
   door()    { noise(0.6, 500, 90, 0.35); tone(90, 60, 0.5, 'sawtooth', 0.08, 0.05); },
   locked()  { if (gate('locked', 0.35)) { tone(160, 150, 0.12, 'square', 0.12); tone(120, 110, 0.18, 'square', 0.12, 0.14); } },
+  // v10: Terminal TELLUS — abrir, comprar e recusar
+  terminal() { tone(392, 392, 0.06, 'square', 0.07); tone(784, 784, 0.1, 'square', 0.07, 0.07); },
+  shopBuy() { tone(880, 880, 0.06, 'square', 0.1); tone(1320, 1320, 0.12, 'triangle', 0.12, 0.06); },
+  shopDeny() { if (gate('shopDeny', 0.2)) { tone(196, 180, 0.1, 'square', 0.1); tone(147, 140, 0.16, 'square', 0.1, 0.1); } },
   save()    { tone(523, 523, 0.12, 'triangle', 0.15); tone(659, 659, 0.12, 'triangle', 0.15, 0.13); tone(784, 784, 0.3, 'triangle', 0.16, 0.26); },
   generator() { tone(40, 120, 2.2, 'sawtooth', 0.18, 0, true); noise(2.0, 300, 900, 0.12, 'bandpass'); },
   powerOn() { tone(200, 800, 0.6, 'square', 0.12); tone(400, 1600, 0.6, 'triangle', 0.1, 0.1); },
