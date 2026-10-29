@@ -1,5 +1,39 @@
 # Melhorias
 
+## v5: áudio, combate e novos momentos
+
+### Áudio (`js/audio.js`)
+- **Nova mixagem:** efeitos e ambiente passam por barramentos separados → filtro de "abafar" → compressor → volume mestre. A tecla **M** silencia com uma rampa curta, sem estalo.
+- **Ambiente por área com crossfade de ~2,5 s.** São 7 camadas procedurais (chuva, vento, insetos, mar, zumbido elétrico, alarme distante e drone de tensão), misturadas de um jeito diferente em cada área e no menu. O mar quebra no cais, os insetos cantam no pântano e o vento sopra forte no heliponto.
+- **O ambiente reage ao estado do jogo:** o zumbido cresce quando a energia volta e durante o gerador, o alarme dispara no lockdown e a tensão sobe na escolta, no Colosso e no resgate.
+- **Abafar:** na pausa e nos cartões de história a mistura passa por um passa-baixa e fica mais baixa.
+- **Passos** variam por terreno (tábuas do cais, pedra das ruínas, lama do pântano, concreto, água) e ficam mais fortes na corrida. O Colosso e o bruto fazem passos pesados, que perdem volume com a distância.
+- **Stingers** discretos nas emboscadas e na chegada do chefe, no máximo 1 a cada 3 s.
+- **Limite de 40 vozes simultâneas** (os sons importantes podem passar disso) e um limitador por nome, para que a escopeta com vários acertos não estoure o som.
+
+### Combate e feedback
+- **Hitmarks:** branco no acerto, **dourado no crítico** e vermelho e maior no abate, com um "pop" de escala.
+- **Números de dano** que saltam e assentam. Os críticos levam "!", golpes ≥ 60 aparecem maiores e o dano no ponto fraco do Colosso atordoado aparece em **azul**.
+- **Escopeta** um pouco mais forte de perto: a perda de dano começa a 5 m (antes 4) e o dano mínimo subiu para 50% (antes 45%).
+- **Raio da granada** passou de 5,5 para 6.
+- **Barulho dos tiros** diminuiu: a pistola chega a 15 (antes 18) e a escopeta a 22 (antes 26). Agora dá para lutar sem acordar a área inteira.
+- **Telegrafia do Colosso:**
+  - antes do pisão, um anel vermelho aparece no chão e enche até o impacto (aviso de 1,2 s), acompanhado de um ronco grave;
+  - antes da investida, uma faixa no chão mostra a direção e o alcance, com bufo e raspar de patas;
+  - ao bater na parede ele fica atordoado por 3,2 s (antes 2,4) e tem uma carência antes de pisar ou investir de novo.
+
+### Momentos novos
+- **Protocolo da diretoria (lockdown):** depois que a energia volta, entrar na sala do Brandt faz a porta blindada bater. A sirene toca, a luz fica vermelha e pulsante e a gravação do diretor zomba de você. O alarme chama tudo o que está no laboratório. Em 7 s a porta reabre com dois raptores e um cuspidor esperando no corredor, e o objetivo mostra a contagem.
+- **A lama ferve:** perto da poça central do pântano, bolhas e um ronco avisam antes de dois raptores saírem da lama, com jorro, mancha e onda de choque.
+- **Rádio interceptado:** pouco depois do código do heliponto, uma transmissão da equipe Tellus-2 revela que a Fundação está acobertando o Brandt. A gravação vira uma página extra no epílogo.
+- **Dica de caminho:** fora da área do objetivo, o HUD mostra a próxima porta ("Caminho: portão norte → pátio da instalação").
+
+### Escolta mais justa (Dra. Lima)
+- **Fôlego:** ela aguenta 2 mordidas. A primeira só a faz cambalear (marcador amarelo) e ela recupera 1 ponto a cada 7 s sem ser mordida.
+- **Caída:** ela fica 4 s no chão e o marcador vermelho pisca. **Chegue perto e aperte E** para levantá-la na hora; o alcance é maior que o de outros objetos.
+- Depois de levantar, ela tem **2,2 s em que os inimigos a ignoram**. Os inimigos também só a escolhem como alvo quando ela está bem mais perto que você.
+- Na primeira queda aparece um aviso explicando o E, e ela agradece com falas variadas.
+
 ## v4: desempenho (menos travadas)
 
 ### Carregamento

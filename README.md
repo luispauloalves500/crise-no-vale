@@ -15,6 +15,16 @@ Você é a agente **Marina Rocha**, enviada depois de três dias de silêncio do
 - **Cenas curtas** em cada marco: energia, código do heliponto, chegada ao Colosso, morte do chefe e resgate.
 - **Epílogo variável**: muda conforme você achou as provas contra Brandt (registros 4 e 5) e se encontrou todos os 7.
 
+## Jogar online
+
+**https://luispauloalves500.github.io/crise-no-vale/**
+
+O jogo roda direto no navegador (desktop, com teclado e mouse), sem instalar nada. O GitHub Pages republica o site a cada push na branch `main`.
+
+- O repositório traz o workflow `.github/workflows/pages.yml` ("Publicar no GitHub Pages"), que publica só `index.html`, `css/` e `js/`.
+- Para o workflow assumir a publicação, ajuste uma vez **Settings → Pages → Source: GitHub Actions** (https://github.com/luispauloalves500/crise-no-vale/settings/pages). Enquanto a fonte for "Deploy from a branch" (`main`, raiz), o site continua sendo atualizado do mesmo jeito.
+- Os caminhos são relativos (`<base href="./">`) e o Three.js vem do CDN, então o jogo funciona em `/crise-no-vale/`.
+
 ## Como jogar
 
 Os módulos ES precisam de um servidor HTTP (não funciona abrindo via `file://`):
@@ -46,6 +56,16 @@ O Three.js vem do CDN jsDelivr via importmap, então é preciso estar online. O 
 | V | trocar ombro da câmera |
 | P / Esc | pausar |
 | M | som liga/desliga |
+| E perto da Dra. Lima caída | levantá-la na hora (escolta) |
+
+### Áudio
+
+Todo o som é gerado no navegador com WebAudio; não há nenhum arquivo de áudio. O navegador só libera o som depois do primeiro clique ou tecla. Por isso o ambiente começa quando você clica em "Novo jogo".
+
+- Cada área tem um **ambiente próprio**: chuva, vento, mar, insetos, zumbido elétrico, alarme e tensão. A troca de área faz um crossfade. O ambiente muda com a energia, o gerador, o lockdown, a escolta e o chefe.
+- Os **passos** mudam conforme o terreno, e o Colosso faz passos pesados que você ouve antes de ver.
+- Na **pausa** e nos **cartões de história** o som fica abafado.
+- **M** liga e desliga todo o som.
 
 ## Áreas
 
@@ -72,12 +92,19 @@ O Three.js vem do CDN jsDelivr via importmap, então é preciso estar online. O 
 
 1. **Cais → Ruínas → Laboratório.** Pegue a escopeta no caminho.
 2. **Ligar a energia.** O portão norte do laboratório está sem energia. No pântano, ligue o gerador (E). O barulho atrai a matilha: fique perto dele por 20 s enquanto chegam três grupos de inimigos. A energia volta, as lâmpadas acendem e o portão abre. Depois disso as ruínas e o laboratório ganham novos encontros.
-3. **Escolta.** No pátio, fale com a Dra. Lima (E). Ela passa a seguir você. Leve-a até o terminal de controle no nordeste, protegendo-a de raptores e de um bruto que arromba o galpão. Ela digita o código e libera o portão leste. Se você sair do pátio antes disso, a escolta reinicia.
+3. **Escolta.** No pátio, fale com a Dra. Lima (E). Ela passa a seguir você. Leve-a até o terminal de controle no nordeste, protegendo-a de raptores e de um bruto que arromba o galpão. Ela aguenta uma mordida. Na segunda ela cai: chegue perto e aperte **E** para levantá-la. Ela digita o código e libera o portão leste. Se você sair do pátio antes disso, a escolta reinicia.
 4. **Chefe.** No heliponto, o portão se fecha atrás de você e o **Colosso** ataca:
    - Ele investe em linha reta e pisa no chão em área.
    - Ele chama raptores nas fases de vida.
    - Quando bate numa parede fica atordoado e leva +50% de dano. Granadas também o atordoam.
+   - v5: um **anel vermelho** no chão avisa o pisão e uma **faixa** mostra a direção da investida.
 5. **Resgate.** Com o Colosso morto, suba na marca H e aguente 14 s até o helicóptero chegar. No fim você recebe um rank (S–D) calculado pelo tempo, pela precisão e pelo número de saves.
+
+### Momentos com roteiro (v5)
+
+- **Protocolo da diretoria:** com a energia de volta, a sala do Brandt tranca você por 7 s e a sirene chama a matilha para o corredor.
+- **A lama ferve:** no meio do pântano, raptores saem de dentro da lama. As bolhas avisam antes.
+- **Rádio interceptado:** depois do código do heliponto, uma transmissão da Tellus-2 aparece e entra no epílogo.
 
 ### Regras do mundo
 
@@ -149,15 +176,16 @@ js/enemies.js     raptor, cuspidor, bruto e Colosso (IA, ataques)
 js/npc.js         sobrevivente (seguir, ser atacada)
 js/combat.js      tiros, dano, granadas, itens e drops
 js/fx.js          partículas e efeitos
-js/audio.js       efeitos sonoros via WebAudio
+js/audio.js       áudio procedural via WebAudio: mixagem, ambiente por área, abafar, passos, stingers
 js/input.js       teclado e mouse
 js/ui.js          HUD, radar, mapa das áreas, banners, telas
 js/main.js        loop principal e estados (menu, jogo, pausa, fim)
 js/utils.js       utilitários
+.github/workflows/pages.yml  publicação no GitHub Pages
 ```
 
 ### Depuração
 
-No console, `__game` expõe o estado (`area`, `flags`, `objective`, `hp`, `enemies`). Também tem `__game.goto('patio')` para pular de área, `__game.story` (ex.: `__game.story.skipCard()`) e `__game.post` (bloom). Para desempenho: `__game.quality`, `__game.setQuality('baixo')`, `__game.areas()` (áreas construídas), `__game.streamStats`, `__game.poolStats`, `__game.hudStats` e `__game.renderInfo()`.
+No console, `__game` expõe o estado (`area`, `flags`, `objective`, `hp`, `enemies`). Também tem `__game.goto('patio')` para pular de área, `__game.story` (ex.: `__game.story.skipCard()`) e `__game.post` (bloom). Para desempenho: `__game.quality`, `__game.setQuality('baixo')`, `__game.areas()` (áreas construídas), `__game.streamStats`, `__game.poolStats`, `__game.hudStats` e `__game.renderInfo()`. Áudio (v5): `__game.ambience` (camada atual), `__game.muted` e `__game.toggleMute()`.
 
 Os saves antigos continuam compatíveis: o campo `story` (registros lidos e falas já ditas) é opcional.
