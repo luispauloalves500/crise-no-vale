@@ -170,8 +170,11 @@ const glowSprite = (color, scale, opacity = 0.7) => {
 
 // ---------- sombras por nível (a lua é a ÚNICA luz com sombra) ----------
 // tier 'far' = árvores do anel externo/pedras distantes, 'small' = entulho miúdo, 'mid' = postes/telhado/terminais.
-const tierOn = (t) => (t === 'far' ? quality.p.shadowFar : t === 'small' ? quality.p.shadowSmall : t === 'mid' ? quality.p.shadowMid : true);
+export const tierOn = (t) => (t === 'far' ? quality.p.shadowFar : t === 'small' ? quality.p.shadowSmall : t === 'mid' ? quality.p.shadowMid : true);
 function tier(m, t) { m.userData.shTier = t; m.castShadow = tierOn(t); return m; }
+// v9: classe de LOD (js/lod.js). 'small' = miudeza (some na faixa média), 'big' = silhueta (só some além de lodFar).
+// Só objetos estáticos, filhos diretos do grupo da área e que a lógica do jogo nunca esconde/move.
+function lod(m, cls) { m.userData.lod = cls; return m; }
 /** Reaplica castShadow conforme a qualidade em um grupo (área já construída). */
 export function applyShadowTiers(root) { root.traverse((o) => { if (o.userData.shTier) o.castShadow = tierOn(o.userData.shTier); }); }
 
@@ -190,9 +193,9 @@ export function wall(ctx, x, z, w, d, h, mat = MATS.concrete) {
   for (let i = 0; i < 3; i++) {
     const s = 0.3 + rng() * 0.4; const r = boxMesh(mat, s, s * 0.6, s);
     r.position.set(x + (rng() - 0.5) * w + (d > w ? (rng() - 0.5) * 2.4 : 0), s * 0.3, z + (rng() - 0.5) * d + (w > d ? (rng() - 0.5) * 2.4 : 0));
-    r.rotation.y = rng() * 3; tier(r, 'small'); ctx.group.add(r);
+    r.rotation.y = rng() * 3; tier(r, 'small'); lod(r, 'small'); ctx.group.add(r);
   }
-  if (h > 2.3 && rng() < 0.7) { const v = boxMesh(MATS.vine, Math.max(w, 0.9) * 1.04, 0.5 + rng() * 0.7, Math.max(d, 0.9) * 1.04); v.position.set(x, h - 0.2, z); ctx.group.add(v); }
+  if (h > 2.3 && rng() < 0.7) { const v = boxMesh(MATS.vine, Math.max(w, 0.9) * 1.04, 0.5 + rng() * 0.7, Math.max(d, 0.9) * 1.04); v.position.set(x, h - 0.2, z); lod(v, 'big'); ctx.group.add(v); }
 }
 
 // caixa de madeira com quinas reforçadas e travessas em X (geometria única fundida = 1 draw call)
@@ -229,7 +232,7 @@ export function container(ctx, x, z, w, d, h, hex = 0x8a4a2a) {
   }
   const m = solid(ctx, x, z, w, d, h, contMats[key]);
   const along = w >= d; // portas na ponta do eixo longo
-  for (const yy of [0.06, h - 0.06]) { const r = boxMesh(MATS.dark, w + 0.08, 0.12, d + 0.08); r.position.set(x, yy, z); ctx.group.add(r); }
+  for (const yy of [0.06, h - 0.06]) { const r = boxMesh(MATS.dark, w + 0.08, 0.12, d + 0.08); r.position.set(x, yy, z); lod(r, 'small'); ctx.group.add(r); }
   for (const s of [-1, 1]) for (const k of [-0.25, 0.25]) {
     const rod = boxMesh(MATS.post, along ? 0.06 : 0.07, h - 0.3, along ? 0.07 : 0.06);
     if (along) rod.position.set(x + s * (w / 2 + 0.04), h / 2, z + k * d); else rod.position.set(x + k * w, h / 2, z + s * (d / 2 + 0.04));
@@ -310,14 +313,14 @@ export function tree(ctx, x, z, collide, sc, palm = false) {
   const rng = ctx.rng, style = palm ? 'palm' : (ctx.treeStyle || (rng() < 0.3 ? 'conifer' : 'broad'));
   const vs = treeVariants(style), m = new THREE.Mesh(vs[Math.floor(rng() * vs.length)], TREE_MAT);
   m.scale.set(sc, sc * (0.9 + rng() * 0.25), sc); m.rotation.y = rng() * 6.28; m.position.set(x, 0, z);
-  tier(m, collide ? 'near' : 'far'); ctx.group.add(m);
+  tier(m, collide ? 'near' : 'far'); lod(m, 'big'); ctx.group.add(m);
   if (collide) ctx.circles.push({ x, z, r: 0.45 * sc, h: 6 });
 }
 const rockGeo = share(new THREE.DodecahedronGeometry(1, 0));
 export function rock(ctx, x, z, s, collide = true) {
   const rng = ctx.rng, m = new THREE.Mesh(rockGeo, MATS.rock); m.scale.set(s, s * 0.7, s);
   m.position.set(x, s * 0.45, z); m.rotation.set(rng() * 3, rng() * 3, rng() * 3);
-  m.receiveShadow = true; tier(m, collide ? 'near' : s < 0.8 ? 'small' : 'far'); ctx.group.add(m); if (collide) ctx.circles.push({ x, z, r: s * 0.9, h: s * 1.1 });
+  m.receiveShadow = true; tier(m, collide ? 'near' : s < 0.8 ? 'small' : 'far'); lod(m, s < 0.8 ? 'small' : 'big'); ctx.group.add(m); if (collide) ctx.circles.push({ x, z, r: s * 0.9, h: s * 1.1 });
 }
 const FLAT = share(new THREE.PlaneGeometry(1, 1));
 const puddleMat = share(new THREE.MeshStandardMaterial({ color: 0x05080a, roughness: 0.03, metalness: 0.35, transparent: true, opacity: 0.85, alphaMap: SPLAT, depthWrite: false, bumpMap: rip(1, 1), bumpScale: 0.5, polygonOffset: true, polygonOffsetFactor: -2 }));
@@ -394,7 +397,7 @@ const lampConeGeo = share(new THREE.ConeGeometry(1, 1, 16, 1, true)); lampConeGe
 /** Poste com luz e cone de luz volumétrico. mode: flicker | pulse (alarme) | steady | fire. Máx. 6 luzes reais por área. */
 export function lamp(ctx, x, z, color, mode = 'flicker', base = 22, h = 3) {
   const post = new THREE.Mesh(postGeo, MATS.post); post.scale.y = h / 3; post.position.set(x, h / 2, z); tier(post, 'mid'); ctx.group.add(post);
-  const plate = boxMesh(MATS.dark, 0.35, 0.12, 0.35); plate.position.set(x, 0.06, z); ctx.group.add(plate);
+  const plate = boxMesh(MATS.dark, 0.35, 0.12, 0.35); plate.position.set(x, 0.06, z); lod(plate, 'small'); ctx.group.add(plate);
   const hood = new THREE.Mesh(new THREE.ConeGeometry(0.3, 0.22, 8, 1, true), MATS.post); hood.position.set(x, h + 0.08, z); ctx.group.add(hood);
   const bulbMat = new THREE.MeshBasicMaterial({ color });
   const bulb = new THREE.Mesh(bulbGeo, bulbMat); bulb.position.set(x, h, z); ctx.group.add(bulb);
@@ -416,27 +419,29 @@ export function fireLight(ctx, x, z, y = 0.8, base = 26) {
 export function building(ctx, x, z, w, d, h, mat = MATS.concrete, lit = 0.3, opts = {}) {
   solid(ctx, x, z, w, d, h, mat);
   const rng = ctx.rng;
-  const ledge = boxMesh(MATS.dark, w + 0.4, 0.3, d + 0.4); ledge.position.set(x, h + 0.15, z); tier(ledge, 'mid'); ctx.group.add(ledge);
+  const ledge = boxMesh(MATS.dark, w + 0.4, 0.3, d + 0.4); ledge.position.set(x, h + 0.15, z); tier(ledge, 'mid'); lod(ledge, 'big'); ctx.group.add(ledge);
   for (let i = 0; i < 1 + Math.floor(rng() * 2); i++) {
     const u = boxMesh(MATS.metal, 1 + rng() * 1.2, 0.7 + rng() * 0.6, 1 + rng() * 0.8);
-    u.position.set(x + (rng() - 0.5) * (w - 2), h + 0.6, z + (rng() - 0.5) * (d - 2)); tier(u, 'small'); ctx.group.add(u);
+    u.position.set(x + (rng() - 0.5) * (w - 2), h + 0.6, z + (rng() - 0.5) * (d - 2)); tier(u, 'small'); lod(u, 'small'); ctx.group.add(u);
   }
   const winMat = () => {
     if (rng() >= lit) return MATS.windowDark;
     return opts.power ? (rng() < 0.7 ? MATS.windowPower : MATS.windowPower2) : MATS.window;
   };
+  // janela apagada é miudeza; janela acesa (ou que acende com a energia) é marco visual na neblina
+  const winCls = (w) => (w.material === MATS.windowDark ? 'small' : 'big');
   for (let fy = 1.6; fy < h - 0.8; fy += 2.2) for (let fx = -w / 2 + 1.2; fx < w / 2 - 0.8; fx += 2) {
     for (const s of [-1, 1]) {
       const win = boxMesh(winMat(), 0.9, 1.1, 0.05);
-      win.position.set(x + fx + 0.45, fy, z + s * (d / 2 + 0.03)); ctx.group.add(win);
-      const sill = boxMesh(MATS.dark, 1.1, 0.1, 0.16); sill.position.set(x + fx + 0.45, fy - 0.6, z + s * (d / 2 + 0.06)); ctx.group.add(sill);
+      win.position.set(x + fx + 0.45, fy, z + s * (d / 2 + 0.03)); lod(win, winCls(win)); ctx.group.add(win);
+      const sill = boxMesh(MATS.dark, 1.1, 0.1, 0.16); sill.position.set(x + fx + 0.45, fy - 0.6, z + s * (d / 2 + 0.06)); lod(sill, 'small'); ctx.group.add(sill);
     }
   }
   if (d >= 5) for (let fy = 1.6; fy < h - 0.8; fy += 2.2) for (let fz = -d / 2 + 1.4; fz < d / 2 - 1; fz += 2.4) for (const s of [-1, 1]) {
-    const win = boxMesh(winMat(), 0.05, 1.1, 0.9); win.position.set(x + s * (w / 2 + 0.03), fy, z + fz + 0.45); ctx.group.add(win);
+    const win = boxMesh(winMat(), 0.05, 1.1, 0.9); win.position.set(x + s * (w / 2 + 0.03), fy, z + fz + 0.45); lod(win, winCls(win)); ctx.group.add(win);
   }
-  const door = boxMesh(MATS.dark, 1.3, 2.2, 0.08); door.position.set(x + (rng() - 0.5) * (w - 3), 1.1, z + (opts.doorSide ?? 1) * (d / 2 + 0.04)); ctx.group.add(door);
-  const pipe = boxMesh(MATS.post, 0.14, h, 0.14); pipe.position.set(x + w / 2 - 0.3, h / 2, z + d / 2 + 0.1); ctx.group.add(pipe);
+  const door = boxMesh(MATS.dark, 1.3, 2.2, 0.08); door.position.set(x + (rng() - 0.5) * (w - 3), 1.1, z + (opts.doorSide ?? 1) * (d / 2 + 0.04)); lod(door, 'small'); ctx.group.add(door);
+  const pipe = boxMesh(MATS.post, 0.14, h, 0.14); pipe.position.set(x + w / 2 - 0.3, h / 2, z + d / 2 + 0.1); lod(pipe, 'small'); ctx.group.add(pipe);
 }
 /** Portal/portão de passagem com pilares listrados, luzes de status e grade. */
 export function doorway(ctx, side, at, b, label = 'gate') {

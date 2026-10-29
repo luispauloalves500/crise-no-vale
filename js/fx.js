@@ -22,7 +22,8 @@ const pMats = {
 
 // ---------- partículas ----------
 const particles = new RingPool(FX.MAX_PARTICLES, () => {
-  const m = new THREE.Mesh(pGeo, pMats.blood); m.visible = false; m.frustumCulled = false; scene.add(m);
+  // v9: frustumCulled ligado (padrão) — a caixinha tem bounding sphere correta; partícula fora da tela não desenha
+  const m = new THREE.Mesh(pGeo, pMats.blood); m.visible = false; scene.add(m);
   return { m, vx: 0, vy: 0, vz: 0, life: 0, life0: 1, s0: 1, grav: 12, shrink: false };
 });
 /** Explosão de partículas. kind: blood | spark | spit | dust | fire */

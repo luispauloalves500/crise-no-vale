@@ -16,11 +16,14 @@ const KEY = 'crise-no-vale-quality';
  * shadowMid       postes, equipamentos de telhado, terminais e pilares projetam sombra
  * stream          descarrega áreas que não são a atual nem vizinhas
  * fx              v6: multiplicador de partículas; fxRich liga os floreios pesados (anéis de crítico, fumaça extra)
+ * lodNear/Mid/Far v9: distâncias (m, da câmera) do LOD em js/lod.js — até Near: completo e com sombra (conforme o tier);
+ *                 Near→Mid: sem castShadow; Mid→Far: miudezas somem, árvores/pedras grandes ficam sem sombra;
+ *                 além de Far: tudo que tem LOD some. Mid/Far encolhem sozinhos em neblina densa (lod.js).
  */
 export const PRESETS = {
-  baixo: { id: 'baixo', label: 'Baixo', shadowSize: 512, softShadows: false, pixelRatio: 1.0, rain: 250, fireflies: 40, bloom: false, groundTex: 256, lamps: 4, spots: 1, lampDist: 0.75, shadowFar: false, shadowSmall: false, shadowMid: false, stream: true, fx: 0.55, fxRich: false },
-  medio: { id: 'medio', label: 'Médio', shadowSize: 1024, softShadows: true, pixelRatio: 1.25, rain: 500, fireflies: 80, bloom: true, groundTex: 512, lamps: 6, spots: 2, lampDist: 1, shadowFar: false, shadowSmall: false, shadowMid: true, stream: true, fx: 0.85, fxRich: true },
-  alto: { id: 'alto', label: 'Alto', shadowSize: 2048, softShadows: true, pixelRatio: 1.75, rain: 900, fireflies: 140, bloom: true, groundTex: 512, lamps: 6, spots: 2, lampDist: 1, shadowFar: true, shadowSmall: true, shadowMid: true, stream: false, fx: 1, fxRich: true },
+  baixo: { id: 'baixo', label: 'Baixo', shadowSize: 512, softShadows: false, pixelRatio: 1.0, rain: 250, fireflies: 40, bloom: false, groundTex: 256, lamps: 4, spots: 1, lampDist: 0.75, shadowFar: false, shadowSmall: false, shadowMid: false, stream: true, fx: 0.55, fxRich: false, lodNear: 18, lodMid: 35, lodFar: 55 },
+  medio: { id: 'medio', label: 'Médio', shadowSize: 1024, softShadows: true, pixelRatio: 1.25, rain: 500, fireflies: 80, bloom: true, groundTex: 512, lamps: 6, spots: 2, lampDist: 1, shadowFar: false, shadowSmall: false, shadowMid: true, stream: true, fx: 0.85, fxRich: true, lodNear: 28, lodMid: 50, lodFar: 80 },
+  alto: { id: 'alto', label: 'Alto', shadowSize: 2048, softShadows: true, pixelRatio: 1.75, rain: 900, fireflies: 140, bloom: true, groundTex: 512, lamps: 6, spots: 2, lampDist: 1, shadowFar: true, shadowSmall: true, shadowMid: true, stream: false, fx: 1, fxRich: true, lodNear: 40, lodMid: 70, lodFar: 110 },
 };
 export const MODES = ['auto', 'baixo', 'medio', 'alto'];
 export const MODE_LABEL = { auto: 'Auto', baixo: 'Baixo', medio: 'Médio', alto: 'Alto' };
