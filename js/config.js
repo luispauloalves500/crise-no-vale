@@ -74,21 +74,21 @@ export const INVENTORY = { MED_MAX: 4, MED_START: 1 };
 // Silhuetas e cores distintas por tipo (lidas também no radar e no menu)
 // shape: forma do corpo usada por buildDino (raptor | spitter | brute)
 export const ENEMY_TYPES = {
-  raptor:  { name: 'Raptor',   shape: 'raptor', hp: 55,  speed: 6.6, dmg: 12, r: 0.75, scale: 1.0,  score: 100, aggro: 16,
+  raptor:  { name: 'Raptor',   shape: 'raptor', hp: 55,  speed: 6.6, dmg: 12, r: 0.75, scale: 1.0,  score: 100, ep: 10, aggro: 16,
              color: 0x9a6a30, belly: 0xd8b880, stripe: 0x3a2412, eye: 0xffdd33, radar: '#ffa040' },
-  spitter: { name: 'Cuspidor', shape: 'spitter', hp: 45,  speed: 3.6, dmg: 9,  r: 0.75, scale: 1.05, score: 150, aggro: 20,
+  spitter: { name: 'Cuspidor', shape: 'spitter', hp: 45,  speed: 3.6, dmg: 9,  r: 0.75, scale: 1.05, score: 150, ep: 15, aggro: 20,
              color: 0x3f7a35, belly: 0xb8d870, stripe: 0x1d3a18, eye: 0xff5522, frill: 0xff7a20, radar: '#8fff60' },
-  brute:   { name: 'Bruto',    shape: 'brute', hp: 300, speed: 2.7, dmg: 28, r: 1.7,  scale: 2.1,  score: 500, aggro: 22,
+  brute:   { name: 'Bruto',    shape: 'brute', hp: 300, speed: 2.7, dmg: 28, r: 1.7,  scale: 2.1,  score: 500, ep: 60, aggro: 22,
              color: 0x6a2c28, belly: 0xa88468, stripe: 0x2a1210, eye: 0xff2222, horn: 0xe8dcc0, radar: '#ff3030',
              chargeDmg: 32, chargeSpeed: 14, mass: 6 },
   // chefe: bruto alfa gigante com pisão (onda de choque) e chamado de matilha
-  colossus:{ name: 'Colosso',  shape: 'brute', hp: 1600, speed: 3.1, dmg: 34, r: 2.6, scale: 3.2, score: 5000, aggro: 99, boss: true,
+  colossus:{ name: 'Colosso',  shape: 'brute', hp: 1600, speed: 3.1, dmg: 34, r: 2.6, scale: 3.2, score: 5000, ep: 600, aggro: 99, boss: true,
              color: 0x3c3a44, belly: 0x8a7a6a, stripe: 0x9a1a10, eye: 0xff8a10, horn: 0xf4e8b0, radar: '#ff00ff',
              chargeDmg: 42, chargeSpeed: 17, mass: 30, stompR: 7.5, stompDmg: 26,
              // v5: avisos mais cedo e janelas de atordoamento mais justas
              stompWind: 1.2, windup: 1.3, wallStun: 3.2, stunGrace: 1.4 },
   // v7: guardiã do NINHO RAIZ (Ato 2) — bruta alfa menor e mais rápida, cicatrizes bioluminescentes verdes
-  matriarca:{ name: 'Matriarca', shape: 'brute', hp: 1150, speed: 3.5, dmg: 30, r: 2.1, scale: 2.7, score: 4000, aggro: 99, boss: true,
+  matriarca:{ name: 'Matriarca', shape: 'brute', hp: 1150, speed: 3.5, dmg: 30, r: 2.1, scale: 2.7, score: 4000, ep: 500, aggro: 99, boss: true,
              color: 0x2a3a30, belly: 0x7a8a6a, stripe: 0x1a6a40, eye: 0x9aff40, horn: 0xd8f0c0, radar: '#40ff90', scar: 0x60ff90,
              chargeDmg: 36, chargeSpeed: 18, mass: 22, stompR: 6.5, stompDmg: 22,
              stompWind: 1.1, windup: 1.15, wallStun: 3.0, stunGrace: 1.2 },
@@ -107,6 +107,41 @@ export const PICKUPS = {
 
 export const SCORE = { AREA_FIRST: 200, OBJECTIVE: 500, SAVE_PENALTY: 0 };
 export const COMBO = { WINDOW: 2.5, MAX: 4 }; // abates seguidos multiplicam pontos
+
+// ---------- v10: Pontos de Extinção (PE) e a loja dos terminais ----------
+// PE é a moeda da loja (estilo Dino Crisis 2). Os pontos de ranking (G.score) continuam à parte e nunca são gastos.
+// Abate: cfg.ep × combo (até x4; chefes não multiplicam). Bônus leves por objetivo, registro e área nova.
+export const EP = {
+  OBJECTIVE: 50, LOG: 20, AREA_FIRST: 20,
+  CLEAN: 0.25,        // evento terminado sem levar dano: +25% do PE ganho durante ele
+  CLEAN_MIN: 15,      // bônus mínimo quando o evento termina limpo
+  DANGER_R: 8,        // inimigo em alerta a menos disso trava o terminal
+};
+// Upgrades: cada nível tem preço; `act: 2` em um nível = só a partir do Ato 2.
+// Os efeitos são aplicados por applyUpgrades() (player.js) sobre os valores base de WEAPONS.
+export const UPGRADES = {
+  pistolDmg:  { name: 'Pistola — calibre reforçado', desc: '+4 de dano por nível', w: 0, prices: [150, 250, 400], act: [1, 1, 2] },
+  pistolMag:  { name: 'Pistola — pente estendido', desc: '+3 balas no pente por nível', w: 0, prices: [120, 220], act: [1, 1] },
+  sgChoke:    { name: 'Escopeta — choke', desc: 'Dispersão menor e alcance maior', w: 1, prices: [200, 350], act: [1, 2] },
+  sgTube:     { name: 'Escopeta — tubo longo', desc: '+2 cartuchos no tubo por nível', w: 1, prices: [180, 320], act: [1, 2] },
+  smgMag:     { name: 'Submetr. — pente duplo', desc: '+10 balas no pente por nível', w: 2, prices: [250, 400], act: [2, 2] },
+  smgStab:    { name: 'Submetr. — estabilizador', desc: 'Menos recuo e dispersão', w: 2, prices: [250, 400], act: [2, 2] },
+  bag:        { name: 'Bolsa tática', desc: '+1 kit, +1 granada, +12 cartuchos e +30 balas de reserva', prices: [300, 500], act: [1, 2] },
+};
+// Catálogo da loja (abas: ammo, heal, arms, up). kind define o que a compra faz (shop.js).
+export const SHOP_TABS = [
+  { id: 'ammo', name: 'MUNIÇÃO' }, { id: 'heal', name: 'CURA' }, { id: 'arms', name: 'ARMAS' }, { id: 'up', name: 'UPGRADES' },
+];
+export const SHOP = [
+  { id: 'shells', tab: 'ammo', kind: 'res', w: 1, n: 6, price: 60, name: 'Cartuchos ×6', desc: 'Munição de escopeta' },
+  { id: 'smgAmmo', tab: 'ammo', kind: 'res', w: 2, n: 30, price: 80, name: 'Balas de submetr. ×30', desc: 'Munição de submetralhadora' },
+  { id: 'med', tab: 'heal', kind: 'med', price: 80, name: 'Kit médico', desc: 'H para usar (+40 de vida)' },
+  { id: 'vest', tab: 'heal', kind: 'vest', price: 150, name: 'Colete', desc: 'Absorve 60% do dano até se desfazer' },
+  { id: 'grenade', tab: 'heal', kind: 'grenade', price: 100, name: 'Granada', desc: 'G para arremessar' },
+  { id: 'buyShotgun', tab: 'arms', kind: 'weapon', w: 1, price: 400, name: 'Escopeta', desc: 'Vem carregada, com 6 cartuchos extras' },
+  { id: 'buySmg', tab: 'arms', kind: 'weapon', w: 2, price: 600, name: 'Submetralhadora', desc: 'Automática; vem com um pente extra' },
+  ...Object.keys(UPGRADES).map((k) => ({ id: k, tab: 'up', kind: 'up', up: k, w: UPGRADES[k].w, name: UPGRADES[k].name, desc: UPGRADES[k].desc })),
+];
 
 export const FX = {
   MAX_PARTICLES: 320,

@@ -1,10 +1,10 @@
 // combat.js — disparo, granadas, detecção de acertos, dano/abates, combo e itens (do mapa e drops).
 import * as THREE from 'three';
 import { scene, camera, castWorld, rayCircle, resolve, GLOW } from './world.js';
-import { PICKUPS, SHOTGUN_RES_MAX, SMG_RES_MAX, COMBO, PLAYER, GRENADE, INVENTORY, ARMOR, NOISE } from './config.js';
+import { PICKUPS, COMBO, PLAYER, GRENADE, INVENTORY, ARMOR, NOISE, EP } from './config.js';
 import { SETTINGS } from './settings.js';
-import { G } from './state.js';
-import { player, weapons, arms, bag, curWeapon, startReload, muzzleFlash, gunTip, heal, switchWeapon, hurtPlayer } from './player.js';
+import { G, addEp } from './state.js';
+import { player, weapons, arms, bag, curWeapon, startReload, muzzleFlash, gunTip, heal, switchWeapon, hurtPlayer, medMax, grenadeMax, resMax } from './player.js';
 import { enemies, enemyEvents, makeNoise } from './enemies.js';
 import { sfx, roar } from './audio.js';
 import { burst, tracer, decal, explosion, flourish, bloodBurst } from './fx.js';
@@ -114,6 +114,10 @@ export function damageEnemy(e, d, dx, dz, knock) {
   const mult = Math.min(G.combo, COMBO.MAX), pts = e.cfg.score * mult;
   G.score += pts;
   ui.floater(`+${pts}${mult > 1 ? ` x${mult}` : ''}`, e.pos.x, 2.4 * e.cfg.scale, e.pos.z, 'kill');
+  // v10: Pontos de Extinção — cfg.ep × combo (chefes não multiplicam; sem dano na luta = +25%)
+  let ep = (e.cfg.ep || 0) * (e.cfg.boss ? 1 : mult);
+  if (e.cfg.boss && (G.dmgTaken || 0) === e.dmg0) { ep *= 1 + EP.CLEAN; ui.feed('Chefe sem levar dano — bônus de PE!', '#9fe8ff'); }
+  if (ep > 0) ui.floater(`+${addEp(ep)} PE`, e.pos.x, 1.9 * e.cfg.scale, e.pos.z, 'ep');
   roar(heavy ? 0.45 : 1.1, 0.25);
   bloodBurst(e.pos.x, 1.2 * e.cfg.scale, e.pos.z, heavy, dx, dz);
   decal(e.pos.x, e.pos.z, heavy ? 1.5 * e.cfg.scale : 1.6);
@@ -230,13 +234,13 @@ function tryCollect(p) {
   const full = (msg) => { if (p.msgT <= 0) { ui.feed(msg, '#aaa'); p.msgT = 2; } return false; };
   switch (p.kind) {
     case 'med':
-      if (bag.meds < INVENTORY.MED_MAX) { bag.meds++; ui.feed(`+1 Kit médico (${bag.meds}/${INVENTORY.MED_MAX}) — H para usar`, '#ff9a9a'); }
+      if (bag.meds < medMax()) { bag.meds++; ui.feed(`+1 Kit médico (${bag.meds}/${medMax()}) — H para usar`, '#ff9a9a'); }
       else if (player.hp < PLAYER.HP) { heal(PICKUPS.MED_HEAL); ui.feed(`+${PICKUPS.MED_HEAL} Vida`, '#ff9a9a'); }
       else return full('Kits médicos no máximo');
       break;
     case 'grenade':
-      if (bag.grenades >= GRENADE.MAX) return full('Granadas no máximo');
-      bag.grenades++; ui.feed(`+1 Granada (${bag.grenades}/${GRENADE.MAX}) — G para arremessar`, '#90d0ff');
+      if (bag.grenades >= grenadeMax()) return full('Granadas no máximo');
+      bag.grenades++; ui.feed(`+1 Granada (${bag.grenades}/${grenadeMax()}) — G para arremessar`, '#90d0ff');
       break;
     case 'shotgun':
       bag.owned[1] = true; weapons[1].mag = weapons[1].size; weapons[1].res = Math.max(weapons[1].res, 6);
@@ -248,8 +252,8 @@ function tryCollect(p) {
       break;
     case 'smgammo': {
       const sm = weapons[2];
-      if (sm.res >= SMG_RES_MAX) return full('Balas de submetralhadora no máximo');
-      const add = Math.min(PICKUPS.AMMO_SMG, SMG_RES_MAX - sm.res);
+      if (sm.res >= resMax(2)) return full('Balas de submetralhadora no máximo');
+      const add = Math.min(PICKUPS.AMMO_SMG, resMax(2) - sm.res);
       sm.res += add; ui.feed(ui.STR.smgAmmo(add) + (bag.owned[2] ? '' : ' (ache a submetralhadora!)'), '#ffb060');
       break;
     }
@@ -261,11 +265,11 @@ function tryCollect(p) {
       // v6: caixa de suprimentos brilhante — abre com munição para o que você tem e um kit médico
       const got = [];
       const sg = weapons[1], sm = weapons[2];
-      if (bag.owned[1] && sg.res < SHOTGUN_RES_MAX) { const a = Math.min(8, SHOTGUN_RES_MAX - sg.res); sg.res += a; got.push(`+${a} cartuchos`); }
-      if (bag.owned[2] && sm.res < SMG_RES_MAX) { const a = Math.min(45, SMG_RES_MAX - sm.res); sm.res += a; got.push(`+${a} balas`); }
-      if (!bag.owned[1] && !bag.owned[2] && sg.res < SHOTGUN_RES_MAX) { const a = Math.min(6, SHOTGUN_RES_MAX - sg.res); sg.res += a; got.push(`+${a} cartuchos`); }
-      if (bag.meds < INVENTORY.MED_MAX) { bag.meds++; got.push('+1 kit médico'); } else if (player.hp < PLAYER.HP) { heal(PICKUPS.MED_HEAL); got.push(`+${PICKUPS.MED_HEAL} vida`); }
-      if (bag.grenades < GRENADE.MAX && Math.random() < 0.5) { bag.grenades++; got.push('+1 granada'); }
+      if (bag.owned[1] && sg.res < resMax(1)) { const a = Math.min(8, resMax(1) - sg.res); sg.res += a; got.push(`+${a} cartuchos`); }
+      if (bag.owned[2] && sm.res < resMax(2)) { const a = Math.min(45, resMax(2) - sm.res); sm.res += a; got.push(`+${a} balas`); }
+      if (!bag.owned[1] && !bag.owned[2] && sg.res < resMax(1)) { const a = Math.min(6, resMax(1) - sg.res); sg.res += a; got.push(`+${a} cartuchos`); }
+      if (bag.meds < medMax()) { bag.meds++; got.push('+1 kit médico'); } else if (player.hp < PLAYER.HP) { heal(PICKUPS.MED_HEAL); got.push(`+${PICKUPS.MED_HEAL} vida`); }
+      if (bag.grenades < grenadeMax() && Math.random() < 0.5) { bag.grenades++; got.push('+1 granada'); }
       if (!got.length) return full('Caixa de suprimentos: nada que você precise agora');
       ui.feed('Caixa de suprimentos: ' + got.join(', '), '#fff0c0');
       burst(p.x, 0.9, p.z, 'dust', 8, 2);
@@ -273,8 +277,8 @@ function tryCollect(p) {
     }
     default: {
       const sg = weapons[1];
-      if (sg.res >= SHOTGUN_RES_MAX) return full(ui.STR.ammoFull);
-      const add = Math.min(PICKUPS.AMMO_SHELLS, SHOTGUN_RES_MAX - sg.res);
+      if (sg.res >= resMax(1)) return full(ui.STR.ammoFull);
+      const add = Math.min(PICKUPS.AMMO_SHELLS, resMax(1) - sg.res);
       sg.res += add; ui.feed(ui.STR.ammo(add) + (bag.owned[1] ? '' : ' (ache a escopeta!)'), '#ffe070');
     }
   }

@@ -3,7 +3,7 @@ import * as THREE from 'three';
 import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
 import { MeshoptDecoder } from 'three/addons/libs/meshopt_decoder.module.js';
 import { scene, camera, resolve, castWorld, inWater, bounds, GLOW } from './world.js';
-import { PLAYER, CAMERA, WEAPONS, COLORS, GRENADE, INVENTORY, PICKUPS, ARMOR } from './config.js';
+import { PLAYER, CAMERA, WEAPONS, COLORS, GRENADE, INVENTORY, PICKUPS, ARMOR, UPGRADES } from './config.js';
 import { G } from './state.js';
 import { keys } from './input.js';
 import { pad } from './gamepad.js';
@@ -296,7 +296,36 @@ export const weapons = WEAPONS.map((w) => ({ ...w, mag: w.size, res: w.startRes 
 export const arms = { cur: 0, cool: 0, reloading: 0, reloadTotal: 1, flashT: 0 };
 export const curWeapon = () => weapons[arms.cur];
 /** Inventário: armas possuídas, granadas e kits médicos guardados. */
-export const bag = { owned: [true, false, false], grenades: GRENADE.START, meds: INVENTORY.MED_START, armor: 0 };
+export const bag = { owned: [true, false, false], grenades: GRENADE.START, meds: INVENTORY.MED_START, armor: 0, up: {} };
+
+// ---------- v10: upgrades da loja ----------
+export const upLevel = (k) => Math.min(bag.up[k] | 0, UPGRADES[k] ? UPGRADES[k].prices.length : 0);
+/** Limites que crescem com a Bolsa tática. */
+export const medMax = () => INVENTORY.MED_MAX + upLevel('bag');
+export const grenadeMax = () => GRENADE.MAX + upLevel('bag');
+export const resMax = (i) => weapons[i].resMax ?? Infinity;
+/**
+ * Recalcula os atributos das armas a partir de WEAPONS + bag.up, mantendo mag/res
+ * (o pente é cortado se o tamanho diminuir, ex.: salvo antigo sem upgrade).
+ */
+export function applyUpgrades() {
+  WEAPONS.forEach((base, i) => {
+    const w = weapons[i], mag = w.mag, res = w.res;
+    Object.assign(w, base);
+    if (i === 0) { w.dmg += 4 * upLevel('pistolDmg'); w.size += 3 * upLevel('pistolMag'); }
+    if (i === 1) {
+      const c = upLevel('sgChoke'); w.spread *= 1 - 0.15 * c; w.aimSpread *= 1 - 0.15 * c; w.falloffLen += 5 * c; w.range += 3 * c;
+      w.size += 2 * upLevel('sgTube'); w.resMax += 12 * upLevel('bag');
+    }
+    if (i === 2) {
+      w.size += 10 * upLevel('smgMag');
+      const st = upLevel('smgStab'); w.spread *= 1 - 0.2 * st; w.aimSpread *= 1 - 0.2 * st; w.kick *= 1 - 0.25 * st; w.xkick *= 1 - 0.25 * st;
+      w.resMax += 30 * upLevel('bag');
+    }
+    w.mag = Math.min(mag, w.size); w.res = res === Infinity ? Infinity : Math.min(res, w.resMax ?? Infinity);
+  });
+  bag.meds = Math.min(bag.meds, medMax()); bag.grenades = Math.min(bag.grenades, grenadeMax());
+}
 
 export function switchWeapon(i) {
   if (i === arms.cur || player.dead) return;
@@ -342,6 +371,7 @@ export function hurtPlayer(d, fromX, fromZ, knock) {
     burst(player.pos.x, 1.3, player.pos.z, 'spark', 6, 3);
     if (bag.armor <= 0) ui.feed('Colete destruído!', '#7ab0ff');
   }
+  G.dmgTaken = (G.dmgTaken || 0) + d; // v10: bônus de evento sem dano
   player.hp = Math.max(0, player.hp - d); player.inv = PLAYER.INVULN; G.shake = Math.max(G.shake, 0.45);
   const dx = player.pos.x - fromX, dz = player.pos.z - fromZ, l = Math.hypot(dx, dz) || 1;
   player.kx += dx / l * knock; player.kz += dz / l * knock;
@@ -365,22 +395,31 @@ export function placePlayer(x, z, yaw) {
   pg.position.set(x, 0, z); pg.rotation.y = yaw; snapCamera();
 }
 export function snapshotBag() {
-  return { owned: [...bag.owned], grenades: bag.grenades, meds: bag.meds, armor: bag.armor, hp: player.hp, cur: arms.cur, ammo: weapons.map((w) => ({ mag: w.mag, res: w.res === Infinity ? -1 : w.res })) };
+  return { owned: [...bag.owned], grenades: bag.grenades, meds: bag.meds, armor: bag.armor, up: { ...bag.up }, hp: player.hp, cur: arms.cur, ammo: weapons.map((w) => ({ mag: w.mag, res: w.res === Infinity ? -1 : w.res })) };
 }
 export function restoreBag(s) {
   // v6: salvos antigos (v5) tinham só 2 armas e nenhum colete — completa com padrões
   bag.owned = weapons.map((w, i) => i === 0 || !!(s.owned && s.owned[i]));
   bag.grenades = s.grenades ?? GRENADE.START; bag.meds = s.meds ?? INVENTORY.MED_START; bag.armor = s.armor || 0;
+  // v10: upgrades (salvos v1–v3 não têm) — aplicados antes do pente, para o tamanho do pente estar certo
+  bag.up = s.up && typeof s.up === 'object' ? { ...s.up } : {};
+  weapons.forEach((w) => { w.mag = 0; w.res = 0; });
+  applyUpgrades();
   player.hp = PLAYER.HP; // terminal restaura a vida
-  weapons.forEach((w, i) => { const a = s.ammo && s.ammo[i]; if (a) { w.mag = a.mag; w.res = a.res < 0 ? Infinity : a.res; } else { w.mag = w.size; w.res = w.startRes; } });
+  weapons.forEach((w, i) => {
+    const a = s.ammo && s.ammo[i];
+    if (a) { w.mag = Math.min(a.mag, w.size); w.res = a.res < 0 ? Infinity : Math.min(a.res, w.resMax ?? Infinity); }
+    else { w.mag = w.size; w.res = w.startRes; }
+  });
   arms.cur = bag.owned[s.cur] ? s.cur : 0; showGun(arms.cur);
 }
 
 export function resetPlayer() {
   Object.assign(player, { hp: PLAYER.HP, inv: 0, kx: 0, kz: 0, dead: false, phase: 0, moving: false });
   player.pos.set(0, 0, 0); pg.rotation.set(0, 0, 0); pg.position.set(0, 0, 0); pg.visible = true;
+  bag.owned = [true, false, false]; bag.grenades = GRENADE.START; bag.meds = INVENTORY.MED_START; bag.armor = 0; bag.up = {};
+  applyUpgrades(); // v10: volta aos atributos base
   weapons.forEach((w) => { w.mag = w.size; w.res = w.startRes; });
-  bag.owned = [true, false, false]; bag.grenades = GRENADE.START; bag.meds = INVENTORY.MED_START; bag.armor = 0;
   arms.cur = 0; arms.cool = 0; arms.reloading = 0; showGun(0); armKick = armSwap = 0;
   G.yaw = Math.PI; G.pitch = -0.12; G.aiming = false;
   snapCamera();
