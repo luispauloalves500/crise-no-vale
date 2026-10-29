@@ -203,7 +203,7 @@ export function spawnEnemy(type, x, z, opts = {}) {
   const e = Object.assign({ parts }, parts, {
     type, cfg: T, pos: new THREE.Vector3(x, 0, z), home: { x, z }, hp: T.hp, maxHp: T.hp, yaw: Math.atan2(player.pos.x - x, player.pos.z - z),
     atkCd: 1, special: rand(1, 3), stun: 0, flashT: 0, bite: 0, lunge: 0, spitT: 0, windup: 0, charge: 0, cdx: 0, cdz: 0,
-    stomp: 0, stompCd: 3, phaseIdx: 0, alert, wanderA: Math.random() * 6.28, ambientIdx: opts.ambientIdx,
+    stomp: 0, stompCd: 3, phaseIdx: 0, alert, dmg0: G.dmgTaken || 0, wanderA: Math.random() * 6.28, ambientIdx: opts.ambientIdx,
     kx: 0, kz: 0, phase: 0, seed: Math.random() * 100, flank: (Math.random() < 0.5 ? -1 : 1) * rand(0.3, 0.8), dead: false, deadT: 0, fallDir: 1, remove: false,
   });
   e.g.position.copy(e.pos); e.g.rotation.y = e.yaw; scene.add(e.g); scene.add(e.bar); enemies.push(e);

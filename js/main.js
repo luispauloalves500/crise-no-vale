@@ -8,7 +8,8 @@ import { initAudio, sfx, toggleMute, isMuted, setAmbience, setMuffle, ambienceSt
 import { SETTINGS, loadSettings, setSetting, resetSettings, onSettings } from './settings.js';
 import { pollGamepad, pad } from './gamepad.js';
 import { updateFx, clearFx } from './fx.js';
-import { heroReady, heroInfo, player, bag, events, resetPlayer, updatePlayer, updateCamera, menuCamera, switchWeapon, startReload, arms, curWeapon, useMed, weapons } from './player.js';
+import { heroReady, heroInfo, player, bag, events, resetPlayer, updatePlayer, updateCamera, menuCamera, switchWeapon, startReload, arms, curWeapon, useMed, weapons, medMax, grenadeMax, applyUpgrades } from './player.js';
+import { terminalKey, terminalOpen } from './shop.js';
 import { enemies, spawnEnemy, updateEnemies, clearEnemies, prewarmEnemies, poolStats } from './enemies.js';
 import { fire, throwGrenade, updateCombat, clearPickups, pickups, damageEnemy } from './combat.js';
 import { updateSurvivor, hideSurvivor, survivor } from './npc.js';
@@ -93,6 +94,7 @@ function cycleWeapon(dir) {
 // ---------- entrada ----------
 const inputHandlers = {
   onKey(code) {
+    if (G.state === 'terminal') { terminalKey(code); if (code === 'KeyM') ui.feed(ui.STR.muted(toggleMute()), '#cde'); return; } // v10: Terminal TELLUS
     if (G.state === 'story') {
       if (code === 'Space' || code === 'KeyE') story.advanceCard();
       else if (code === 'Enter' || code === 'Escape') story.skipCard();
@@ -106,7 +108,7 @@ const inputHandlers = {
       if (code === 'Digit2') { if (bag.owned[1]) switchWeapon(1); else ui.feed('Você ainda não tem a escopeta', '#a09070'); }
       if (code === 'Digit3') { if (bag.owned[2]) switchWeapon(2); else ui.feed('Você ainda não tem a submetralhadora', '#a09070'); }
       if (code === 'KeyQ') cycleWeapon(1);
-      if (code === 'KeyE') interact();
+      if (code === 'KeyE') { if (ui.mapOpen()) ui.toggleMap(false); interact(); }
       if (code === 'KeyG') throwGrenade();
       if (code === 'KeyH') useMed();
       if (code === 'Tab') ui.toggleMap(!ui.mapOpen());
@@ -166,14 +168,14 @@ function loop() {
   G.surface = D.area ? D.area.id : '';
   const inGame = G.state !== 'menu' && G.state !== 'loading' && D.area;
   if (inGame) { const [k, m] = ambienceNow(); setAmbience(k, m); } else setAmbience('menu');
-  setMuffle(G.state === 'pause' || G.state === 'story');
+  setMuffle(G.state === 'pause' || G.state === 'story' || G.state === 'terminal');
   if (G.state === 'menu' || story.cinematic()) menuCamera(dt); else if (G.state !== 'pause') updateCamera(dt);
   // v9: LOD por distância da câmera (cenário a ~6 Hz; inimigos leem o nível em updateEnemies)
   updateLod(dt, D.area ? D.area.ctx : null);
   const h = D.area ? hudData() : EMPTY;
   ui.updateHUD(dt, {
     camera, player, weapon: curWeapon(), weapons, cur: arms.cur, reloading: arms.reloading, reloadTotal: arms.reloadTotal, moving: player.moving,
-    enemies, pickups, boxes, lightning: atmo.lightning, haze: atmo.haze, bag, ...h,
+    enemies, pickups, boxes, lightning: atmo.lightning, haze: atmo.haze, bag, medMax: medMax(), grenadeMax: grenadeMax(), ...h,
   });
   render(renderer, scene, camera, dt);
 }
@@ -247,6 +249,8 @@ window.__game = {
   get enemies() { return enemies.length; }, get objective() { return currentObjective(); },
   get flags() { return D.flags; }, D, list: enemies, damageEnemy, player, bag, survivor, G, startGame, fire, spawnEnemy, interact, throwGrenade,
   goto: (id) => debugGoto(id), setFlags: debugFlags, brandt, story, post,
+  // v10: loja — __game.G.ep = 9999 para testar; terminalOpen() diz se o Terminal TELLUS está aberto
+  terminalOpen, terminalKey, applyUpgrades, weapons,
   // v5: áudio
   get ambience() { return ambienceState(); }, get muted() { return isMuted(); }, toggleMute,
   // v6: ajustes, controle e armas
