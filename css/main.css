@@ -8,6 +8,10 @@ canvas#game{display:block;position:fixed;inset:0}
 /* camadas de tela cheia */
 #vign{position:fixed;inset:0;pointer-events:none;opacity:0;transition:opacity .25s;
   background:radial-gradient(ellipse at center,rgba(0,0,0,0) 45%,rgba(160,0,0,.75) 100%)}
+#vign{transition:none}
+#vign.armor{background:radial-gradient(ellipse at center,rgba(0,0,0,0) 50%,rgba(60,110,200,.55) 100%)}
+#splat{position:fixed;inset:0;pointer-events:none;opacity:0;--sx:50%;--sy:50%;
+  background:radial-gradient(circle at var(--sx) var(--sy),rgba(120,0,0,.9) 0,rgba(90,0,0,.6) 12%,rgba(60,0,0,.25) 24%,rgba(0,0,0,0) 40%)}
 #dark{position:fixed;inset:0;pointer-events:none;
   background:radial-gradient(ellipse at center,rgba(0,0,0,0) 55%,rgba(0,0,0,.55) 100%)}
 #flashScreen{position:fixed;inset:0;pointer-events:none;background:#cfe0ff;opacity:0}
@@ -102,3 +106,12 @@ code{background:#0c1a10;padding:1px 5px;border-radius:3px;color:#cfe9a8}
 #speech .radio{margin-right:6px;font-style:normal}
 #obj2{font-size:12px;margin-top:3px;color:#8fd8e8}
 #obj2:empty{display:none}
+/* v6: painel de ajustes (menu e pausa) */
+.sset{margin:12px auto 0;max-width:480px;text-align:left;font-size:13px;color:#c8d6c4;border:1px solid #2e4a32;border-radius:6px;padding:4px 10px;background:rgba(10,20,12,.45)}
+.sset summary{cursor:pointer;letter-spacing:2px;font-size:12px;color:#9fb79a;padding:4px 0;text-align:center}
+.sset label{display:block;margin:7px 0}
+.sset label b{float:right;color:#f0d68a;font-weight:normal}
+.sset input[type=range]{display:block;width:100%;accent-color:#6c6}
+.sset label.chk{cursor:pointer}
+.sset input[type=checkbox]{accent-color:#6c6;vertical-align:-2px;margin-right:6px}
+.sset button{margin:6px 0 4px;padding:4px 12px;font-size:12px}

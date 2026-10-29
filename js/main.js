@@ -4,9 +4,11 @@ import * as THREE from 'three';
 import { renderer, scene, camera, boxes, updateWorld, atmo, bounds } from './world.js';
 import { G, saveBest } from './state.js';
 import { initInput, lockPointer, unlockPointer, clearInput, keys, mouse } from './input.js';
-import { initAudio, sfx, toggleMute, isMuted, setAmbience, setMuffle, ambienceState } from './audio.js';
+import { initAudio, sfx, toggleMute, isMuted, setAmbience, setMuffle, ambienceState, setVolumes, getVolumes } from './audio.js';
+import { SETTINGS, loadSettings, setSetting, resetSettings, onSettings } from './settings.js';
+import { pollGamepad, pad } from './gamepad.js';
 import { updateFx, clearFx } from './fx.js';
-import { player, bag, events, resetPlayer, updatePlayer, updateCamera, menuCamera, switchWeapon, startReload, arms, curWeapon, useMed } from './player.js';
+import { player, bag, events, resetPlayer, updatePlayer, updateCamera, menuCamera, switchWeapon, startReload, arms, curWeapon, useMed, weapons } from './player.js';
 import { enemies, spawnEnemy, updateEnemies, clearEnemies, prewarmEnemies, poolStats } from './enemies.js';
 import { fire, throwGrenade, updateCombat, clearPickups, pickups, damageEnemy } from './combat.js';
 import { updateSurvivor, hideSurvivor, survivor } from './npc.js';
@@ -68,8 +70,23 @@ function toMenu() {
 events.onDeath = () => endGame(false);
 setWinHandler(() => endGame(true));
 
+// ---------- v6: ajustes (sensibilidade, inverter Y, volumes, movimento reduzido, controle) ----------
+loadSettings(); setVolumes(SETTINGS);
+const padLabel = () => (pad.connected ? '— conectado' : SETTINGS.gamepad ? '— conecte e aperte um botão' : '');
+const refreshSettingsUI = () => ui.updateSettingsUI(SETTINGS, padLabel());
+onSettings(() => { setVolumes(SETTINGS); refreshSettingsUI(); });
+ui.bindSettings((k, v) => setSetting(k, v), () => { resetSettings(); ui.feed('Ajustes restaurados', '#cde'); });
+refreshSettingsUI();
+addEventListener('gamepadconnected', () => { setTimeout(refreshSettingsUI, 50); if (SETTINGS.gamepad) ui.feed('Controle conectado', '#cde'); });
+addEventListener('gamepaddisconnected', () => setTimeout(refreshSettingsUI, 50));
+/** Troca para a próxima/anterior arma possuída (Q, roda do mouse, LB/RB). */
+function cycleWeapon(dir) {
+  const n = bag.owned.length;
+  for (let k = 1; k < n; k++) { const i = (arms.cur + dir * k + n * 4) % n; if (bag.owned[i]) { switchWeapon(i); return; } }
+}
+
 // ---------- entrada ----------
-initInput(renderer.domElement, {
+const inputHandlers = {
   onKey(code) {
     if (G.state === 'story') {
       if (code === 'Space' || code === 'KeyE') story.advanceCard();
@@ -82,7 +99,8 @@ initInput(renderer.domElement, {
       if (code === 'KeyR') startReload();
       if (code === 'Digit1') switchWeapon(0);
       if (code === 'Digit2') { if (bag.owned[1]) switchWeapon(1); else ui.feed('Você ainda não tem a escopeta', '#a09070'); }
-      if (code === 'KeyQ') { if (bag.owned[1]) switchWeapon(1 - arms.cur); }
+      if (code === 'Digit3') { if (bag.owned[2]) switchWeapon(2); else ui.feed('Você ainda não tem a submetralhadora', '#a09070'); }
+      if (code === 'KeyQ') cycleWeapon(1);
       if (code === 'KeyE') interact();
       if (code === 'KeyG') throwGrenade();
       if (code === 'KeyH') useMed();
@@ -96,7 +114,9 @@ initInput(renderer.domElement, {
   onCanvasDown() { initAudio(); },
   onLockLost() { if (G.state === 'play' && !ui.mapOpen()) setPause(true); },
   onBlur() { if (G.state === 'play') setPause(true); },
-});
+  onWheel(dir) { if (G.state === 'play') cycleWeapon(dir); },
+};
+initInput(renderer.domElement, inputHandlers);
 $('startBtn').onclick = () => startGame(false);
 $('continueBtn').onclick = () => startGame(true);
 $('restartBtn').onclick = () => startGame(false);
@@ -115,7 +135,7 @@ function update(dt) {
   if (G.state === 'play' || G.state === 'over' || G.state === 'win') {
     if (G.state === 'play') G.elapsed += dt;
     updatePlayer(dt);
-    if (G.state === 'play' && (mouse.down || keys.Space) && !D.trans) fire();
+    if (G.state === 'play' && (mouse.down || keys.Space || pad.fire) && !D.trans) fire();
     updateEnemies(dt);
     updateSurvivor(dt);
     updateCombat(dt);
@@ -129,8 +149,13 @@ const EMPTY = { area: null };
 function loop() {
   requestAnimationFrame(loop);
   const raw = clock.getDelta(), dt = Math.min(raw, 0.05);
+  pollGamepad(dt, inputHandlers);
   if (G.state === 'play' && !D.trans && autoQualityTick(dt, raw)) ui.feed(ui.STR.qualityAuto(quality.p.label), '#fc8');
-  if (G.state !== 'pause') update(dt);
+  // v6: hitstop — 40–60 ms em câmera quase parada no mundo (crítico/abate); câmera e HUD seguem no dt normal
+  let udt = dt;
+  if (G.hitstopCd > 0) G.hitstopCd -= dt;
+  if (G.hitstop > 0) { G.hitstop -= dt; if (G.state === 'play') udt = dt * 0.06; }
+  if (G.state !== 'pause') update(udt);
   // v5: áudio — ambiente por área com crossfade; abafa durante pausa e cartões de história
   G.surface = D.area ? D.area.id : '';
   const inGame = G.state !== 'menu' && G.state !== 'loading' && D.area;
@@ -139,7 +164,7 @@ function loop() {
   if (G.state === 'menu' || story.cinematic()) menuCamera(dt); else if (G.state !== 'pause') updateCamera(dt);
   const h = D.area ? hudData() : EMPTY;
   ui.updateHUD(dt, {
-    camera, player, weapon: curWeapon(), reloading: arms.reloading, reloadTotal: arms.reloadTotal, moving: player.moving,
+    camera, player, weapon: curWeapon(), weapons, cur: arms.cur, reloading: arms.reloading, reloadTotal: arms.reloadTotal, moving: player.moving,
     enemies, pickups, boxes, lightning: atmo.lightning, haze: atmo.haze, bag, ...h,
   });
   render(renderer, scene, camera, dt);
@@ -213,6 +238,8 @@ window.__game = {
   goto: (id) => debugGoto(id), story, post,
   // v5: áudio
   get ambience() { return ambienceState(); }, get muted() { return isMuted(); }, toggleMute,
+  // v6: ajustes, controle e armas
+  SETTINGS, setSetting, getVolumes, pad, cycleWeapon, switchWeapon, arms,
   // v4: desempenho
   quality, setQuality: (m) => { setQualityMode(m); refreshQualityUI(); }, PRESETS, poolStats, streamStats, bounds, hudStats: ui.hudStats,
   areas: () => AREAS.map((a) => ({ id: a.id, built: isBuilt(a), builds: a.builds || 0, unloads: a.unloads || 0 })),

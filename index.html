@@ -23,6 +23,7 @@
   <div id="haze"></div>
   <div id="grain"></div>
   <div id="vign"></div>
+  <div id="splat"></div>
   <div id="flashScreen"></div>
   <div id="powerFlash"></div>
 
@@ -34,7 +35,7 @@
       <div id="obj2"></div>
       <canvas id="minimap" width="150" height="104"></canvas>
       <div class="small-line">Pontos: <b id="score">0</b> <span id="combo"></span> <span class="k">• Tab: mapa</span></div>
-      <div class="small-line">Registros: <b id="logs">0/7</b></div>
+      <div class="small-line">Registros: <b id="logs">0/9</b></div>
     </div>
 
     <div id="radarWrap">
@@ -74,7 +75,7 @@
     <div id="prompt"></div>
     <div id="feed"></div>
     <div id="speech"></div>
-    <div id="hint">WASD mover • Mouse mirar • Clique atirar • Botão dir. mirar • R recarregar • 1/2/Q arma • G granada • H kit médico • E interagir/ler • Tab mapa • Shift correr • B bloom • P/Esc pausar</div>
+    <div id="hint">WASD mover • Mouse mirar • Clique atirar • Botão dir. mirar • R recarregar • 1/2/3/Q/roda arma • G granada • H kit médico • E interagir/ler • Tab mapa • Shift correr • B bloom • P/Esc pausar</div>
 
     <div id="mapOv"><div class="box"><h2>MAPA DO VALE</h2><canvas id="bigmap" width="520" height="420"></canvas>
       <div class="small">Verde: área atual • Cinza: não visitada • Cadeado: porta trancada • Tab fecha</div></div></div>
@@ -109,22 +110,34 @@
       <tr><td>W A S D</td><td>Mover (relativo à câmera) • Shift correr</td></tr>
       <tr><td>Mouse</td><td>Olhar e mirar • Clique/Espaço atirar • Botão direito zoom</td></tr>
       <tr><td>R</td><td>Recarregar</td></tr>
-      <tr><td>1 / 2 / Q</td><td>Pistola / Escopeta (encontre-a) / Alternar</td></tr>
+      <tr><td>1 / 2 / 3 • Q • Roda</td><td>Pistola / Escopeta / Submetralhadora (encontre-as) • Alternar</td></tr>
       <tr><td>G</td><td>Arremessar granada</td></tr>
-      <tr><td>H</td><td>Usar kit médico</td></tr>
+      <tr><td>H</td><td>Usar kit médico (o colete absorve dano sozinho)</td></tr>
       <tr><td>E</td><td>Interagir (terminais, gerador, sobrevivente, registros)</td></tr>
       <tr><td>Tab</td><td>Mapa das áreas</td></tr>
       <tr><td>V • M • B • P/Esc</td><td>Trocar ombro • Som • Bloom • Pausar</td></tr>
+      <tr><td>Controle</td><td>Analógicos mover/mirar • RT atirar • LT mira • A interagir • X recarregar • B granada • Y kit • LB/RB arma • Start pausa</td></tr>
     </table>
     <p class="foes">Inimigos: <b class="c-raptor">Raptor</b> (bote rápido) •
       <b class="c-spitter">Cuspidor</b> (ácido de longe) • <b class="c-brute">Bruto</b> (investida) • <b class="c-boss">Colosso</b> (???)<br>
-      <b class="c-save">Terminais verdes</b> salvam o progresso e restauram a vida. <b class="c-log">Tablets azuis</b> guardam os 7 registros da estação.</p>
+      <b class="c-save">Terminais verdes</b> salvam o progresso e restauram a vida. <b class="c-log">Tablets azuis</b> guardam os 9 registros da estação — reúna todos para outro final.</p>
     <button id="startBtn" disabled>CARREGANDO…</button>
     <div><button id="continueBtn" class="ghost hidden">CONTINUAR DO ÚLTIMO TERMINAL</button></div>
     <div id="best" class="small"></div>
     <div class="qsel"><span>QUALIDADE GRÁFICA</span>
       <button class="ghost" data-q="auto">Auto</button><button class="ghost" data-q="baixo">Baixo</button><button class="ghost" data-q="medio">Médio</button><button class="ghost" data-q="alto">Alto</button>
       <div class="small qnote"></div></div>
+    <details class="sset"><summary>AJUSTES — CONTROLES, SOM E ACESSIBILIDADE</summary>
+      <label>Sensibilidade do mouse <b data-sv="sens">1,00×</b><input type="range" data-s="sens" min="0.2" max="3" step="0.05"></label>
+      <label class="chk"><input type="checkbox" data-s="invertY"> Inverter eixo Y</label>
+      <label>Volume geral <b data-sv="master">100%</b><input type="range" data-s="master" min="0" max="1" step="0.05"></label>
+      <label>Efeitos <b data-sv="sfx">100%</b><input type="range" data-s="sfx" min="0" max="1" step="0.05"></label>
+      <label>Ambiente <b data-sv="amb">100%</b><input type="range" data-s="amb" min="0" max="1" step="0.05"></label>
+      <label class="chk"><input type="checkbox" data-s="reducedMotion"> Movimento reduzido (menos tremor, partículas e recuo)</label>
+      <label class="chk"><input type="checkbox" data-s="gamepad"> Controle (gamepad) <span class="small padst"></span></label>
+      <button class="ghost" data-sreset>Restaurar padrões</button>
+      <div class="small">M liga/desliga todo o som. Os ajustes ficam salvos neste navegador.</div>
+    </details>
     <div id="bgLoad" class="small"></div>
     <div class="small">Clique na tela para travar o mouse. Esc libera o mouse e pausa.</div>
   </div></div>
@@ -138,6 +151,17 @@
     <div class="qsel"><span>QUALIDADE GRÁFICA</span>
       <button class="ghost" data-q="auto">Auto</button><button class="ghost" data-q="baixo">Baixo</button><button class="ghost" data-q="medio">Médio</button><button class="ghost" data-q="alto">Alto</button>
       <div class="small qnote"></div></div>
+    <details class="sset"><summary>AJUSTES — CONTROLES, SOM E ACESSIBILIDADE</summary>
+      <label>Sensibilidade do mouse <b data-sv="sens">1,00×</b><input type="range" data-s="sens" min="0.2" max="3" step="0.05"></label>
+      <label class="chk"><input type="checkbox" data-s="invertY"> Inverter eixo Y</label>
+      <label>Volume geral <b data-sv="master">100%</b><input type="range" data-s="master" min="0" max="1" step="0.05"></label>
+      <label>Efeitos <b data-sv="sfx">100%</b><input type="range" data-s="sfx" min="0" max="1" step="0.05"></label>
+      <label>Ambiente <b data-sv="amb">100%</b><input type="range" data-s="amb" min="0" max="1" step="0.05"></label>
+      <label class="chk"><input type="checkbox" data-s="reducedMotion"> Movimento reduzido (menos tremor, partículas e recuo)</label>
+      <label class="chk"><input type="checkbox" data-s="gamepad"> Controle (gamepad) <span class="small padst"></span></label>
+      <button class="ghost" data-sreset>Restaurar padrões</button>
+      <div class="small">M liga/desliga todo o som. Os ajustes ficam salvos neste navegador.</div>
+    </details>
   </div></div>
 
   <!-- ===== FIM ===== -->
