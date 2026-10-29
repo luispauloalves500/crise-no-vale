@@ -96,7 +96,7 @@ pg.add(torch); const torchT = new THREE.Object3D(); torchT.position.set(0.38, 0.
 // ---------- modelo GLB da Marina (Mixamo) ----------
 // Carrega assets/marina.min.glb (meshopt + webp). Se falhar ou demorar demais, a malha procedural continua.
 export const HERO = { url: 'assets/marina.min.glb', height: 1.82, timeout: 25000 };
-const hero = { ok: false, model: null, mixer: null, act: {}, spine: null, fireW: 0, fireT: -9, fireAct: null, relW: 0, relAct: null, aimW: 0, raiseW: 0, walkW: 0, runW: 0, err: '' };
+const hero = { ok: false, model: null, mixer: null, act: {}, spine: null, fireW: 0, fireT: -9, fireAct: null, relW: 0, relAct: null, aimW: 0, raiseW: 0, walkW: 0, runW: 0, walkTS: 1, runTS: 1, fires: [], reloads: [], err: '' };
 // ossos da parte de cima (animados pelos clipes de arma) — retirados dos clipes de locomoção para as camadas não brigarem
 const UPPER = /Spine1|Spine2|Neck|Head|Shoulder|Arm|ForeArm|Hand/;
 const FIRE_CLIP = { pistol: ['Fire_Pistol_Controlled', 'Fire_Revolver'], shotgun: ['Fire_Shotgun_Heavy_REV4', 'Fire_Shotgun'], smg: ['Fire_SMG_Burst_REV4', 'Fire_SMG'] };
@@ -108,18 +108,29 @@ function lowerOnly(clip) {
   c.tracks = c.tracks.filter((t) => { const bone = t.name.split('.')[0]; return !(bone.startsWith('mixamorig') && UPPER.test(bone)); });
   return c;
 }
+// balanço do tronco/braço esquerdo tirado do próprio clipe de locomoção (o braço direito fica com a arma)
+const SWING = /Spine1|Spine2|Neck|Head|LeftShoulder|LeftArm|LeftForeArm|LeftHand/;
+function swingOnly(clip) {
+  const c = clip.clone(); c.name = clip.name + '_balanco';
+  c.tracks = c.tracks.filter((t) => { const bone = t.name.split('.')[0]; return bone.startsWith('mixamorig') && SWING.test(bone); });
+  return c;
+}
+// damp assimétrico: sobe com uma taxa e desce com outra
+const damp2 = (a, b, up, down, dt) => damp(a, b, b > a ? up : down, dt);
+const ease = (x) => x * x * (3 - 2 * x); // smoothstep: começa e termina macio
+const phase = (a) => { const d = a.getClip().duration || 1; return ((a.time / d) % 1 + 1) % 1; };
 // descarta trilhas malformadas (nº de valores ≠ nº de chaves × tamanho) — travariam o AnimationMixer
 const STRIDE = { quaternion: 4, vector: 3 };
 function sane(clip) {
   clip.tracks = clip.tracks.filter((t) => { const st = STRIDE[t.ValueTypeName]; return t.times.length > 0 && (!st || t.values.length === t.times.length * st); });
   return clip;
 }
-function heroAction(clips, names, { lower = false, once = false } = {}) {
+function heroAction(clips, names, { lower = false, swing = false, once = false } = {}) {
   for (const n of names) {
     let clip = clips.find((c) => c.name === n); if (!clip) continue; clip = sane(clip);
-    const a = hero.mixer.clipAction(lower ? lowerOnly(clip) : clip);
+    const a = hero.mixer.clipAction(lower ? lowerOnly(clip) : swing ? swingOnly(clip) : clip);
     if (once) { a.setLoop(THREE.LoopOnce, 1); a.clampWhenFinished = true; }
-    a.enabled = true; a.setEffectiveWeight(0); a.play(); a.paused = once; return a;
+    a.enabled = true; a.setEffectiveWeight(0); a.play(); a.paused = once; a.w8 = 0; return a;
   }
   return null;
 }
@@ -151,10 +162,14 @@ async function loadHeroInner() {
   const A = hero.act;
   A.walk = heroAction(clips, ['Walking_Woman', 'Walking'], { lower: true });
   A.run = heroAction(clips, ['Running', 'Walking'], { lower: true });
+  A.walkUp = heroAction(clips, ['Walking_Woman', 'Walking'], { swing: true });
+  A.runUp = heroAction(clips, ['Running', 'Walking'], { swing: true });
   A.idle = heroAction(clips, ['Weapon_Idle']);
   A.aim = heroAction(clips, ['Aim_Pistol']);
   for (const id in FIRE_CLIP) { A['fire_' + id] = heroAction(clips, FIRE_CLIP[id], { once: id !== 'smg' }); A['reload_' + id] = heroAction(clips, RELOAD_CLIP[id], { once: true }); }
-  if (A.idle) A.idle.setEffectiveWeight(1);
+  hero.fires = Object.keys(FIRE_CLIP).map((id) => A['fire_' + id]).filter(Boolean).filter((a, i, l) => l.indexOf(a) === i);
+  hero.reloads = Object.keys(RELOAD_CLIP).map((id) => A['reload_' + id]).filter(Boolean).filter((a, i, l) => l.indexOf(a) === i);
+  if (A.idle) { A.idle.setEffectiveWeight(1); A.idle.timeScale = 0.9; } // respiração um pouco mais lenta e estável
   // armas procedurais vão para o soquete da mão: o cano (+Z antigo) segue o +Y do soquete; a empunhadura fica na palma
   gunRig.removeFromParent(); socket.add(gunRig);
   gunRig.rotation.set(-Math.PI / 2, 0, 0); gunRig.scale.setScalar(GUN_SCALE / k);
@@ -172,9 +187,14 @@ export const heroInfo = () => ({ ok: hero.ok, err: hero.err, weights: { walk: he
 function heroFire() {
   if (!hero.ok) return;
   const id = curWeapon().id, a = hero.act['fire_' + id]; if (!a) return;
-  if (hero.fireAct && hero.fireAct !== a) hero.fireAct.setEffectiveWeight(0);
-  if (id === 'smg') { if (hero.fireT <= 0) a.reset(); a.paused = false; hero.fireT = 0.25; } // automática: o clipe segue em laço enquanto atira
-  else { a.reset(); a.paused = false; a.timeScale = id === 'shotgun' ? 1.4 : 1.2; hero.fireT = a.getClip().duration / a.timeScale * 0.8; }
+  // o clipe anterior não é zerado aqui: cada clipe de tiro tem seu peso (w8) e some sozinho em updateHero
+  if (id === 'smg') { if (a.w8 < 0.05) a.reset(); a.paused = false; a.timeScale = 1; hero.fireT = 0.25; } // automática: só renova o tempo; o laço segue sem reiniciar
+  else {
+    a.timeScale = id === 'shotgun' ? 1.4 : 1.2;
+    // tiro em sequência rápida: se o clipe acabou de começar, não volta ao quadro 0 (evita tranco)
+    if (!(hero.fireAct === a && a.w8 > 0.5 && a.time < a.getClip().duration * 0.2)) a.reset();
+    a.paused = false; hero.fireT = a.getClip().duration / a.timeScale * 0.8;
+  }
   hero.fireAct = a;
 }
 const _q = new THREE.Quaternion(), _qp = new THREE.Quaternion(), _ax = new THREE.Vector3(), _qi = new THREE.Quaternion();
@@ -188,27 +208,63 @@ function rotWorld(o, q) {
 function updateHero(dt, mk) {
   if (!hero.ok) return;
   const A = hero.act, w = curWeapon();
-  // locomoção (pernas): parado = pose base, andar ou correr; velocidade do clipe acompanha a do jogador
+  // locomoção (pernas): parado = pose base, andar ou correr; velocidade do clipe acompanha a do jogador.
+  // Sobe rápido ao começar a andar/correr e desce devagar ao parar (os pés não "travam" de uma vez).
   const speed = Math.hypot(player.vx, player.vz), back = player.moving && !player.running && (keys.KeyS || keys.ArrowDown) && !(keys.KeyW || keys.ArrowUp);
-  hero.runW = damp(hero.runW, player.dead ? 0 : player.running ? 1 : 0, 8, dt);
-  hero.walkW = damp(hero.walkW, player.dead ? 0 : player.moving && !player.running ? 1 : 0, 8, dt);
-  if (A.walk) { A.walk.setEffectiveWeight(hero.walkW); A.walk.timeScale = clamp(speed / PLAYER.WALK, 0.4, 1.4) * (back ? -1 : 1); }
-  if (A.run) { A.run.setEffectiveWeight(hero.runW); A.run.timeScale = clamp(speed / PLAYER.RUN, 0.6, 1.3); }
-  // tronco/braços: disparo e recarga sobrepõem a base (parado com arma ou mirando)
+  hero.runW = damp2(hero.runW, player.dead ? 0 : player.running ? 1 : 0, 9, 5, dt);
+  hero.walkW = damp2(hero.walkW, player.dead ? 0 : player.moving && !player.running ? 1 : 0, 10, 5, dt);
+  // na troca andar↔correr os dois somam mais de 1 por um instante: normaliza (o resto vai para a pose base)
+  const legSum = hero.walkW + hero.runW, legK = legSum > 1 ? 1 / legSum : 1;
+  const walkN = hero.walkW * legK, runN = hero.runW * legK;
+  // velocidade do clipe suavizada (sem saltos ao mudar de velocidade; de costas passa suave pelo zero)
+  hero.walkTS = damp(hero.walkTS, clamp(speed / PLAYER.WALK, 0.45, 1.5) * (back ? -1 : 1), 6, dt);
+  hero.runTS = damp(hero.runTS, clamp(speed / PLAYER.RUN, 0.55, 1.4), 6, dt);
+  if (A.walk) { A.walk.setEffectiveWeight(A.run === A.walk ? walkN + runN : walkN); A.walk.timeScale = A.run === A.walk && runN > walkN ? hero.runTS : hero.walkTS; } // sem Running: o andar cobre os dois
+  if (A.run && A.run !== A.walk) { A.run.setEffectiveWeight(runN); A.run.timeScale = hero.runTS; }
+  // fase dos pés: enquanto os dois clipes se misturam, o mais fraco segue a fase do mais forte (o passo não pula)
+  if (A.walk && A.run && A.walk !== A.run && walkN > 0.01 && runN > 0.01) {
+    const lead = runN > walkN ? A.run : A.walk, fol = lead === A.run ? A.walk : A.run;
+    fol.time = phase(lead) * fol.getClip().duration;
+  }
+  // tronco/braços: camadas com pesos normalizados (recarga > tiro > mira/base, soma ~1)
   hero.fireT -= dt;
-  hero.fireW = damp(hero.fireW, hero.fireT > 0 ? 1 : 0, hero.fireT > 0 ? 30 : 10, dt);
-  const ra = A['reload_' + w.id];
-  if (arms.reloading > 0 && ra) {
-    if (hero.relAct !== ra) { if (hero.relAct) hero.relAct.setEffectiveWeight(0); ra.reset(); ra.paused = false; hero.relAct = ra; }
-    ra.timeScale = ra.getClip().duration / Math.max(0.2, arms.reloadTotal);
-  } else if (arms.reloading <= 0 && hero.relAct && hero.relW < 0.02) { hero.relAct.setEffectiveWeight(0); hero.relAct = null; }
-  hero.relW = damp(hero.relW, arms.reloading > 0 ? 1 : 0, 10, dt);
-  if (hero.relAct) hero.relAct.setEffectiveWeight(hero.relW);
-  const over = Math.max(hero.fireW * (1 - hero.relW), hero.relW);
-  if (hero.fireAct) hero.fireAct.setEffectiveWeight(hero.fireW * (1 - hero.relW));
-  hero.aimW = damp(hero.aimW, G.aiming ? 1 : 0, 12, dt);
-  if (A.aim) A.aim.setEffectiveWeight(hero.aimW * (1 - over));
-  if (A.idle) A.idle.setEffectiveWeight((1 - hero.aimW) * (1 - over));
+  let fireSum = 0;
+  for (const a of hero.fires) {
+    const on = a === hero.fireAct && hero.fireT > 0;
+    a.w8 = damp(a.w8, on ? 1 : 0, on ? 22 : 6, dt); if (a.w8 < 0.002) a.w8 = 0; // entrada rápida (sem pop de 1 quadro), volta suave
+    fireSum += a.w8;
+  }
+  const ra = arms.reloading > 0 ? A['reload_' + w.id] : null;
+  if (ra) {
+    const total = Math.max(0.2, arms.reloadTotal), dur = ra.getClip().duration;
+    if (hero.relAct !== ra) { ra.reset(); hero.relAct = ra; }
+    // tempo do clipe preso ao progresso da recarga (não escorrega mesmo com quadros irregulares)
+    ra.paused = false; ra.timeScale = dur / total; ra.time = clamp(1 - arms.reloading / total, 0, 1) * dur * 0.999;
+  } else if (hero.relAct) hero.relAct = null; // o clipe fica parado no último quadro enquanto some
+  let relSum = 0;
+  for (const a of hero.reloads) {
+    // começa a sumir nos últimos 12% da recarga: a volta para a mira/base se mistura com o fim do clipe
+    const on = a === hero.relAct && arms.reloading > arms.reloadTotal * 0.12;
+    a.w8 = damp(a.w8, on ? 1 : 0, on ? 8 : 5, dt); if (a.w8 < 0.002) a.w8 = 0;
+    relSum += a.w8;
+  }
+  hero.relW = Math.min(1, relSum); hero.fireW = Math.min(1, fireSum);
+  const rel = hero.relW, fire = hero.fireW * (1 - rel), rest = Math.max(0, 1 - rel - fire);
+  for (const a of hero.reloads) a.setEffectiveWeight(a.w8 / Math.max(1, relSum));
+  for (const a of hero.fires) a.setEffectiveWeight(a.w8 / Math.max(1, fireSum) * (1 - rel));
+  // mira: entra e sai com suavidade; com a mira as pernas continuam andando por baixo
+  hero.aimW = damp2(hero.aimW, G.aiming && !player.dead ? 1 : 0, 10, 7, dt);
+  const aim = hero.aimW * rest, base = rest - aim;
+  if (A.aim) A.aim.setEffectiveWeight(aim);
+  if (A.idle) A.idle.setEffectiveWeight(base);
+  // balanço do tronco ao andar/correr por cima da pose base (só ossos do tronco e braço esquerdo).
+  // Peso extra acima de 1 nesses ossos: o mixer normaliza, então a respiração do idle cede espaço ao passo.
+  const swingFor = (up, leg, k) => {
+    if (!up || !leg) return;
+    up.setEffectiveWeight(base * k); up.timeScale = leg.timeScale; up.time = leg.time;
+  };
+  swingFor(A.walkUp, A.walk, walkN * 0.35);
+  if (A.runUp !== A.walkUp) swingFor(A.runUp, A.run, runN * 0.55);
   hero.mixer.update(player.dead ? 0 : dt);
   // inclina o tronco com a mira (pitch da câmera) + coice do disparo
   if (hero.spine && !player.dead) {
@@ -221,9 +277,10 @@ function updateHero(dt, mk) {
   }
   // braço direito levanta a arma para a mira (os clipes de arma do GLB mantêm o braço baixo):
   // ombro→mão e cano (+Y do soquete) giram em direção ao centro da mira, com peso suave
+  // entrada rápida, saída mais lenta; a curva smoothstep tira o tranco no começo e no fim do movimento
   const want = !player.dead && (G.aiming || hero.fireT > -0.7) ? 1 : 0;
-  hero.raiseW = damp(hero.raiseW, want, want ? 14 : 6, dt);
-  const r = hero.raiseW * (1 - hero.relW);
+  hero.raiseW = damp2(hero.raiseW, want, 16, 5, dt);
+  const r = ease(clamp(hero.raiseW, 0, 1)) * (1 - hero.relW);
   if (r > 0.01 && hero.armR && hero.handR) {
     _t.set(Math.sin(G.yaw) * Math.cos(G.pitch), Math.sin(G.pitch), Math.cos(G.yaw) * Math.cos(G.pitch));
     hero.armR.updateWorldMatrix(true, true);

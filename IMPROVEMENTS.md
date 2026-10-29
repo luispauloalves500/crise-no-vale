@@ -1,5 +1,14 @@
 # Melhorias
 
+## v8.1: animações da Marina mais fluidas
+
+- **Locomoção:** pesos de andar/correr sobem rápido e descem devagar ao parar; na troca andar↔correr os pesos são normalizados e o clipe mais fraco segue a fase dos pés do mais forte; velocidade dos clipes suavizada (de costas passa suave pelo zero).
+- **Balanço do tronco:** o tronco e o braço esquerdo herdam um pouco do próprio clipe de andar/correr (o braço direito fica com a arma); a respiração do Weapon_Idle cede espaço ao passo e roda a 0,9×.
+- **Camadas do tronco:** recarga > tiro > mira/base com soma 1 (sem mistura com a pose base nem trancos).
+- **Mira e braço:** mira entra/sai mais macia; o braço levanta rápido e abaixa devagar, com curva smoothstep.
+- **Tiro:** cada clipe de tiro tem peso próprio (troca de arma sem pop); entrada rápida e volta suave; a SMG não reinicia o laço a cada bala; tiros rápidos não voltam ao quadro 0.
+- **Recarga:** tempo do clipe preso ao progresso da recarga, entrada/saída suaves e saída começando nos últimos 12%.
+
 ## v8: Marina em 3D (modelo GLB)
 
 ### Personagem
