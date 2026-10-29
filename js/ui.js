@@ -14,8 +14,9 @@ export const STR = {
   reloading: 'RECARREGANDO...',
   pressR: 'PRESSIONE R',
   noAmmo: 'SEM MUNIÇÃO',
-  noShells: 'Sem cartuchos! Troque para a pistola (1)',
+  noShells: 'Sem munição nesta arma! Troque de arma (1 / Q)',
   ammo: (n) => `+${n} Cartuchos de escopeta`,
+  smgAmmo: (n) => `+${n} Balas de submetralhadora`,
   ammoFull: 'Cartuchos no máximo',
   dirs: ['NORTE', 'NORDESTE', 'LESTE', 'SUDESTE', 'SUL', 'SUDOESTE', 'OESTE', 'NOROESTE'],
   combo: (n) => `x${n}`,
@@ -44,7 +45,7 @@ const el = {};
 ['hud', 'menu', 'pause', 'end', 'startBtn', 'continueBtn', 'continueEndBtn', 'restartBtn', 'resumeBtn', 'quitBtn', 'loadErr', 'best', 'hpnum', 'hpfill', 'hpghost', 'status',
   'wname', 'ammo', 'pips', 'reloadFill', 'reloadTxt', 'zone', 'obj', 'minimap', 'inv', 'prompt', 'bossbar', 'bossName', 'bossFill', 'meter', 'meterLbl', 'meterFill',
   'mapOv', 'bigmap', 'fade', 'pauseObj', 'score', 'combo', 'cross', 'hitmark', 'dmgDir', 'floaters',
-  'banner', 'bTitle', 'bSub', 'announce', 'countdown', 'feed', 'vign', 'flashScreen', 'endTitle', 'endText', 'radar', 'obj2', 'logs', 'haze', 'powerFlash', 'speech'].forEach((id) => { el[id] = $(id); });
+  'banner', 'bTitle', 'bSub', 'announce', 'countdown', 'feed', 'vign', 'splat', 'flashScreen', 'endTitle', 'endText', 'radar', 'obj2', 'logs', 'haze', 'powerFlash', 'speech'].forEach((id) => { el[id] = $(id); });
 export { el };
 
 export function initUI(hasSave) {
@@ -69,11 +70,11 @@ export function showScreen(name) {
 }
 export function setPauseText(t) { el.pauseObj.textContent = t; }
 export function showEnd(win, stats, newBest) {
-  el.endTitle.textContent = win ? STR.winTitle : STR.loseTitle;
+  el.endTitle.textContent = win ? (stats.ending ? stats.ending.title : STR.winTitle) : STR.loseTitle;
   el.endTitle.style.color = win ? '#cfe9a8' : '#ff7a6a';
   const m = Math.floor(stats.elapsed / 60), s = Math.floor(stats.elapsed % 60);
   el.endText.innerHTML =
-    (win ? 'A agente Rocha e a Dra. Lima deixaram o Vale Verde a bordo do Garça-1.<br><br>' : `Última área: <b>${stats.area}</b><br>`) +
+    (win ? (stats.ending ? stats.ending.line : 'A agente Rocha e a Dra. Lima deixaram o Vale Verde a bordo do Garça-1.') + '<br><br>' : `Última área: <b>${stats.area}</b><br>`) +
     `Registros encontrados: <b>${stats.logs}/${stats.logsTotal}</b><br>` +
     `Pontos: <b>${stats.score}</b>${newBest ? ` <span style="color:#ffd060">— ${STR.newBest}</span>` : ''}<br>` +
     `Áreas visitadas: <b>${stats.visited}/${stats.total}</b> • Objetivos: <b>${stats.objectives}</b><br>` +
@@ -110,8 +111,21 @@ export function hitMarker(kill, crit) {
 export function kickCrosshair(px) { spread = Math.min(40, spread + px); }
 export function setCrossEnemy(on) { el.cross.classList.toggle('enemy', on); }
 /** Ângulo do atacante relativo ao para-frente da câmera (0 = à frente). */
-export function damageFrom(relAngle) { el.dmgDir.style.transform = `rotate(${-relAngle}rad)`; el.dmgDir.style.transition = 'none'; el.dmgDir.style.opacity = 1; dirT = 0.6; }
-export function hurtFlash() { vignHit = 0.2; }
+export function damageFrom(relAngle, dmg = 10) {
+  el.dmgDir.style.transform = `rotate(${-relAngle}rad)`; el.dmgDir.style.transition = 'none'; el.dmgDir.style.opacity = 1; dirT = 0.6;
+  // v6: respingo direcional — mancha na borda da tela do lado de onde veio o golpe
+  if (el.splat) {
+    const x = 50 + 46 * Math.sin(-relAngle), y = 50 - 46 * Math.cos(-relAngle);
+    el.splat.style.setProperty('--sx', x.toFixed(1) + '%'); el.splat.style.setProperty('--sy', y.toFixed(1) + '%');
+    splatT = splatT0 = 0.7 + Math.min(0.8, dmg / 30); splatK = Math.min(1, 0.45 + dmg / 30);
+  }
+}
+let splatT = 0, splatT0 = 1, splatK = 1, vignK = 1;
+/** v6: vinheta proporcional ao dano; com colete absorvendo tudo, só um lampejo azulado. */
+export function hurtFlash(dmg = 10, soaked = 0) {
+  vignHit = 0.25 + Math.min(0.45, dmg / 60); vignK = dmg <= 0 && soaked > 0 ? 0.35 : Math.min(1, 0.55 + dmg / 35);
+  el.vign.classList.toggle('armor', soaked > 0 && dmg <= soaked);
+}
 export function lightningFlash(v) { flashT = v; }
 
 // números de dano flutuantes (pool de divs, projetados do mundo para a tela)
@@ -180,10 +194,14 @@ export function updateHUD(dt, d) {
   if (el.zone.textContent !== d.area.name) el.zone.textContent = d.area.name;
   if (el.obj.textContent !== d.objective) el.obj.textContent = d.objective;
   const sub = d.sub || ''; if (el.obj2.textContent !== sub) el.obj2.textContent = sub;
-  const lg = `${d.logs || 0}/${d.logsTotal || 7}`; if (el.logs.textContent !== lg) el.logs.textContent = lg;
+  const lg = `${d.logs || 0}/${d.logsTotal || 9}`; if (el.logs.textContent !== lg) el.logs.textContent = lg;
   el.haze.style.opacity = (d.haze || 0).toFixed(3);
-  const invH = `Kits <b>${d.bag.meds}/${INVENTORY.MED_MAX}</b><span class="key">H</span> &nbsp; Granadas <b>${d.bag.grenades}/${GRENADE.MAX}</b><span class="key">G</span>` +
-    (d.bag.owned[1] ? "" : "<br><span style=\"color:#789\">Escopeta: não encontrada</span>");
+  // v6: inventário mais claro — armas com tecla, munição de reserva e a arma atual em destaque; colete
+  const ws = (d.weapons || []).map((w, i) => d.bag.owned[i]
+    ? `<span class="w${i === d.cur ? ' cur' : ''}"><span class="key">${i + 1}</span>${SHORT[w.id] || w.name} <b>${w.res === Infinity ? '∞' : w.mag + '+' + w.res}</b></span>`
+    : `<span class="w off"><span class="key">${i + 1}</span>${SHORT[w.id] || w.name} —</span>`).join(' ');
+  const invH = (ws ? ws + '<br>' : '') + `Kits <b>${d.bag.meds}/${INVENTORY.MED_MAX}</b><span class="key">H</span> &nbsp; Granadas <b>${d.bag.grenades}/${GRENADE.MAX}</b><span class="key">G</span>` +
+    (d.bag.armor > 0 ? ` &nbsp; <span class="arm">Colete <b>${d.bag.armor}</b></span>` : '');
   if (el.inv.dataset.k !== invH) { el.inv.dataset.k = invH; el.inv.innerHTML = invH; }
   const pr = d.prompt && G.state === 'play' ? (d.prompt.locked ? d.prompt.text : `<span class="key">E</span>${d.prompt.text}`) : '';
   if (el.prompt.dataset.k !== pr) { el.prompt.dataset.k = pr; el.prompt.innerHTML = pr; el.prompt.style.display = pr ? 'block' : 'none'; el.prompt.classList.toggle('locked', !!(d.prompt && d.prompt.locked)); }
@@ -206,7 +224,11 @@ export function updateHUD(dt, d) {
   if (dirT > 0) { dirT -= dt; if (dirT <= 0) { el.dmgDir.style.transition = 'opacity .5s'; el.dmgDir.style.opacity = 0; } }
   if (vignHit > 0) vignHit -= dt;
   const low = d.player.hp < PLAYER.LOW_HP && !d.player.dead;
-  el.vign.style.opacity = vignHit > 0 ? 1 : low ? (0.35 + 0.15 * Math.sin(G.time * 5)) : 0;
+  // v6: vinheta mais rica — pico proporcional ao golpe e, com pouca vida, pulso duplo como batimento
+  const beat = (t) => Math.max(0, Math.sin(t * 2 * Math.PI)) ** 6;
+  const lowV = low ? 0.3 + 0.25 * (1 - d.player.hp / PLAYER.LOW_HP) + 0.25 * (beat(G.time * 1.3) + 0.6 * beat(G.time * 1.3 - 0.18)) : 0;
+  el.vign.style.opacity = Math.max(vignHit > 0 ? vignK * Math.min(1, vignHit * 4) : 0, lowV).toFixed(3);
+  if (el.splat) { if (splatT > 0) splatT -= dt; el.splat.style.opacity = splatT > 0 ? (splatK * Math.min(1, splatT / splatT0 * 1.6)).toFixed(3) : 0; }
 
   if (bannerT > 0) { bannerT -= dt; if (bannerT <= 0) el.banner.style.opacity = 0; }
   if (feedT > 0) { feedT -= dt; if (feedT <= 0) el.feed.style.opacity = 0; }
@@ -285,7 +307,8 @@ function drawAreaMap(cv, d, k) {
 // ---------- radar ----------
 const rctx = el.radar.getContext('2d');
 const RANGE = 26;
-const PICK_COL = { med: '#ff6666', ammo: '#eecc44', grenade: '#70c0ff', shotgun: '#ffffff' };
+const PICK_COL = { med: '#ff6666', ammo: '#eecc44', grenade: '#70c0ff', shotgun: '#ffffff', smg: '#60ffb0', smgammo: '#ff9a30', vest: '#5aa0ff', crate: '#ffffff' };
+const SHORT = { pistol: 'Pistola', shotgun: 'Escopeta', smg: 'Submetr.' };
 function drawRadar(d) {
   const c = rctx, S = el.radar.width, H = S / 2, R = H - 3, sc = R / RANGE;
   const px = d.player.pos.x, pz = d.player.pos.z;
@@ -343,4 +366,26 @@ function drawRadar(d) {
   const na = wrapAngle(Math.atan2(-rz, -fz)); // rotação do norte no radar
   const nx = H + Math.sin(na) * (R - 9), ny = H - Math.cos(na) * (R - 9);
   c.fillStyle = '#ffd060'; c.font = 'bold 10px Trebuchet MS'; c.textAlign = 'center'; c.textBaseline = 'middle'; c.fillText('N', nx, ny);
+}
+
+// ---------- v6: painel de ajustes (mesmo markup no menu e na pausa) ----------
+const fmtS = { sens: (v) => v.toFixed(2).replace('.', ',') + '×', master: (v) => Math.round(v * 100) + '%' };
+fmtS.sfx = fmtS.amb = fmtS.master;
+/** Liga os controles .sset; onChange(chave, valor). onReset() restaura padrões. */
+export function bindSettings(onChange, onReset) {
+  document.querySelectorAll('.sset [data-s]').forEach((inp) => {
+    const k = inp.dataset.s;
+    const fire = () => onChange(k, inp.type === 'checkbox' ? inp.checked : parseFloat(inp.value));
+    inp.addEventListener(inp.type === 'range' ? 'input' : 'change', fire);
+    inp.addEventListener('keydown', (e) => { if (/^(Arrow|Page|Home|End|Space)/.test(e.code)) e.stopPropagation(); }); // setas ajustam o controle, não o jogo
+  });
+  document.querySelectorAll('.sset [data-sreset]').forEach((b) => b.addEventListener('click', (e) => { e.stopPropagation(); onReset(); b.blur(); }));
+}
+export function updateSettingsUI(S, padInfo = '') {
+  document.querySelectorAll('.sset [data-s]').forEach((inp) => {
+    const k = inp.dataset.s;
+    if (inp.type === 'checkbox') inp.checked = !!S[k]; else if (document.activeElement !== inp) inp.value = S[k];
+  });
+  document.querySelectorAll('.sset [data-sv]').forEach((b) => { const k = b.dataset.sv; b.textContent = fmtS[k](S[k]); });
+  document.querySelectorAll('.sset .padst').forEach((n) => { n.textContent = padInfo; });
 }

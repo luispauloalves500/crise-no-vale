@@ -138,7 +138,7 @@ function buildDino(type) {
 const POOL = {}, POOL_MAX = 8;
 export const poolStats = { built: 0, reused: 0 };
 function resetParts(P) {
-  P.g.rotation.set(0, 0, 0); P.g.position.set(0, 0, 0); P.g.visible = true;
+  P.g.rotation.set(0, 0, 0); P.g.position.set(0, 0, 0); P.g.visible = true; P.g.scale.setScalar(ENEMY_TYPES[P.type].scale);
   P.body.position.set(0, 0, 0); P.body.rotation.set(0, 0, 0);
   P.legs.forEach((l) => l.rotation.set(0, 0, 0)); P.jaw.rotation.set(0, 0, 0);
   P.tail.rotation.set(0, 0, 0); P.tail2.rotation.set(0, 0, 0);
@@ -256,12 +256,18 @@ function updateEnemy(e, dt) {
   if (e.dead) {
     if (e.lane) { hideLane(e.lane); e.lane = null; }
     e.deadT += dt; e.bar.visible = false;
-    const k = Math.min(1, e.deadT * 3);
-    g.rotation.z = k * Math.PI / 2 * e.fallDir;
-    g.position.y = k * 0.25 * T.scale - (e.deadT > 1.8 ? (e.deadT - 1.8) * 0.7 : 0);
+    // v6: desabamento — tranco (achata), tomba com pequeno quique, desliza com o impulso, afunda e encolhe até sumir
+    const d = e.deadT, k = Math.min(1, d * 3), ease = 1 - (1 - k) * (1 - k);
+    const bounce = d > 0.33 && d < 0.6 ? Math.sin((d - 0.33) / 0.27 * Math.PI) * 0.08 : 0;
+    g.rotation.z = (ease * Math.PI / 2 + bounce) * e.fallDir;
+    const sq = d < 0.12 ? Math.sin(d / 0.12 * Math.PI) * 0.14 : 0, shrink = d > 2.3 ? Math.max(0.05, 1 - (d - 2.3) / 1.2) : 1;
+    g.scale.set(T.scale * (1 + sq) * shrink, T.scale * (1 - sq) * shrink, T.scale * (1 + sq * 0.5) * shrink);
+    e.pos.x += e.kx * dt; e.pos.z += e.kz * dt; const kd = Math.exp(-6 * dt); e.kx *= kd; e.kz *= kd; resolve(e.pos, T.r * 0.6);
+    g.position.set(e.pos.x, k * 0.25 * T.scale - (d > 1.8 ? (d - 1.8) * 0.7 : 0), e.pos.z);
     e.mats.forEach((m) => m.emissive && m.emissive.setHex(0));
-    e.eyeGlow.forEach((s) => { s.material.opacity = Math.max(0, 0.8 - e.deadT); });
-    if (e.deadT > 3.5) { disposeEnemy(e); e.remove = true; }
+    e.eyeGlow.forEach((s) => { s.material.opacity = Math.max(0, 0.8 - d); });
+    if (!e.dusted && d > 0.32) { e.dusted = true; burst(e.pos.x, 0.15, e.pos.z, 'dust', T.shape === 'brute' ? 14 : 6, 2); }
+    if (d > 3.5) { disposeEnemy(e); e.remove = true; }
     return;
   }
   // alvo: jogador ou a sobrevivente escoltada, o que estiver mais perto

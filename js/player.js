@@ -1,9 +1,11 @@
 // player.js — personagem (malha low-poly), movimento, vida, armas e câmera em terceira pessoa.
 import * as THREE from 'three';
 import { scene, camera, resolve, castWorld, inWater, bounds, GLOW } from './world.js';
-import { PLAYER, CAMERA, WEAPONS, COLORS, GRENADE, INVENTORY, PICKUPS } from './config.js';
+import { PLAYER, CAMERA, WEAPONS, COLORS, GRENADE, INVENTORY, PICKUPS, ARMOR } from './config.js';
 import { G } from './state.js';
 import { keys } from './input.js';
+import { pad } from './gamepad.js';
+import { SETTINGS, motionK } from './settings.js';
 import { sfx, roar } from './audio.js';
 import { burst, decal } from './fx.js';
 import * as ui from './ui.js';
@@ -63,6 +65,15 @@ part(B(0.09, 0.09, 0.95), gunM, 0, -0.04, 0.85, shotgunMesh);
 part(B(0.12, 0.12, 0.35), woodM, 0, -0.1, 0.62, shotgunMesh);
 part(B(0.1, 0.16, 0.3), woodM, 0, -0.14, 0.25, shotgunMesh);
 part(new THREE.CylinderGeometry(0.035, 0.035, 0.9, 8), gunM, 0, -0.11, 0.85, shotgunMesh).rotation.x = Math.PI / 2; // tubo do carregador
+// v6: submetralhadora compacta (corpo curto, pente vertical, coronha dobrável)
+const smgMesh = new THREE.Group(); armR.add(smgMesh); smgMesh.visible = false;
+part(B(0.1, 0.14, 0.55), gunM, 0, -0.05, 0.7, smgMesh);
+part(B(0.05, 0.05, 0.22), gunM, 0, -0.03, 1.02, smgMesh);                 // cano
+part(B(0.07, 0.26, 0.08), gunM, 0, -0.24, 0.74, smgMesh).rotation.x = 0.12; // pente
+part(B(0.08, 0.18, 0.09), gunM, 0, -0.18, 0.52, smgMesh).rotation.x = 0.3;  // empunhadura
+part(B(0.04, 0.04, 0.32), gunM, 0, 0.0, 0.3, smgMesh);                   // coronha
+const gunMeshes = [pistolMesh, shotgunMesh, smgMesh];
+function showGun(i) { gunMeshes.forEach((m, k) => { m.visible = k === i; }); }
 
 export const gunTip = new THREE.Object3D(); gunTip.position.set(0, -0.05, 0.98); armR.add(gunTip);
 // clarão do disparo: sprite + "estrela" de dois planos + luz forte
@@ -82,13 +93,13 @@ export const weapons = WEAPONS.map((w) => ({ ...w, mag: w.size, res: w.startRes 
 export const arms = { cur: 0, cool: 0, reloading: 0, reloadTotal: 1, flashT: 0 };
 export const curWeapon = () => weapons[arms.cur];
 /** Inventário: armas possuídas, granadas e kits médicos guardados. */
-export const bag = { owned: [true, false], grenades: GRENADE.START, meds: INVENTORY.MED_START };
+export const bag = { owned: [true, false, false], grenades: GRENADE.START, meds: INVENTORY.MED_START, armor: 0 };
 
 export function switchWeapon(i) {
   if (i === arms.cur || player.dead) return;
   if (!bag.owned[i]) { ui.feed('Você ainda não tem: ' + weapons[i].name, '#a09070'); return; }
   arms.cur = i; arms.reloading = 0; arms.cool = 0.25; sfx.swap(); ui.feed(weapons[i].name, '#d8c27a');
-  pistolMesh.visible = i === 0; shotgunMesh.visible = i === 1;
+  showGun(i); armSwap = 1;
 }
 export function startReload() {
   const w = curWeapon(); if (arms.reloading > 0 || w.mag >= w.size || w.res <= 0 || player.dead) return;
@@ -107,24 +118,32 @@ function updateWeapons(dt) {
   flash.visible = star.visible = arms.flashT > 0;
   flashLight.intensity *= Math.exp(-35 * dt);
 }
-/** Efeito visual do disparo (chamado por combat.js). */
-export function muzzleFlash(big) {
+/** Efeito visual do disparo (chamado por combat.js). s = tamanho do clarão (0..1), kick = coice da arma. */
+export function muzzleFlash(s = 0.55, kick = 0.035) {
   arms.flashT = 0.05;
-  flash.material.rotation = Math.random() * 6; flash.scale.setScalar(big ? 2.0 : 1.3);
-  star.rotation.z = Math.random() * 3; star.scale.setScalar(big ? 1.5 : 1);
-  flashLight.intensity = big ? 90 : 55;
-  recoil += big ? 0.09 : 0.04;
+  flash.material.rotation = Math.random() * 6; flash.scale.setScalar(1.1 + s * 0.9);
+  star.rotation.z = Math.random() * 3; star.scale.setScalar(0.8 + s * 0.7);
+  flashLight.intensity = 40 + s * 50;
+  recoil += kick;
+  armKick = Math.min(0.7, armKick + kick * 5); // v6: coice visível no braço/arma
 }
+let armKick = 0, armSwap = 0;
 
 // ---------- vida ----------
 export function hurtPlayer(d, fromX, fromZ, knock) {
   if (player.inv > 0 || G.state !== 'play' || player.dead) return;
+  let soaked = 0;
+  if (bag.armor > 0) { // v6: colete absorve parte do golpe
+    soaked = Math.min(bag.armor, Math.round(d * ARMOR.ABSORB)); bag.armor -= soaked; d -= soaked;
+    burst(player.pos.x, 1.3, player.pos.z, 'spark', 6, 3);
+    if (bag.armor <= 0) ui.feed('Colete destruído!', '#7ab0ff');
+  }
   player.hp = Math.max(0, player.hp - d); player.inv = PLAYER.INVULN; G.shake = Math.max(G.shake, 0.45);
   const dx = player.pos.x - fromX, dz = player.pos.z - fromZ, l = Math.hypot(dx, dz) || 1;
   player.kx += dx / l * knock; player.kz += dz / l * knock;
   // direção do atacante relativa à câmera (para o indicador de dano)
   const att = Math.atan2(fromX - player.pos.x, fromZ - player.pos.z);
-  ui.damageFrom(wrapAngle(att - G.yaw)); ui.hurtFlash();
+  ui.damageFrom(wrapAngle(att - G.yaw), d); ui.hurtFlash(d, soaked);
   sfx.hurt(); burst(player.pos.x, 1.3, player.pos.z, 'blood', 8, 3); decal(player.pos.x, player.pos.z, 0.8);
   if (player.hp <= 0) { player.dead = true; roar(0.9, 0.4); if (events.onDeath) events.onDeath(); }
 }
@@ -142,20 +161,23 @@ export function placePlayer(x, z, yaw) {
   pg.position.set(x, 0, z); pg.rotation.y = yaw; snapCamera();
 }
 export function snapshotBag() {
-  return { owned: [...bag.owned], grenades: bag.grenades, meds: bag.meds, hp: player.hp, cur: arms.cur, ammo: weapons.map((w) => ({ mag: w.mag, res: w.res === Infinity ? -1 : w.res })) };
+  return { owned: [...bag.owned], grenades: bag.grenades, meds: bag.meds, armor: bag.armor, hp: player.hp, cur: arms.cur, ammo: weapons.map((w) => ({ mag: w.mag, res: w.res === Infinity ? -1 : w.res })) };
 }
 export function restoreBag(s) {
-  bag.owned = [...s.owned]; bag.grenades = s.grenades; bag.meds = s.meds; player.hp = PLAYER.HP; // terminal restaura a vida
-  s.ammo.forEach((a, i) => { weapons[i].mag = a.mag; weapons[i].res = a.res < 0 ? Infinity : a.res; });
-  arms.cur = bag.owned[s.cur] ? s.cur : 0; pistolMesh.visible = arms.cur === 0; shotgunMesh.visible = arms.cur === 1;
+  // v6: salvos antigos (v5) tinham só 2 armas e nenhum colete — completa com padrões
+  bag.owned = weapons.map((w, i) => i === 0 || !!(s.owned && s.owned[i]));
+  bag.grenades = s.grenades ?? GRENADE.START; bag.meds = s.meds ?? INVENTORY.MED_START; bag.armor = s.armor || 0;
+  player.hp = PLAYER.HP; // terminal restaura a vida
+  weapons.forEach((w, i) => { const a = s.ammo && s.ammo[i]; if (a) { w.mag = a.mag; w.res = a.res < 0 ? Infinity : a.res; } else { w.mag = w.size; w.res = w.startRes; } });
+  arms.cur = bag.owned[s.cur] ? s.cur : 0; showGun(arms.cur);
 }
 
 export function resetPlayer() {
   Object.assign(player, { hp: PLAYER.HP, inv: 0, kx: 0, kz: 0, dead: false, phase: 0, moving: false });
   player.pos.set(0, 0, 0); pg.rotation.set(0, 0, 0); pg.position.set(0, 0, 0); pg.visible = true;
   weapons.forEach((w) => { w.mag = w.size; w.res = w.startRes; });
-  bag.owned = [true, false]; bag.grenades = GRENADE.START; bag.meds = INVENTORY.MED_START;
-  arms.cur = 0; arms.cool = 0; arms.reloading = 0; pistolMesh.visible = true; shotgunMesh.visible = false;
+  bag.owned = [true, false, false]; bag.grenades = GRENADE.START; bag.meds = INVENTORY.MED_START; bag.armor = 0;
+  arms.cur = 0; arms.cool = 0; arms.reloading = 0; showGun(0); armKick = armSwap = 0;
   G.yaw = Math.PI; G.pitch = -0.12; G.aiming = false;
   snapCamera();
 }
@@ -168,12 +190,13 @@ export function updatePlayer(dt) {
   if (keys.ArrowLeft) G.yaw += dt * 2.4; if (keys.ArrowRight) G.yaw -= dt * 2.4;
   let ix = 0, iz = 0;
   if (keys.KeyW || keys.ArrowUp) iz += 1; if (keys.KeyS || keys.ArrowDown) iz -= 1; if (keys.KeyD) ix += 1; if (keys.KeyA) ix -= 1;
+  if (pad.connected) { ix = clamp(ix + pad.mx, -1, 1); iz = clamp(iz + pad.mz, -1, 1); } // v6: analógico esquerdo
   const fx = Math.sin(G.yaw), fz = Math.cos(G.yaw), rx = -fz, rz = fx;
   let mx = fx * iz + rx * ix, mz = fz * iz + rz * ix; const ml = Math.hypot(mx, mz);
-  const run = (keys.ShiftLeft || keys.ShiftRight) && iz > 0 && !G.aiming;
+  const run = (keys.ShiftLeft || keys.ShiftRight || pad.run) && iz > 0 && !G.aiming;
   const sp = (run ? PLAYER.RUN : PLAYER.WALK) * (iz < 0 ? PLAYER.BACK_MULT : 1) * (arms.reloading > 0 ? PLAYER.RELOAD_MULT : 1) * (G.aiming ? PLAYER.AIM_MULT : 1) * (inWater(player.pos.x, player.pos.z) ? PLAYER.WATER_MULT : 1);
-  if (ml > 0) { mx /= ml; mz /= ml; }
-  player.moving = ml > 0; player.running = run && ml > 0;
+  if (ml > 1) { mx /= ml; mz /= ml; } // analógico: meio curso = meia velocidade
+  player.moving = ml > 0.05; player.running = run && ml > 0;
   player.vx = mx * sp; player.vz = mz * sp;
   player.pos.x += (mx * sp + player.kx) * dt; player.pos.z += (mz * sp + player.kz) * dt;
   const k = Math.exp(-9 * dt); player.kx *= k; player.kz *= k;
@@ -186,8 +209,16 @@ export function updatePlayer(dt) {
   }
   const sw = ml > 0 ? Math.sin(player.phase) * 0.6 : 0;
   legL.rotation.x = sw; legR.rotation.x = -sw; torso.position.y = 1.25 + Math.abs(sw) * 0.04;
-  armR.rotation.x = -G.pitch * 0.8 - (arms.cool > curWeapon().rate * 0.6 ? 0.25 : 0); armL.rotation.x = armR.rotation.x;
-  if (arms.reloading > 0) armR.rotation.x += 0.6;
+  // v6: coice (sobe e recua), troca de arma (abaixa e volta) e recarga animada (abaixa, inclina, bate o pente)
+  const mk = motionK();
+  armKick = damp(armKick, 0, 16, dt); armSwap = damp(armSwap, 0, 7, dt);
+  armR.rotation.x = -G.pitch * 0.8 - armKick * mk + armSwap * 0.9; armR.rotation.z = 0; armR.position.z = -armKick * 0.25 * mk;
+  if (arms.reloading > 0) {
+    const t = 1 - arms.reloading / arms.reloadTotal, dip = Math.sin(Math.min(1, t * 1.15) * Math.PI);
+    armR.rotation.x += 0.75 * dip; armR.rotation.z = -0.35 * dip;
+    if (t > 0.55 && t < 0.7) armR.rotation.x -= 0.12 * Math.sin((t - 0.55) / 0.15 * Math.PI); // tranco do pente
+  }
+  armL.rotation.x = armR.rotation.x;
   // poeira ao correr
   if (run) { player.stepT -= dt; if (player.stepT <= 0) { player.stepT = 0.16; burst(player.pos.x - fx * 0.3, 0.1, player.pos.z - fz * 0.3, 'dust', 2, 0.8); } }
   player.inv -= dt;
@@ -221,7 +252,8 @@ export function updateCamera(dt) {
   shoulderCur = damp(shoulderCur, sh, 10, dt);
   const hx = pivot.x + rx * shoulderCur, hz = pivot.z + rz * shoulderCur, hy = CAMERA.HEIGHT;
   // distância desejada + colisão com paredes/árvores (entra rápido, sai devagar)
-  const pitch = G.pitch + recoil;
+  const mk = motionK(); // v6: movimento reduzido corta tremor e recuo da câmera
+  const pitch = G.pitch + recoil * mk;
   const want = G.aiming ? CAMERA.AIM_DIST : CAMERA.DIST;
   const back = Math.cos(pitch) * want;
   const hit = Math.min(castWorld(hx, hz, -fx, -fz, back + 0.4, 1.8), boundRay(hx, hz, -fx, -fz) + 0.6);
@@ -231,7 +263,7 @@ export function updateCamera(dt) {
   camera.position.set(hx - fx * camDist, Math.max(0.6, hy + up + 0.3), hz - fz * camDist);
   look.set(hx + fx * 10, hy + Math.sin(pitch) * 10.5 + 0.1, hz + fz * 10);
   if (G.shake > 0.005) {
-    const s = G.shake * 0.45, t = G.time * 60;
+    const s = G.shake * 0.45 * mk, t = G.time * 60;
     camera.position.x += Math.sin(t * 1.3) * s * 0.5; camera.position.y += Math.sin(t * 1.7 + 1) * s * 0.5; camera.position.z += Math.sin(t * 1.1 + 2) * s * 0.5;
   }
   camera.lookAt(look);

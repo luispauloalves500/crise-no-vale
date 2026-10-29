@@ -1,12 +1,13 @@
 // combat.js — disparo, granadas, detecção de acertos, dano/abates, combo e itens (do mapa e drops).
 import * as THREE from 'three';
 import { scene, camera, castWorld, rayCircle, resolve, GLOW } from './world.js';
-import { PICKUPS, SHOTGUN_RES_MAX, COMBO, PLAYER, GRENADE, INVENTORY, NOISE } from './config.js';
+import { PICKUPS, SHOTGUN_RES_MAX, SMG_RES_MAX, COMBO, PLAYER, GRENADE, INVENTORY, ARMOR } from './config.js';
+import { SETTINGS } from './settings.js';
 import { G } from './state.js';
 import { player, weapons, arms, bag, curWeapon, startReload, muzzleFlash, gunTip, heal, switchWeapon, hurtPlayer } from './player.js';
 import { enemies, enemyEvents, makeNoise } from './enemies.js';
 import { sfx, roar } from './audio.js';
-import { burst, tracer, decal, explosion } from './fx.js';
+import { burst, tracer, decal, explosion, flourish, bloodBurst } from './fx.js';
 import * as ui from './ui.js';
 
 const SHOT_H = 1.25; // altura do tiro: passa por cima de caixas e pedras baixas
@@ -77,15 +78,27 @@ export function fire() {
     anyCrit = anyCrit || crit;
     ui.floater(crit || weak ? dmg + '!' : String(dmg), e.pos.x, 1.9 * e.cfg.scale, e.pos.z, (crit ? 'crit' : '') + (weak ? ' weak' : '') + (dmg >= 60 ? ' big' : ''));
   }
-  if (dmgBy.size) { G.hits++; ui.hitMarker(anyKill, anyCrit); anyKill ? sfx.kill() : anyCrit ? sfx.crit() : sfx.hit(); }
-  muzzleFlash(arms.cur === 1);
-  G.shake = Math.max(G.shake, arms.cur ? 0.24 : 0.09);
-  arms.cur ? sfx.shotgun() : sfx.pistol();
-  ui.kickCrosshair(arms.cur ? 22 : 9);
-  makeNoise(player.pos.x, player.pos.z, arms.cur ? NOISE.SHOTGUN : NOISE.PISTOL); // tiros atraem quem está patrulhando
+  if (dmgBy.size) {
+    G.hits++; ui.hitMarker(anyKill, anyCrit); anyKill ? sfx.kill() : anyCrit ? sfx.crit() : sfx.hit();
+    if (anyKill || anyCrit) {
+      const [e0] = dmgBy.keys(); flourish(e0.pos.x, 1.3 * e0.cfg.scale, e0.pos.z, anyKill);
+      hitstop(anyKill ? 0.055 : 0.04);
+    }
+  }
+  // v6: cada arma define clarão, coice, tremor, som, abertura da retícula e barulho
+  muzzleFlash(w.flash, w.kick);
+  G.shake = Math.max(G.shake, w.shake);
+  (sfx[w.id] || sfx.pistol)();
+  ui.kickCrosshair(w.xkick);
+  makeNoise(player.pos.x, player.pos.z, w.noise); // tiros atraem quem está patrulhando
   if (w.mag === 0 && w.res > 0) autoReloadT = 0.25;
 }
 
+/** v6: congela o mundo por alguns ms (sem acumular; respeita movimento reduzido). */
+function hitstop(s) {
+  if (SETTINGS.reducedMotion || G.hitstopCd > 0) return;
+  G.hitstop = Math.max(G.hitstop, s); G.hitstopCd = 0.22;
+}
 /** Aplica dano; retorna true se matou. */
 export function damageEnemy(e, d, dx, dz, knock) {
   if (e.dead) return false;
@@ -102,14 +115,20 @@ export function damageEnemy(e, d, dx, dz, knock) {
   G.score += pts;
   ui.floater(`+${pts}${mult > 1 ? ` x${mult}` : ''}`, e.pos.x, 2.4 * e.cfg.scale, e.pos.z, 'kill');
   roar(heavy ? 0.45 : 1.1, 0.25);
-  burst(e.pos.x, 1.2 * e.cfg.scale, e.pos.z, 'blood', heavy ? 30 : 14, 4, dx, dz);
+  bloodBurst(e.pos.x, 1.2 * e.cfg.scale, e.pos.z, heavy, dx, dz);
   decal(e.pos.x, e.pos.z, heavy ? 1.5 * e.cfg.scale : 1.6);
   if (!e.cfg.boss) {
     const r = Math.random();
+    const ammoKind = () => (bag.owned[2] && Math.random() < 0.5 ? 'smgammo' : 'ammo'); // v6: com a submetralhadora, metade das caixas é de pente
     if (r < PICKUPS.DROP_MED) spawnPickup('med', e.pos.x, e.pos.z);
-    else if (r < PICKUPS.DROP_MED + PICKUPS.DROP_AMMO) spawnPickup('ammo', e.pos.x, e.pos.z);
+    else if (r < PICKUPS.DROP_MED + PICKUPS.DROP_AMMO) spawnPickup(ammoKind(), e.pos.x, e.pos.z);
     else if (r < PICKUPS.DROP_MED + PICKUPS.DROP_AMMO + 0.04) spawnPickup('grenade', e.pos.x, e.pos.z);
-    if (e.cfg.shape === 'brute') { spawnPickup('med', e.pos.x + 1, e.pos.z); spawnPickup('ammo', e.pos.x - 1, e.pos.z); G.shake = 0.5; }
+    else if (r < PICKUPS.DROP_MED + PICKUPS.DROP_AMMO + 0.04 + PICKUPS.DROP_SMG && !bag.owned[2] && !pickups.some((p) => p.kind === 'smg'))
+      spawnPickup('smg', e.pos.x, e.pos.z); // v6: drop raro
+    if (e.cfg.shape === 'brute') {
+      spawnPickup('med', e.pos.x + 1, e.pos.z); spawnPickup(ammoKind(), e.pos.x - 1, e.pos.z); G.shake = 0.5;
+      if (Math.random() < PICKUPS.DROP_VEST_BRUTE && bag.armor < ARMOR.MAX) spawnPickup('vest', e.pos.x, e.pos.z + 1);
+    }
   } else G.shake = 1;
   if (enemyEvents.onKilled) enemyEvents.onKilled(e);
   return true;
@@ -179,7 +198,10 @@ const medMat = new THREE.MeshStandardMaterial({ color: 0xeeeeee, emissive: 0x222
 const ammoMat = new THREE.MeshStandardMaterial({ color: 0x4a5530 }), bandMat = new THREE.MeshBasicMaterial({ color: 0xe8c040 });
 const gunMat = new THREE.MeshStandardMaterial({ color: 0x151515, metalness: 0.6, roughness: 0.4 }), woodMat = new THREE.MeshStandardMaterial({ color: 0x5a3a20 });
 const unit = new THREE.BoxGeometry(1, 1, 1);
-const glowCol = { med: 0xff5050, ammo: 0xffd040, grenade: 0x70c0ff, shotgun: 0xffffff };
+const vestMat = new THREE.MeshStandardMaterial({ color: 0x2c3a52, roughness: 0.85 }), strapMat = new THREE.MeshStandardMaterial({ color: 0x15181c });
+const crateMat = new THREE.MeshStandardMaterial({ color: 0x6a5232, roughness: 0.9 }), crateBand = new THREE.MeshStandardMaterial({ color: 0x2c2c2c, metalness: 0.5 });
+const smgAmmoMat = new THREE.MeshStandardMaterial({ color: 0x5a4020 }), smgBand = new THREE.MeshBasicMaterial({ color: 0xff9a30 });
+const glowCol = { med: 0xff5050, ammo: 0xffd040, grenade: 0x70c0ff, shotgun: 0xffffff, smg: 0x60ffb0, smgammo: 0xff9a30, vest: 0x5aa0ff, crate: 0xfff0c0 };
 const ringMats = Object.fromEntries(Object.entries(glowCol).map(([k, c]) => [k, new THREE.SpriteMaterial({ map: GLOW, color: c, blending: THREE.AdditiveBlending, transparent: true, depthWrite: false, opacity: 0.55 })]));
 function box(w, h, d, mat, parent, y = 0, z = 0) { const m = new THREE.Mesh(unit, mat); m.scale.set(w, h, d); m.position.set(0, y, z); m.castShadow = true; parent.add(m); }
 
@@ -193,10 +215,14 @@ export function spawnPickup(kind, x, z, opts = {}) {
   if (kind === 'med') { box(0.55, 0.38, 0.4, medMat, g); box(0.3, 0.1, 0.42, redMat, g); box(0.1, 0.3, 0.42, redMat, g); }
   else if (kind === 'grenade') { const s = new THREE.Mesh(new THREE.SphereGeometry(0.2, 10, 8), grenMat); s.castShadow = true; g.add(s); box(0.08, 0.14, 0.08, bandMat, g, 0.22); }
   else if (kind === 'shotgun') { box(0.09, 0.09, 1.1, gunMat, g); box(0.12, 0.14, 0.4, woodMat, g, -0.04, -0.2); box(0.1, 0.18, 0.32, woodMat, g, -0.08, -0.55); }
+  else if (kind === 'smg') { box(0.1, 0.14, 0.6, gunMat, g); box(0.05, 0.05, 0.25, gunMat, g, 0.02, 0.4); box(0.07, 0.3, 0.08, gunMat, g, -0.2, 0.05); box(0.08, 0.2, 0.09, gunMat, g, -0.14, -0.15); box(0.04, 0.04, 0.35, gunMat, g, 0.02, -0.42); }
+  else if (kind === 'smgammo') { box(0.45, 0.3, 0.32, smgAmmoMat, g); box(0.47, 0.07, 0.34, smgBand, g, 0.05); }
+  else if (kind === 'vest') { box(0.6, 0.7, 0.18, vestMat, g); box(0.62, 0.08, 0.2, strapMat, g, 0.1); box(0.62, 0.08, 0.2, strapMat, g, -0.15); }
+  else if (kind === 'crate') { box(0.8, 0.6, 0.6, crateMat, g); box(0.82, 0.08, 0.62, crateBand, g, 0.18); box(0.82, 0.08, 0.62, crateBand, g, -0.18); box(0.3, 0.3, 0.02, redMat, g, 0, 0.31); }
   else { box(0.55, 0.34, 0.38, ammoMat, g); box(0.57, 0.08, 0.4, bandMat, g, 0.06); }
-  const ring = new THREE.Sprite(ringMats[kind]); ring.scale.setScalar(kind === 'shotgun' ? 2.4 : 1.6); g.add(ring);
-  const baseY = opts.y ?? 0.6;
-  g.position.set(x, baseY, z); scene.add(g); pickups.push({ g, kind, x, z, baseY, id: opts.id || null, t: Math.random() * 5, msgT: 0 });
+  const ring = new THREE.Sprite(ringMats[kind] || ringMats.ammo); ring.scale.setScalar(kind === 'shotgun' || kind === 'smg' ? 2.4 : kind === 'crate' ? 2.2 : 1.6); g.add(ring);
+  const baseY = opts.y ?? (kind === 'crate' ? 0.45 : 0.6);
+  g.position.set(x, baseY, z); scene.add(g); pickups.push({ g, ring, kind, x, z, baseY, id: opts.id || null, t: Math.random() * 5, msgT: 0, still: kind === 'crate' });
 }
 export function clearPickups() { pickups.forEach((p) => scene.remove(p.g)); pickups.length = 0; clearGrenades(); }
 
@@ -216,6 +242,35 @@ function tryCollect(p) {
       bag.owned[1] = true; weapons[1].mag = weapons[1].size; weapons[1].res = Math.max(weapons[1].res, 6);
       switchWeapon(1); ui.banner('ESCOPETA', 'Arma nova! Tecla 2 ou Q para alternar', 2.6); sfx.reloadEnd();
       break;
+    case 'smg':
+      bag.owned[2] = true; weapons[2].mag = weapons[2].size; weapons[2].res = Math.max(weapons[2].res, 30);
+      switchWeapon(2); ui.banner('SUBMETRALHADORA', 'Arma nova! Automática — segure para disparar. Tecla 3, Q ou roda', 3); sfx.reloadEnd();
+      break;
+    case 'smgammo': {
+      const sm = weapons[2];
+      if (sm.res >= SMG_RES_MAX) return full('Balas de submetralhadora no máximo');
+      const add = Math.min(PICKUPS.AMMO_SMG, SMG_RES_MAX - sm.res);
+      sm.res += add; ui.feed(ui.STR.smgAmmo(add) + (bag.owned[2] ? '' : ' (ache a submetralhadora!)'), '#ffb060');
+      break;
+    }
+    case 'vest':
+      if (bag.armor >= ARMOR.MAX) return full('Colete já está inteiro');
+      bag.armor = Math.min(ARMOR.MAX, bag.armor + ARMOR.VEST); ui.feed(`Colete vestido (${bag.armor}) — absorve parte do dano`, '#8fb8ff');
+      break;
+    case 'crate': {
+      // v6: caixa de suprimentos brilhante — abre com munição para o que você tem e um kit médico
+      const got = [];
+      const sg = weapons[1], sm = weapons[2];
+      if (bag.owned[1] && sg.res < SHOTGUN_RES_MAX) { const a = Math.min(8, SHOTGUN_RES_MAX - sg.res); sg.res += a; got.push(`+${a} cartuchos`); }
+      if (bag.owned[2] && sm.res < SMG_RES_MAX) { const a = Math.min(45, SMG_RES_MAX - sm.res); sm.res += a; got.push(`+${a} balas`); }
+      if (!bag.owned[1] && !bag.owned[2] && sg.res < SHOTGUN_RES_MAX) { const a = Math.min(6, SHOTGUN_RES_MAX - sg.res); sg.res += a; got.push(`+${a} cartuchos`); }
+      if (bag.meds < INVENTORY.MED_MAX) { bag.meds++; got.push('+1 kit médico'); } else if (player.hp < PLAYER.HP) { heal(PICKUPS.MED_HEAL); got.push(`+${PICKUPS.MED_HEAL} vida`); }
+      if (bag.grenades < GRENADE.MAX && Math.random() < 0.5) { bag.grenades++; got.push('+1 granada'); }
+      if (!got.length) return full('Caixa de suprimentos: nada que você precise agora');
+      ui.feed('Caixa de suprimentos: ' + got.join(', '), '#fff0c0');
+      burst(p.x, 0.9, p.z, 'dust', 8, 2);
+      break;
+    }
     default: {
       const sg = weapons[1];
       if (sg.res >= SHOTGUN_RES_MAX) return full(ui.STR.ammoFull);
@@ -228,7 +283,8 @@ function tryCollect(p) {
 function updatePickups(dt) {
   for (let i = pickups.length - 1; i >= 0; i--) {
     const p = pickups[i]; p.t += dt; p.msgT -= dt;
-    p.g.rotation.y += dt * 1.5; p.g.position.y = p.baseY + Math.sin(p.t * 3) * 0.12;
+    if (p.still) { p.ring.material.opacity = 0.4 + 0.25 * Math.sin(p.t * 4); } // caixa não gira: só pulsa o brilho
+    else { p.g.rotation.y += dt * 1.5; p.g.position.y = p.baseY + Math.sin(p.t * 3) * 0.12; }
     if (player.dead || Math.hypot(p.x - player.pos.x, p.z - player.pos.z) >= 1.3) continue;
     if (!tryCollect(p)) continue;
     sfx.pickup(); burst(p.x, 0.8, p.z, 'spark', 8, 2); scene.remove(p.g); pickups.splice(i, 1);
