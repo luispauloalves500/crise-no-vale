@@ -28,6 +28,9 @@ const ovoid = new THREE.IcosahedronGeometry(1, 1);
 const toothGeo = new THREE.ConeGeometry(0.025, 0.09, 4);
 const toothM = new THREE.MeshStandardMaterial({ color: 0xe8e0c8, roughness: 0.5 });
 const scarM = new THREE.MeshBasicMaterial({ color: 0xff5020 });   // cicatrizes incandescentes do Colosso (V-7)
+// v7: cor das cicatrizes por tipo (Matriarca = verde bioluminescente); materiais compartilhados por cor, nunca descartados
+const SCARS = {};
+const scarFor = (T) => (T.scar ? (SCARS[T.scar] ||= new THREE.MeshBasicMaterial({ color: T.scar })) : scarM);
 function ov(sx, sy, sz, mat, x, y, z, parent) {
   const m = new THREE.Mesh(ovoid, mat); m.scale.set(sx, sy, sz); m.position.set(x, y, z); m.castShadow = true; parent.add(m); return m;
 }
@@ -87,8 +90,9 @@ function buildDino(type) {
       for (let i = 0; i < 5; i++) cn(0.06, 0.32, hornM, (i - 2) * 0.12 * hs, 0.32 * hs, -0.1 * hs, -0.9, head);
       for (let i = 0; i < 4; i++) bx(0.95, 0.12, 0.2, stripe, 0, 1.62, 0.5 - i * 0.35, body);
       // cicatrizes incandescentes e "escoras" de couro nas costas
-      for (let i = 0; i < 5; i++) { const c = bx(0.03, 0.42, 0.05, scarM, (i % 2 ? 1 : -1) * 0.41, 1.3, 0.45 - i * 0.24, body); c.rotation.x = 0.5; c.castShadow = false; }
-      bx(0.03, 0.25, 0.04, scarM, 0.19 * hs, 0.15 * hs, 0.3 * hs, head).castShadow = false;
+      const scarMat = scarFor(T);
+      for (let i = 0; i < 5; i++) { const c = bx(0.03, 0.42, 0.05, scarMat, (i % 2 ? 1 : -1) * 0.41, 1.3, 0.45 - i * 0.24, body); c.rotation.x = 0.5; c.castShadow = false; }
+      bx(0.03, 0.25, 0.04, scarMat, 0.19 * hs, 0.15 * hs, 0.3 * hs, head).castShadow = false;
     }
     bx(0.1, 0.1, 0.3, skin, -0.38, 1.1, 0.75, body).rotation.x = 0.6; bx(0.1, 0.1, 0.3, skin, 0.38, 1.1, 0.75, body).rotation.x = 0.6;
   } else {
