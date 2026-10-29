@@ -1,5 +1,39 @@
 # Melhorias
 
+## v6: pacote completo (ajustes, impacto, submetralhadora e final alternativo)
+
+### Ajustes e controle (`js/settings.js`, `js/gamepad.js`)
+- **Painel "Ajustes"** no menu e na pausa: sensibilidade do mouse/analógico, **inverter Y**, volumes **geral / efeitos / ambiente** (barramentos separados do WebAudio) e **movimento reduzido**.
+- Tudo é salvo em `localStorage` (`crise-no-vale-settings`) e vale na hora, inclusive durante a partida. **M** continua silenciando tudo.
+- **Movimento reduzido:** menos tremor de câmera, menos coice da arma, metade das partículas e sem *hitstop*.
+- **Controle (gamepad, layout padrão):** analógico esquerdo move, direito mira; RT atira, LT mira; A interage, X recarrega, B granada, Y kit médico, LB/RB trocam de arma, Start pausa, Select abre o mapa, L3 corre, R3 troca o ombro. Pode ser desligado nos ajustes.
+
+### Impacto e acabamento visual
+- **Morte dos dinossauros:** o corpo achata no golpe, cai com um pequeno quique, desliza com o empurrão do tiro, levanta poeira ao bater no chão e afunda antes de sumir.
+- **Sangue:** jorro maior no abate (com spray para cima e mancha no chão nas qualidades Médio/Alto).
+- **Dano no jogador:** vinheta vermelha mais forte conforme o golpe, **mancha na borda da tela do lado de onde veio o ataque** e batimento duplo quando a vida está baixa. Com colete, a vinheta fica azulada.
+- **Arma na mão:** coice por arma, abaixar na troca e animação de recarga (inclina, abaixa e "bate" o pente).
+- **Crítico e abate:** faíscas e clarão (dourado no crítico; anel vermelho no abate) e uma **pausa de impacto de 40–55 ms** (*hitstop*), com intervalo mínimo para não travar o ritmo.
+- **Granada:** além do fogo, poeira e faíscas longas; nas qualidades Médio/Alto ganha fumaça extra e uma onda de poeira.
+- No **Baixo** os efeitos pesados (spray extra, decalques, ondas e clarões do *flourish*) ficam desligados.
+
+### Terceira arma: submetralhadora
+- **SUBMETRALHADORA** automática (segure o clique): pente de 30, dano 13, cadência alta, pouco coice, barulho intermediário (17) e reserva máxima de 120.
+- **Onde achar:** caída junto ao anexo leste do **laboratório**. Também pode cair (raro, 3%) de inimigos se você ainda não tiver. Pentes extras no laboratório, no pátio e como drop.
+- **Troca de arma:** **1 / 2 / 3**, **Q** e **roda do mouse** (pula as armas que você não tem).
+- **Caixas de suprimentos** brilhantes no pátio, no pântano e no heliponto: dão munição para as armas que você tem, um kit médico (ou vida) e às vezes uma granada.
+- **Colete:** no galpão oeste do pátio (e às vezes deixado pelo bruto). Até 50 pontos; absorve 60% de cada golpe até acabar ("Colete destruído!").
+- **HUD de inventário:** mostra as três armas com tecla, munição (`pente+reserva`) e a arma atual destacada, além do colete.
+- **Saves:** o save passou para `v: 2`. Saves da v5 continuam funcionando: as armas e a munição que faltam recebem valores padrão e o colete começa em 0.
+
+### Final alternativo
+- **Dois registros novos fora da estação (agora são 9):**
+  - **Registro 8 — "Caixa RAIZ-3":** na margem leste do pântano, junto a uma caixa arrebentada de dentro para fora.
+  - **Registro 9 — "Rádio de campo Tellus-2":** na borda oeste do heliponto.
+- **Epílogo "Rio abaixo — ameaça viva":** com os 9 registros, o Garça-1 desvia a rota e segue o rio atrás das caixas. A tela final troca o título ("A FUGA DO VALE" no final normal e "RIO ABAIXO — AMEAÇA VIVA" no alternativo).
+- **Segredo:** depois de ler o rádio da Tellus-2 e derrubar o Colosso, o rádio oferece **"Transmitir provas no canal aberto"** (+500). Isso muda uma página do final alternativo.
+- O caminho antigo continua: com os **7 registros da estação** o epílogo ainda mostra "Rio abaixo" e indica quantos faltam. O contador do HUD mostra `n/9`.
+
 ## v5: áudio, combate e novos momentos
 
 ### Áudio (`js/audio.js`)

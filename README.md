@@ -9,17 +9,21 @@ A **Estação de Pesquisa Vale Verde**, da Fundação Tellus, estudava DNA prese
 Você é a agente **Marina Rocha**, enviada depois de três dias de silêncio do rádio. Sua missão é achar a última sobrevivente, a **Dra. Helena Lima**, e sair do vale com o piloto **Garça-1**.
 
 - **Introdução** com cartões de história depois de "Novo jogo". Clique ou Espaço avança, Enter pula.
-- **7 registros** (tablets azuis) espalhados pelas áreas. Aproxime-se e aperte **E** para ler. Cada um vale +150 pontos e é guardado no save.
+- **9 registros** (tablets azuis) espalhados pelas áreas: 7 na estação e 2 fora dela (v6). Aproxime-se e aperte **E** para ler. Cada um vale +150 pontos e é guardado no save.
 - **Sala da diretoria** opcional no laboratório (lado oeste). Ela é destrancada quando a energia volta e guarda a gravação particular do diretor.
 - **Falas de rádio e diálogos** com legendas: Lima comenta a escolta, reage aos registros e conversa depois do código.
 - **Cenas curtas** em cada marco: energia, código do heliponto, chegada ao Colosso, morte do chefe e resgate.
-- **Epílogo variável**: muda conforme você achou as provas contra Brandt (registros 4 e 5) e se encontrou todos os 7.
+- **Epílogo variável**: muda conforme você achou as provas contra Brandt (registros 4 e 5) e quantos registros encontrou.
+- **Dois finais (v6):**
+  - **A fuga do vale** é o final normal.
+  - **Rio abaixo — ameaça viva** é o final alternativo: leia os 9 registros, incluindo a caixa RAIZ-3 na margem do pântano e o rádio da Tellus-2 no heliponto.
+  - **Segredo:** depois do Colosso, use o rádio da Tellus-2 para transmitir as provas e mudar o desfecho.
 
 ## Jogar online
 
 **https://luispauloalves500.github.io/crise-no-vale/**
 
-O jogo roda direto no navegador (desktop, com teclado e mouse), sem instalar nada. O GitHub Pages republica o site a cada push na branch `main`.
+O jogo roda direto no navegador (desktop, com teclado e mouse ou controle), sem instalar nada. Os ajustes ficam salvos no navegador (`crise-no-vale-settings`), assim como o progresso (`crise-no-vale-save`). O GitHub Pages republica o site a cada push na branch `main`.
 
 - O repositório traz o workflow `.github/workflows/pages.yml` ("Publicar no GitHub Pages"), que publica só `index.html`, `css/` e `js/`.
 - Para o workflow assumir a publicação, ajuste uma vez **Settings → Pages → Source: GitHub Actions** (https://github.com/luispauloalves500/crise-no-vale/settings/pages). Enquanto a fonte for "Deploy from a branch" (`main`, raiz), o site continua sendo atualizado do mesmo jeito.
@@ -43,10 +47,10 @@ O Three.js vem do CDN jsDelivr via importmap, então é preciso estar online. O 
 |---|---|
 | WASD | mover (Shift corre) |
 | Mouse | mirar / girar a câmera (clique na tela para travar o cursor) |
-| Clique esquerdo | atirar |
+| Clique esquerdo | atirar (segure com a submetralhadora) |
 | Botão direito | mirar com zoom |
 | R | recarregar |
-| 1 / 2 / Q | pistola / escopeta / alternar |
+| 1 / 2 / 3 · Q · roda do mouse | pistola / escopeta / submetralhadora · alternar |
 | G | lançar granada |
 | H | usar kit médico |
 | E | interagir (terminal de save, gerador, sobrevivente, registros) |
@@ -57,6 +61,12 @@ O Three.js vem do CDN jsDelivr via importmap, então é preciso estar online. O 
 | P / Esc | pausar |
 | M | som liga/desliga |
 | E perto da Dra. Lima caída | levantá-la na hora (escolta) |
+
+**Controle (v6):** analógico esquerdo move, direito mira; RT atira, LT mira; A interage, X recarrega, B granada, Y kit médico, LB/RB trocam de arma, Start pausa, Select abre o mapa, L3 corre, R3 troca o ombro.
+
+### Ajustes (v6)
+
+O painel **Ajustes**, no menu e na pausa, tem sensibilidade, inverter Y, volumes geral/efeitos/ambiente, **movimento reduzido** (menos tremor, coice e partículas, sem pausa de impacto) e liga/desliga do controle. As mudanças valem na hora e ficam salvas em `localStorage`.
 
 ### Áudio
 
@@ -73,10 +83,10 @@ Todo o som é gerado no navegador com WebAudio; não há nenhum arquivo de áudi
 |---|---|---|---|
 | 1 | **Cais do Porto** | noite azulada, chuva | início, terminal de save, emboscada entre os contêineres |
 | 2 | **Corredor das Ruínas** | âmbar, neblina densa | **escopeta** no altar, emboscada na primeira passagem |
-| 3 | **Exterior do Laboratório** | cinza, sem energia | hub: portas para ruínas (S), pântano (O) e pátio (N, **sem energia**); save; **sala da diretoria** (opcional) |
-| 4 | **Trilha do Pântano** | verde, neblina pesada | **gerador** (evento de defesa de 20 s) |
-| 5 | **Pátio da Instalação** | holofotes brancos | sobrevivente **Dra. Lima**, escolta, terminal de controle, save |
-| 6 | **Heliponto do Penhasco** | vermelho | chefe **Colosso** e resgate final |
+| 3 | **Exterior do Laboratório** | cinza, sem energia | hub: portas para ruínas (S), pântano (O) e pátio (N, **sem energia**); save; **sala da diretoria** (opcional); **submetralhadora** (v6) |
+| 4 | **Trilha do Pântano** | verde, neblina pesada | **gerador** (evento de defesa de 20 s); registro 8 na margem leste (v6) |
+| 5 | **Pátio da Instalação** | holofotes brancos | sobrevivente **Dra. Lima**, escolta, terminal de controle, save; **colete** (v6) |
+| 6 | **Heliponto do Penhasco** | vermelho | chefe **Colosso** e resgate final; rádio da Tellus-2 / registro 9 (v6) |
 
 ```
             [Pátio]──🔒──[Heliponto]
@@ -112,7 +122,9 @@ Todo o som é gerado no navegador com WebAudio; não há nenhum arquivo de áudi
 - Encontros com roteiro disparam ao entrar numa área, ao pisar numa zona ou quando uma flag muda.
 - **Terminais de save** ficam no cais, no laboratório e no pátio. Eles restauram toda a vida e gravam o progresso no `localStorage`. "Continuar" no menu retoma do último terminal.
 - Munição: a pistola tem reserva infinita. A escopeta usa cartuchos encontrados no mapa ou deixados por inimigos.
-- Inventário: até 4 kits médicos e 5 granadas.
+- **Submetralhadora (v6):** automática, fica no laboratório (anexo leste) e raramente cai de inimigos. Os pentes aparecem no mapa e como drop.
+- **Caixas de suprimentos** (brilhantes) dão munição para o que você tem, kit ou vida e às vezes granada. O **colete** (pátio; às vezes deixado pelo bruto) absorve 60% do dano até 50 pontos.
+- Inventário: até 4 kits médicos e 5 granadas. O HUD mostra as armas (tecla, `pente+reserva`), os kits, as granadas e o colete.
 - Atirar faz barulho e atrai inimigos próximos.
 
 ## Gráficos
@@ -171,7 +183,9 @@ js/story.js       roteiro: introdução, registros, falas/legendas, cartões de 
 js/post.js        bloom opcional (addons do Three r160), com fallback
 js/quality.js     predefinições de qualidade (Auto/Baixo/Médio/Alto) e queda automática
 js/idle.js        fila de tarefas em fatias ociosas (construção de áreas em segundo plano)
-js/player.js      jogador, armas, inventário, câmera em terceira pessoa
+js/player.js      jogador, armas (pistola, escopeta, submetralhadora), inventário, colete, câmera
+js/settings.js    ajustes salvos (sensibilidade, inverter Y, volumes, movimento reduzido, controle)
+js/gamepad.js     controle (API Gamepad)
 js/enemies.js     raptor, cuspidor, bruto e Colosso (IA, ataques)
 js/npc.js         sobrevivente (seguir, ser atacada)
 js/combat.js      tiros, dano, granadas, itens e drops
@@ -188,4 +202,4 @@ js/utils.js       utilitários
 
 No console, `__game` expõe o estado (`area`, `flags`, `objective`, `hp`, `enemies`). Também tem `__game.goto('patio')` para pular de área, `__game.story` (ex.: `__game.story.skipCard()`) e `__game.post` (bloom). Para desempenho: `__game.quality`, `__game.setQuality('baixo')`, `__game.areas()` (áreas construídas), `__game.streamStats`, `__game.poolStats`, `__game.hudStats` e `__game.renderInfo()`. Áudio (v5): `__game.ambience` (camada atual), `__game.muted` e `__game.toggleMute()`.
 
-Os saves antigos continuam compatíveis: o campo `story` (registros lidos e falas já ditas) é opcional.
+Os saves antigos continuam compatíveis: o campo `story` (registros lidos e falas já ditas) é opcional e os saves `v: 1` (v5, duas armas) são migrados ao carregar. v6: `__game.SETTINGS`, `__game.setSetting(k, v)`, `__game.switchWeapon(i)`, `__game.cycleWeapon(±1)`, `__game.bag` (armas, colete) e `__game.story.ending()`.
