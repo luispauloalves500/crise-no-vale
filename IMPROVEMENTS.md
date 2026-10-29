@@ -1,5 +1,37 @@
 # Melhorias
 
+## v10: Pontos de Extinção e a loja do Terminal TELLUS
+
+### Moeda: Pontos de Extinção (PE)
+- `G.ep` (saldo) e `G.epTotal` (ganho na campanha) em `js/state.js`, com `addEp()`. Os **pontos** de ranking (`G.score`) continuam à parte e nunca são gastos.
+- Abate: `cfg.ep × combo` (até x4). Valores em `ENEMY_TYPES`: raptor 10, cuspidor 15, bruto 60, Colosso 600, Matriarca 500 (chefes não multiplicam pelo combo).
+- Bônus leves (`EP` em `js/config.js`): objetivo +50, registro novo +20, área nova +20.
+- **Sem dano:** evento de defesa (gerador, invasão, cargas, resgate) terminado sem levar dano dá +25% do PE ganho nele (mínimo 15). Chefe morto sem você levar dano desde que apareceu também ganha +25%.
+- Número flutuante amarelo "+N PE" no abate e no HUD (`PE` ao lado dos pontos); a tela de fim mostra os PE ganhos.
+
+### Terminal TELLUS (os 5 terminais verdes)
+- **E** abre o menu **SALVAR · LOJA · SAIR** (novo estado `G.state = 'terminal'`: o jogo congela como num cartão de história, o som fica abafado, o ponteiro é solto e a entrada é limpa ao fechar).
+- **SALVAR** é o save de antes (vida cheia, `G.saves++`, grava). Uma vez por acesso, para não inflar a contagem de saves do ranking.
+- **LOJA** não cura nem conta como save. As compras só ficam gravadas no próximo SALVAR.
+- Travado com perigo por perto: inimigo em alerta a menos de 8 m, evento em andamento, spawns na fila, troca de área, chefe, sala trancada ou pavio aceso. O aviso aparece no prompt e no feed: "Perigo por perto — não dá para usar o terminal".
+- Teclado: ↑↓/W S navegam, ←→/A D (ou Q/Tab) trocam de aba, Enter/Espaço/E compram, Esc/Backspace voltam. Controle: A confirma, B volta, LB/RB abas, direcional ou analógico navegam. O mouse também funciona (passar por cima seleciona, clique compra).
+
+### Loja (`js/shop.js`, catálogo `SHOP` em `js/config.js`)
+- **Munição:** cartuchos ×6 (60 PE), balas de submetralhadora ×30 (80 PE). Exigem a arma.
+- **Cura:** kit médico (80), colete (150), granada (100).
+- **Armas:** escopeta (400), submetralhadora (600), para quem não achou no mapa.
+- **Upgrades** (`UPGRADES`): pistola calibre (+4 dano, 3 níveis; o 3º só no Ato 2) e pente (+3, 2 níveis); escopeta choke (dispersão −15% e alcance maior) e tubo (+2 cartuchos); submetralhadora pente duplo (+10) e estabilizador (−20% dispersão, −25% recuo), ambos só no Ato 2; bolsa tática (+1 kit, +1 granada, +12 cartuchos e +30 balas de reserva; 2º nível no Ato 2).
+- Lista com preço, "possui x/máx" (ou "nível x/máx"), item cinza quando falta PE ou tem trava (com o motivo), "MÁX" quando está cheio; saldo de PE no rodapé e mensagens de compra e recusa em português. Bipes próprios (`sfx.terminal/shopBuy/shopDeny`).
+
+### Upgrades e save v4
+- `bag.up = {}`; `applyUpgrades()` (`js/player.js`) recalcula as armas a partir de `WEAPONS` + upgrades sem perder pente/reserva. Limites agora vêm de `medMax()`, `grenadeMax()` e `resMax(i)` (coleta, caixas, HUD e loja).
+- Save **v4**: `ep`, `epTotal` e `bag.up`. Saves v1–v3 carregam com 0 PE e sem upgrades. `restoreBag` aplica os upgrades antes de restaurar o pente.
+- Depuração: `__game.G.ep = 9999`, `__game.terminalOpen()`, `__game.terminalKey('ArrowDown')`.
+
+### Fica para depois
+- Bônus "sem dano" também para emboscadas comuns (hoje só eventos de defesa e chefes).
+- Seletor de dificuldade (fora desta leva, de propósito).
+
 ## v9: menu principal, LOD e desempenho
 
 ### Menu principal

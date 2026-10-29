@@ -53,7 +53,7 @@ O Three.js vem do CDN jsDelivr via importmap, então é preciso estar online. O 
 | 1 / 2 / 3 · Q · roda do mouse | pistola / escopeta / submetralhadora · alternar |
 | G | lançar granada |
 | H | usar kit médico |
-| E | interagir (terminal de save, gerador, sobrevivente, registros) |
+| E | interagir (Terminal TELLUS: salvar/loja; gerador, sobrevivente, registros) |
 | Espaço / clique · Enter | avançar / pular cartões de história |
 | B | bloom liga/desliga (desliga sozinho se o FPS cair) |
 | Tab | mapa do vale |
@@ -132,7 +132,9 @@ Depois do Colosso você escolhe: chamar o resgate e terminar o **Ato 1** como an
 
 - Inimigos de patrulha mortos **continuam mortos**, e itens coletados não voltam.
 - Encontros com roteiro disparam ao entrar numa área, ao pisar numa zona ou quando uma flag muda.
-- **Terminais de save** ficam no cais, no laboratório e no pátio. Eles restauram toda a vida e gravam o progresso no `localStorage`. "Continuar" no menu retoma do último terminal.
+- **Terminais de save** ficam no cais, no laboratório, no pátio, na margem e no acampamento. Com **E** abre o **Terminal TELLUS** (v10): **SALVAR** restaura toda a vida e grava o progresso no `localStorage`; **LOJA** vende munição, cura, armas e upgrades. "Continuar" no menu retoma do último terminal.
+- **Pontos de Extinção (PE, v10):** a moeda da loja. Cada abate rende PE × combo (raptor 10, cuspidor 15, bruto 60; Colosso 600 e Matriarca 500 sem multiplicador). Objetivos (+50), registros novos (+20) e áreas novas (+20) também rendem, e um evento de defesa (ou chefe) sem levar dano dá +25%. Os **pontos** de ranking continuam separados e nunca são gastos.
+- O terminal não abre com perigo por perto: inimigo em alerta a menos de 8 m, evento, chefe ou troca de área. As compras só ficam gravadas no próximo save.
 - Munição: a pistola tem reserva infinita. A escopeta usa cartuchos encontrados no mapa ou deixados por inimigos.
 - **Submetralhadora (v6):** automática, fica no laboratório (anexo leste) e raramente cai de inimigos. Os pentes aparecem no mapa e como drop.
 - **Caixas de suprimentos** (brilhantes) dão munição para o que você tem, kit ou vida e às vezes granada. O **colete** (pátio; às vezes deixado pelo bruto) absorve 60% do dano até 50 pontos.

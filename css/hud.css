@@ -52,6 +52,7 @@
 .fl.big{font-size:24px}
 .fl.weak{color:#7fe0ff;text-shadow:0 1px 3px #000,0 0 8px rgba(80,200,255,.8)}
 .fl.kill{color:#ff6a50;font-size:19px;letter-spacing:1px;text-shadow:0 1px 3px #000,0 0 6px rgba(255,60,30,.6)}
+.fl.ep{color:#ffe08a;font-size:14px;letter-spacing:1px;text-shadow:0 1px 3px #000,0 0 6px rgba(255,200,60,.5)} /* v10: Pontos de Extinção */
 
 /* banners e avisos */
 #banner{position:absolute;top:24%;width:100%;text-align:center;opacity:0;transition:opacity .4s}
