@@ -1,7 +1,7 @@
 // combat.js — disparo, granadas, detecção de acertos, dano/abates, combo e itens (do mapa e drops).
 import * as THREE from 'three';
 import { scene, camera, castWorld, rayCircle, resolve, GLOW } from './world.js';
-import { PICKUPS, SHOTGUN_RES_MAX, COMBO, PLAYER, GRENADE, INVENTORY } from './config.js';
+import { PICKUPS, SHOTGUN_RES_MAX, COMBO, PLAYER, GRENADE, INVENTORY, NOISE } from './config.js';
 import { G } from './state.js';
 import { player, weapons, arms, bag, curWeapon, startReload, muzzleFlash, gunTip, heal, switchWeapon, hurtPlayer } from './player.js';
 import { enemies, enemyEvents, makeNoise } from './enemies.js';
@@ -59,7 +59,7 @@ export function fire() {
     if (p < 3 || Math.random() < 0.4) tracer(v1, v2);
     if (h.e) {
       // escopeta: mais dano de perto
-      const falloff = w.pellets > 1 ? Math.max(0.45, 1 - Math.max(0, h.t - 4) / 22) : 1;
+      const falloff = w.pellets > 1 ? Math.max(w.falloffMin || 0.45, 1 - Math.max(0, h.t - (w.falloffStart || 4)) / (w.falloffLen || 22)) : 1;
       const prev = dmgBy.get(h.e) || { d: 0, dx: 0, dz: 0 };
       prev.d += w.dmg * falloff; prev.dx += dx; prev.dz += dz; dmgBy.set(h.e, prev);
       burst(v2.x, 1.1 * h.e.cfg.scale, v2.z, 'blood', 4, 3, dx, dz);
@@ -69,19 +69,20 @@ export function fire() {
   for (const [e, info] of dmgBy) {
     const crit = Math.random() < (G.aiming ? 0.22 : 0.08);
     let dmg = info.d * (crit ? w.crit : 1);
-    if (e.cfg.boss && e.stun > 0) dmg *= 1.5; // chefe atordoado (bateu na parede): ponto fraco exposto
+    const weak = e.cfg.boss && e.stun > 0;
+    if (weak) dmg *= 1.5; // chefe atordoado (bateu na parede): ponto fraco exposto
     dmg = Math.round(dmg);
     const l = Math.hypot(info.dx, info.dz) || 1;
     if (damageEnemy(e, dmg, info.dx / l, info.dz / l, w.knock)) anyKill = true;
     anyCrit = anyCrit || crit;
-    ui.floater(String(dmg), e.pos.x, 1.9 * e.cfg.scale, e.pos.z, crit ? 'crit' : '');
+    ui.floater(crit || weak ? dmg + '!' : String(dmg), e.pos.x, 1.9 * e.cfg.scale, e.pos.z, (crit ? 'crit' : '') + (weak ? ' weak' : '') + (dmg >= 60 ? ' big' : ''));
   }
-  if (dmgBy.size) { G.hits++; ui.hitMarker(anyKill); anyKill ? sfx.kill() : anyCrit ? sfx.crit() : sfx.hit(); }
+  if (dmgBy.size) { G.hits++; ui.hitMarker(anyKill, anyCrit); anyKill ? sfx.kill() : anyCrit ? sfx.crit() : sfx.hit(); }
   muzzleFlash(arms.cur === 1);
   G.shake = Math.max(G.shake, arms.cur ? 0.24 : 0.09);
   arms.cur ? sfx.shotgun() : sfx.pistol();
   ui.kickCrosshair(arms.cur ? 22 : 9);
-  makeNoise(player.pos.x, player.pos.z, arms.cur ? 26 : 18); // tiros atraem quem está patrulhando
+  makeNoise(player.pos.x, player.pos.z, arms.cur ? NOISE.SHOTGUN : NOISE.PISTOL); // tiros atraem quem está patrulhando
   if (w.mag === 0 && w.res > 0) autoReloadT = 0.25;
 }
 
@@ -134,7 +135,7 @@ export function throwGrenade() {
 function explode(g) {
   const { x, z } = g.p;
   explosion(x, z, GRENADE.RADIUS); sfx.explosion(); G.shake = Math.max(G.shake, 0.8);
-  makeNoise(x, z, 30);
+  makeNoise(x, z, NOISE.GRENADE);
   let kills = 0, hits = 0;
   for (const e of enemies) {
     if (e.dead) continue;
@@ -143,11 +144,11 @@ function explode(g) {
     if (castWorld(x, z, dx / (d || 1), dz / (d || 1), Math.max(0, d - 0.3), 1.2) < d - 0.6) continue; // cobertura protege
     const k = 1 - Math.max(0, d) / GRENADE.RADIUS, dmg = Math.round(GRENADE.DMG * (0.35 + 0.65 * k));
     e.stun = Math.max(e.stun, GRENADE.STUN * (e.cfg.boss ? 0.5 : 1)); e.windup = 0; e.charge = 0; hits++;
-    ui.floater(String(dmg), e.pos.x, 1.9 * e.cfg.scale, e.pos.z, 'crit');
+    ui.floater(dmg + '!', e.pos.x, 1.9 * e.cfg.scale, e.pos.z, 'crit big');
     const l = Math.hypot(dx, dz) || 1;
     if (damageEnemy(e, dmg, dx / l, dz / l, 8)) kills++;
   }
-  if (hits) { ui.hitMarker(kills > 0); G.hits++; }
+  if (hits) { ui.hitMarker(kills > 0, true); G.hits++; }
   G.shots++;
   const pd = Math.hypot(player.pos.x - x, player.pos.z - z);
   if (pd < GRENADE.RADIUS * 0.55) hurtPlayer(18, x, z, 10);

@@ -66,6 +66,29 @@ export function shockwave(x, z, r, color = 0xffd0a0) {
   w.m.material.color.setHex(color); w.m.position.set(x, 0.08, z); w.m.scale.setScalar(0.3);
   burst(x, 0.2, z, 'dust', 26, 5);
 }
+// ---------- v5: avisos no chão (telegraph) — pisão (disco que enche) e investida (faixa) ----------
+const tgEdgeGeo = new THREE.RingGeometry(0.93, 1, 48); tgEdgeGeo.rotateX(-Math.PI / 2);
+const tgFillGeo = new THREE.CircleGeometry(1, 40); tgFillGeo.rotateX(-Math.PI / 2);
+const tgMat = (c, o) => new THREE.MeshBasicMaterial({ color: c, transparent: true, opacity: o, depthWrite: false, blending: THREE.AdditiveBlending, polygonOffset: true, polygonOffsetFactor: -3 });
+const tgs = new RingPool(3, () => {
+  const edge = new THREE.Mesh(tgEdgeGeo, tgMat(0xff5030, 0)), fill = new THREE.Mesh(tgFillGeo, tgMat(0xff3010, 0));
+  edge.visible = fill.visible = false; edge.renderOrder = fill.renderOrder = 2; scene.add(edge, fill); return { edge, fill, life: 0, max: 1, r: 1 };
+});
+/** Aviso circular: a borda aparece já no raio final e o miolo enche até a hora do impacto. */
+export function telegraph(x, z, r, dur, color = 0xff5030) {
+  const t = tgs.next(); t.life = t.max = dur; t.r = r;
+  t.edge.visible = t.fill.visible = true; t.edge.material.color.setHex(color);
+  t.edge.position.set(x, 0.05, z); t.fill.position.set(x, 0.045, z); t.edge.scale.setScalar(r); t.fill.scale.setScalar(0.01);
+}
+const laneGeo = new THREE.PlaneGeometry(1, 1); laneGeo.rotateX(-Math.PI / 2); laneGeo.translate(0, 0, 0.5);
+const lanes = new RingPool(3, () => { const m = new THREE.Mesh(laneGeo, tgMat(0xff6020, 0)); m.visible = false; m.renderOrder = 2; scene.add(m); return { m }; });
+/** Faixa de investida: pegue um handle com laneHandle(), atualize com setLane() a cada quadro e esconda com hideLane(). */
+export const laneHandle = () => lanes.next();
+export function setLane(h, x, z, dx, dz, len, w, k) {
+  h.m.visible = true; h.m.position.set(x, 0.05, z); h.m.rotation.y = Math.atan2(dx, dz);
+  h.m.scale.set(w, 1, len * (0.35 + 0.65 * k)); h.m.material.opacity = 0.12 + 0.3 * k * (0.75 + 0.25 * Math.sin(k * 40));
+}
+export function hideLane(h) { if (h) h.m.visible = false; }
 // ---------- clarão de explosão ----------
 const flashes = new RingPool(4, () => {
   const s = new THREE.Sprite(new THREE.SpriteMaterial({ map: GLOW, color: 0xffa040, transparent: true, opacity: 0, depthWrite: false, blending: THREE.AdditiveBlending }));
@@ -90,6 +113,13 @@ export function explosion(x, z, r) {
 }
 
 export function updateFx(dt) {
+  tgs.forEach((t) => {
+    if (!t.edge.visible) return;
+    t.life -= dt; const k = 1 - Math.max(0, t.life) / t.max;
+    t.fill.scale.setScalar(Math.max(0.01, t.r * k)); t.fill.material.opacity = 0.1 + 0.22 * k;
+    t.edge.material.opacity = 0.45 + 0.4 * Math.abs(Math.sin(k * (8 + k * 14)));
+    if (t.life <= 0) t.edge.visible = t.fill.visible = false;
+  });
   rings.forEach((w) => {
     if (!w.m.visible) return;
     w.life -= dt; const k = 1 - w.life / w.max;
@@ -133,6 +163,8 @@ export function clearFx() {
   tracers.forEach((t) => { t.m.visible = false; });
   decals.forEach((d) => { d.m.visible = false; });
   rings.forEach((w) => { w.m.visible = false; });
+  tgs.forEach((t) => { t.edge.visible = t.fill.visible = false; t.life = 0; });
+  lanes.forEach((h) => { h.m.visible = false; });
   flashes.forEach((f) => { f.s.visible = false; });
   smokes.forEach((p) => { p.s.visible = false; });
 }

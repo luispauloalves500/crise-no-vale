@@ -101,8 +101,12 @@ export function clearMessages() {
 }
 
 // ---------- feedback de combate ----------
-let hitT = 0, dirT = 0, spread = 0, vignHit = 0, flashT = 0;
-export function hitMarker(kill) { hitT = kill ? 0.3 : 0.15; el.hitmark.classList.toggle('kill', !!kill); }
+let hitT = 0, hitT0 = 0.15, dirT = 0, spread = 0, vignHit = 0, flashT = 0;
+/** Marcador de acerto: branco = acerto, dourado = crítico, vermelho e maior = abate (v5: "pop" de escala). */
+export function hitMarker(kill, crit) {
+  hitT = hitT0 = kill ? 0.34 : crit ? 0.22 : 0.15;
+  el.hitmark.classList.toggle('kill', !!kill); el.hitmark.classList.toggle('crit', !kill && !!crit);
+}
 export function kickCrosshair(px) { spread = Math.min(40, spread + px); }
 export function setCrossEnemy(on) { el.cross.classList.toggle('enemy', on); }
 /** Ângulo do atacante relativo ao para-frente da câmera (0 = à frente). */
@@ -112,13 +116,14 @@ export function lightningFlash(v) { flashT = v; }
 
 // números de dano flutuantes (pool de divs, projetados do mundo para a tela)
 const FL = 28; const floaters = [];
-for (let i = 0; i < FL; i++) { const d = document.createElement('div'); d.className = 'fl'; d.style.display = 'none'; el.floaters.appendChild(d); floaters.push({ d, p: new THREE.Vector3(), life: 0, vy: 0 }); }
+for (let i = 0; i < FL; i++) { const d = document.createElement('div'); d.className = 'fl'; d.style.display = 'none'; el.floaters.appendChild(d); floaters.push({ d, p: new THREE.Vector3(), life: 0, life0: 1, vy: 0, vx: 0 }); }
 let flI = 0;
 const _v = new THREE.Vector3();
 export function floater(text, x, y, z, cls = '') {
   const f = floaters[flI]; flI = (flI + 1) % FL;
   f.d.textContent = text; f.d.className = 'fl ' + cls; f.d.style.display = 'block';
-  f.p.set(x + (Math.random() - 0.5) * 0.4, y, z + (Math.random() - 0.5) * 0.4); f.life = cls === 'kill' ? 1.1 : 0.7; f.vy = 1.6;
+  f.p.set(x + (Math.random() - 0.5) * 0.5, y, z + (Math.random() - 0.5) * 0.5);
+  f.life = f.life0 = cls.includes('kill') ? 1.2 : cls.includes('crit') ? 0.95 : 0.75; f.vy = cls.includes('kill') ? 1.2 : 2.0; f.vx = 0;
 }
 function updateFloaters(dt, camera) {
   const w = innerWidth, h = innerHeight;
@@ -131,6 +136,10 @@ function updateFloaters(dt, camera) {
     f.d.style.display = 'block';
     f.d.style.left = ((_v.x + 1) / 2 * w) + 'px'; f.d.style.top = ((1 - _v.y) / 2 * h) + 'px';
     f.d.style.opacity = Math.min(1, f.life * 3);
+    // v5: "pop" ao nascer (cresce rápido e assenta) — números críticos/grandes saltam mais
+    const age = f.life0 - f.life, pop = age < 0.12 ? 1.45 - age / 0.12 * 0.45 : 1;
+    f.vy = Math.max(0.3, f.vy - dt * 2.2);
+    f.d.style.transform = `translate(-50%,-50%) scale(${pop.toFixed(3)})`;
   }
 }
 export function clearFloaters() { for (const f of floaters) { f.life = 0; f.d.style.display = 'none'; } }
@@ -190,7 +199,10 @@ export function updateHUD(dt, d) {
   const base = (G.aiming ? 4 : 9) + (d.moving ? 5 : 0) + spread;
   el.cross.style.setProperty('--g', base.toFixed(1) + 'px');
 
-  if (hitT > 0) { hitT -= dt; el.hitmark.style.opacity = Math.min(1, hitT * 8); } else el.hitmark.style.opacity = 0;
+  if (hitT > 0) {
+    hitT -= dt; const k = Math.max(0, hitT / hitT0);
+    el.hitmark.style.opacity = Math.min(1, hitT * 8); el.hitmark.style.transform = `scale(${(0.85 + 0.5 * k * k).toFixed(3)})`;
+  } else el.hitmark.style.opacity = 0;
   if (dirT > 0) { dirT -= dt; if (dirT <= 0) { el.dmgDir.style.transition = 'opacity .5s'; el.dmgDir.style.opacity = 0; } }
   if (vignHit > 0) vignHit -= dt;
   const low = d.player.hp < PLAYER.LOW_HP && !d.player.dead;

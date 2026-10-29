@@ -37,7 +37,8 @@
 #hitmark i:nth-child(2){transform:rotate(45deg) translateX(12px)}
 #hitmark i:nth-child(3){transform:rotate(-45deg) translateX(-12px)}
 #hitmark i:nth-child(4){transform:rotate(-45deg) translateX(12px)}
-#hitmark.kill i{background:#ff4030;width:16px;left:-8px}
+#hitmark.kill i{background:#ff4030;width:16px;left:-8px;height:3px}
+#hitmark.crit i{background:#ffd040;width:14px;left:-7px}
 
 /* indicador de direção do dano */
 #dmgDir{position:absolute;left:50%;top:50%;width:240px;height:240px;margin:-120px 0 0 -120px;opacity:0;
@@ -47,8 +48,10 @@
 #floaters{position:absolute;inset:0;overflow:hidden}
 .fl{position:absolute;font-weight:bold;font-size:16px;color:#fff;text-shadow:0 1px 3px #000,0 0 4px #000;
   transform:translate(-50%,-50%);white-space:nowrap}
-.fl.crit{color:#ffd040;font-size:20px}
-.fl.kill{color:#ff6a50;font-size:18px;letter-spacing:1px}
+.fl.crit{color:#ffd040;font-size:21px;text-shadow:0 1px 3px #000,0 0 8px rgba(255,170,0,.7)}
+.fl.big{font-size:24px}
+.fl.weak{color:#7fe0ff;text-shadow:0 1px 3px #000,0 0 8px rgba(80,200,255,.8)}
+.fl.kill{color:#ff6a50;font-size:19px;letter-spacing:1px;text-shadow:0 1px 3px #000,0 0 6px rgba(255,60,30,.6)}
 
 /* banners e avisos */
 #banner{position:absolute;top:24%;width:100%;text-align:center;opacity:0;transition:opacity .4s}
