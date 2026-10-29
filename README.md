@@ -86,14 +86,17 @@ Todo o som é gerado no navegador com WebAudio; não há nenhum arquivo de áudi
 | 3 | **Exterior do Laboratório** | cinza, sem energia | hub: portas para ruínas (S), pântano (O) e pátio (N, **sem energia**); save; **sala da diretoria** (opcional); **submetralhadora** (v6) |
 | 4 | **Trilha do Pântano** | verde, neblina pesada | **gerador** (evento de defesa de 20 s); registro 8 na margem leste (v6) |
 | 5 | **Pátio da Instalação** | holofotes brancos | sobrevivente **Dra. Lima**, escolta, terminal de controle, save; **colete** (v6) |
-| 6 | **Heliponto do Penhasco** | vermelho | chefe **Colosso** e resgate final; rádio da Tellus-2 / registro 9 (v6) |
+| 6 | **Heliponto do Penhasco** | vermelho | chefe **Colosso** e resgate do Ato 1; rádio da Tellus-2 / registro 9 (v6); portão leste para o Ato 2 (v7) |
+| 7 | **Margem do Rio** (v7) | neblina, lama, rio | save, rastro de alguém fugindo |
+| 8 | **Acampamento Tellus-2** (v7) | luzes de obra | save, jaulas, terminal a invadir |
+| 9 | **Ninho Raiz** (v7) | cratera, brilho dos ovos | guardiã do ninho, barco, resgate do Ato 2 |
 
 ```
-            [Pátio]──🔒──[Heliponto]
-               │🔒
-[Pântano]──[Laboratório]
-               │
-           [Ruínas]
+            [Pátio]──🔒──[Heliponto]──🔒──[Margem]        ← Ato 2 (v7)
+               │🔒                           │
+[Pântano]──[Laboratório]              [Acampamento]
+               │                             │🔒
+           [Ruínas]                       [Ninho]
                │
             [Cais]
 ```
@@ -109,6 +112,15 @@ Todo o som é gerado no navegador com WebAudio; não há nenhum arquivo de áudi
    - Quando bate numa parede fica atordoado e leva +50% de dano. Granadas também o atordoam.
    - v5: um **anel vermelho** no chão avisa o pisão e uma **faixa** mostra a direção da investida.
 5. **Resgate.** Com o Colosso morto, suba na marca H e aguente 14 s até o helicóptero chegar. No fim você recebe um rank (S–D) calculado pelo tempo, pela precisão e pelo número de saves.
+
+### Ato 2 — Rio Abaixo (v7, sem spoilers pesados)
+
+Depois do Colosso você escolhe: chamar o resgate e terminar o **Ato 1** como antes ou **seguir o rio** pelo portão leste do heliponto.
+
+- Alguém do alto escalão está fugindo rio abaixo, e as pegadas na lama não são de dinossauro.
+- No acampamento da Tellus-2 as jaulas não estão tão vazias quanto parecem, e o portão sul só abre pelo terminal (aguente as ondas enquanto ele é invadido).
+- No fim do rio há algo guardando um ninho. O que você faz depois (com o ninho e com quem tentou fugir) decide qual dos **quatro finais novos** você vê.
+- São mais **4 registros** (13 no total) e dois terminais de save novos (margem e acampamento).
 
 ### Momentos com roteiro (v5)
 
@@ -177,7 +189,7 @@ css/hud.css       HUD, mapa, barras
 js/config.js      balanceamento: armas, inimigos, chefe, câmera, pontuação
 js/state.js       estado global, recorde e save (localStorage)
 js/world.js       renderer, cena, luzes, colisão 2D e construtores de cenário
-js/areas.js       definição das 6 áreas (portas, itens, patrulhas, encontros, clima)
+js/areas.js       definição das 9 áreas (portas, itens, patrulhas, encontros, clima)
 js/director.js    progressão: troca de área, travas, eventos, encontros, save/load, objetivos, registros, helicóptero
 js/story.js       roteiro: introdução, registros, falas/legendas, cartões de história e epílogo
 js/post.js        bloom opcional (addons do Three r160), com fallback
@@ -186,7 +198,8 @@ js/idle.js        fila de tarefas em fatias ociosas (construção de áreas em s
 js/player.js      jogador, armas (pistola, escopeta, submetralhadora), inventário, colete, câmera
 js/settings.js    ajustes salvos (sensibilidade, inverter Y, volumes, movimento reduzido, controle)
 js/gamepad.js     controle (API Gamepad)
-js/enemies.js     raptor, cuspidor, bruto e Colosso (IA, ataques)
+js/enemies.js     raptor, cuspidor, bruto, Colosso e Matriarca (IA, ataques)
+js/brandt.js      Brandt: NPC do Ato 2 (rota de fuga, prisão) (v7)
 js/npc.js         sobrevivente (seguir, ser atacada)
 js/combat.js      tiros, dano, granadas, itens e drops
 js/fx.js          partículas e efeitos
@@ -203,3 +216,5 @@ js/utils.js       utilitários
 No console, `__game` expõe o estado (`area`, `flags`, `objective`, `hp`, `enemies`). Também tem `__game.goto('patio')` para pular de área, `__game.story` (ex.: `__game.story.skipCard()`) e `__game.post` (bloom). Para desempenho: `__game.quality`, `__game.setQuality('baixo')`, `__game.areas()` (áreas construídas), `__game.streamStats`, `__game.poolStats`, `__game.hudStats` e `__game.renderInfo()`. Áudio (v5): `__game.ambience` (camada atual), `__game.muted` e `__game.toggleMute()`.
 
 Os saves antigos continuam compatíveis: o campo `story` (registros lidos e falas já ditas) é opcional e os saves `v: 1` (v5, duas armas) são migrados ao carregar. v6: `__game.SETTINGS`, `__game.setSetting(k, v)`, `__game.switchWeapon(i)`, `__game.cycleWeapon(±1)`, `__game.bag` (armas, colete) e `__game.story.ending()`.
+
+v7: o save é `v: 3` (flags da campanha); saves antigos são migrados. `__game.setFlags({...})`, `__game.brandt` e `__game.goto('margem' | 'acampamento' | 'ninho')`.

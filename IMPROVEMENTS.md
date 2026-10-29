@@ -1,5 +1,45 @@
 # Melhorias
 
+## v7: Ato 2 — Rio Abaixo (mais áreas, história maior)
+
+### Campanha em dois atos
+- **O Ato 1 continua igual:** matar o Colosso e chamar o resgate na marca H ainda leva ao final clássico (com os finais da v6).
+- Depois do Colosso, o **portão leste do heliponto** se abre e o objetivo oferece a escolha: *"Chame o resgate na marca H — ou siga o rio pelo portão leste (Ato 2)"*. Uma fala no rádio lembra a opção 24 s depois.
+- Ao entrar na primeira área nova aparece o banner **ATO 2 — RIO ABAIXO** e um cartão de introdução.
+
+### Três áreas novas (`js/areas.js`, feitas com os construtores de `world.js`)
+- **Margem do Rio:** neblina, lama e água corrente. Tem save, a primeira aparição do Brandt fugindo e uma emboscada de raptores que saem da lama.
+- **Acampamento Tellus-2:** barracas, geradores e jaulas. Tem save e uma cena com o Brandt, que **abre as jaulas** e dispara o alarme. O portão sul fica travado até você **invadir o terminal** (evento de defesa de 18 s com três ondas).
+- **Ninho Raiz:** uma cratera de pedra cheia de ovos que brilham, com um barco no cais.
+- O streaming, o mapa (agora centralizado e ajustado ao tamanho do mundo), os pontos do HUD e as travas de porta (com mensagens) cobrem as áreas novas.
+
+### Brandt (`js/brandt.js`)
+- Diretor da Tellus, agora um NPC com rota: aparece, corre, se encolhe no cais e pode ser **preso** (E, +1000 pontos).
+- Depois que a chefe cai, você tem **40 s** (com avisos aos 20 e aos 10) antes de o barco ligar. Se você sair do ninho ou o tempo acabar, ele foge.
+
+### Chefe: Matriarca
+- Uma guardiã do ninho, maior e com mais vida que o Colosso (1150 HP). Ela investe, pisa e **choca ovos** nas fases de vida, que viram raptores.
+- Tem banner próprio, barra de chefe e uma camada de áudio de chefe. A porta do ninho fica travada durante a luta.
+
+### Escolhas e finais
+- Depois da Matriarca você pode **plantar cargas** no ninho (pavio de 6 s, explosão, ovos apagados) ou deixar como está, e decidir se corre atrás do Brandt.
+- O resgate do Ato 2 acontece na clareira do ninho (três ondas).
+- **Quatro epílogos novos:** *FIM DO PROJETO RAIZ* (preso e ninho destruído), *JUSTIÇA RIO ABAIXO*, *CINZAS DO NINHO* e *O RIO GUARDA SEGREDOS*.
+
+### História
+- **Registros 10–13** (agora são 13), falas novas para cada momento e cartões com roteiro (portão do acampamento, despertar do ninho). O epílogo do Ato 1 continua contando só os 9 registros do vale.
+
+### Áudio
+- Ambiente próprio para cada área nova, com camadas novas de **rio** e **respiração** do ninho, uma mixagem tensa durante a invasão do terminal e passos de lama ou pedra.
+
+### Save
+- O save passou para **`v: 3`** e agora guarda as flags da campanha, o estado da história e os encontros já disparados. Flags transitórias (escolta, luta de chefe) não são salvas.
+- Saves `v: 1`/`v: 2` continuam funcionando. As flags são deduzidas pela área salva (pátio → energia; heliponto → energia e código).
+- Configurações, submetralhadora, colete, controle e Pages (v6) não foram alterados.
+
+### Depuração
+- `__game.setFlags({...})` e `__game.brandt` (posição e estado).
+
 ## v6: pacote completo (ajustes, impacto, submetralhadora e final alternativo)
 
 ### Ajustes e controle (`js/settings.js`, `js/gamepad.js`)

@@ -276,7 +276,11 @@ const MAPC = { visited: 'rgba(110,150,110,.55)', unknown: 'rgba(70,80,75,.35)', 
 function drawAreaMap(cv, d, k) {
   const c = cv.getContext('2d'), Wd = cv.width, Ht = cv.height;
   c.clearRect(0, 0, Wd, Ht);
-  const cell = k === 1 ? 27 : 34 * k, ox = Wd / 2 - 2 * cell, oy = Ht / 2 - 2.5 * cell;
+  // v7: centraliza pelo retângulo que contém todas as áreas (o rio do Ato 2 abriu a coluna x=4)
+  const xs = AREAS.map((a) => a.map.x), ys = AREAS.map((a) => a.map.y);
+  const x0 = Math.min(...xs), x1 = Math.max(...xs), y0 = Math.min(...ys), y1 = Math.max(...ys);
+  const cell = Math.min(k === 1 ? 27 : 34 * k, Wd / (x1 - x0 + 1.25), Ht / (y1 - y0 + 1.25));
+  const ox = Wd / 2 - (x0 + x1) / 2 * cell, oy = Ht / 2 - (y0 + y1) / 2 * cell;
   const rectOf = (a) => { const w = (a.bounds.maxX - a.bounds.minX) / 48 * cell * 0.62, h = (a.bounds.maxZ - a.bounds.minZ) / 48 * cell * 0.62; return [ox + a.map.x * cell - w / 2, oy + a.map.y * cell - h / 2, w, h]; };
   // ligações
   for (const a of AREAS) for (const dr of a.doors) {
