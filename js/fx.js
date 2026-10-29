@@ -18,6 +18,8 @@ const pMats = {
   spit: new THREE.MeshBasicMaterial({ color: COLORS.spit }),
   dust: new THREE.MeshBasicMaterial({ color: COLORS.dust }),
   fire: new THREE.MeshBasicMaterial({ color: COLORS.fire, blending: THREE.AdditiveBlending, transparent: true, depthWrite: false }),
+  brass: new THREE.MeshBasicMaterial({ color: 0xc9a040 }),   // v11: cápsula ejetada
+  chip: new THREE.MeshBasicMaterial({ color: 0x4a443a }),    // v11: lasca de pedra/madeira no impacto
 };
 
 // ---------- partículas ----------
@@ -35,20 +37,70 @@ export function burst(x, y, z, kind, n, sp, dirX = 0, dirZ = 0) {
     const s = kind === 'dust' ? rand(1, 2.2) : rand(0.7, 1.4); p.m.scale.setScalar(s);
     p.vx = (rand(-1, 1) + dirX * 1.2) * sp; p.vy = rand(0.5, 1.6) * sp; p.vz = (rand(-1, 1) + dirZ * 1.2) * sp;
     p.grav = kind === 'dust' ? 3 : kind === 'fire' ? -1.5 : 12;
-    p.life = p.life0 = rand(0.3, 0.7) * (kind === 'dust' ? 1.6 : 1); p.s0 = s; p.shrink = kind === 'spark' || kind === 'fire'; p.spark = kind === 'spark';
+    if (kind === 'brass') { p.m.scale.set(0.35, 0.35, 0.8); p.vy = rand(2.2, 3.2); p.vx = dirX * rand(1.6, 2.4) + rand(-0.4, 0.4); p.vz = dirZ * rand(1.6, 2.4) + rand(-0.4, 0.4); p.grav = 14; }
+    else if (kind === 'chip') p.m.scale.setScalar(s * 0.5);
+    p.life = p.life0 = rand(0.3, 0.7) * (kind === 'dust' ? 1.6 : kind === 'brass' ? 1.8 : 1); p.s0 = s; p.shrink = kind === 'spark' || kind === 'fire'; p.spark = kind === 'spark';
     if (kind === 'spark') p.m.scale.set(s * 0.5, s * 0.5, s * 2.2);
   }
 }
 
 // ---------- traçantes ----------
+// v11: cada traçante tem um "projétil" (risco curto e brilhante que viaja até o alvo) e um rastro fino que some rápido.
+const TR_SPEED = 160; // m/s visuais (rápido, mas dá para ver o risco)
 const trGeo = new THREE.BoxGeometry(0.04, 0.04, 1); trGeo.translate(0, 0, 0.5);
+const trMat = () => new THREE.MeshBasicMaterial({ color: COLORS.tracer, transparent: true, opacity: 0.9, blending: THREE.AdditiveBlending, depthWrite: false });
 const tracers = new RingPool(FX.MAX_TRACERS, () => {
-  const m = new THREE.Mesh(trGeo, new THREE.MeshBasicMaterial({ color: COLORS.tracer, transparent: true, opacity: 0.9, blending: THREE.AdditiveBlending, depthWrite: false }));
-  m.visible = false; scene.add(m); return { m, life: 0 };
+  const trail = new THREE.Mesh(trGeo, trMat()), head = new THREE.Mesh(trGeo, trMat());
+  trail.visible = head.visible = false; scene.add(trail, head);
+  return { m: trail, head, life: 0, t: 0, dist: 1, a: new THREE.Vector3(), d: new THREE.Vector3(), k: 1 };
 });
-export function tracer(a, b) {
-  const t = tracers.next(); t.m.visible = true; t.life = 0.08;
-  t.m.position.copy(a); t.m.lookAt(b); t.m.scale.z = Math.max(0.01, a.distanceTo(b));
+export function tracer(a, b, color = COLORS.tracer, k = 1) {
+  const t = tracers.next(), dist = Math.max(0.01, a.distanceTo(b));
+  t.a.copy(a); t.d.copy(b).sub(a).divideScalar(dist); t.dist = dist; t.t = 0; t.k = k;
+  t.life = 0.1;
+  t.m.visible = true; t.m.position.copy(a); t.m.lookAt(b); t.m.scale.set(0.6 * k, 0.6 * k, dist);
+  t.m.material.color.setHex(color); t.m.material.opacity = 0.35 * k;
+  t.head.visible = true; t.head.quaternion.copy(t.m.quaternion); t.head.material.color.setHex(color);
+  t.head.scale.set(1.5 * k, 1.5 * k, Math.min(dist, 2.6)); t.head.position.copy(a); t.head.material.opacity = 1;
+}
+
+// ---------- v11: clarões de impacto e névoa de sangue (sprites curtos, pool fixo) ----------
+const impMat = (blend) => new THREE.SpriteMaterial({ map: GLOW, color: 0xffffff, transparent: true, opacity: 0, depthWrite: false, blending: blend });
+const impacts = new RingPool(16, () => {
+  const add = new THREE.Sprite(impMat(THREE.AdditiveBlending)), mist = new THREE.Sprite(impMat(THREE.NormalBlending));
+  add.visible = mist.visible = false; scene.add(add, mist);
+  return { s: add, mist, life: 0, max: 0.07, ml: 0, mmax: 0.35, size: 1, msize: 1 };
+});
+/**
+ * Impacto de um tiro: 'world' = faíscas + lascas + poeira + clarão; 'flesh' = sangue direcional + névoa + clarão claro.
+ * k escala a quantidade (chumbos da escopeta usam menos por chumbo). Respeita quality.fx via burst().
+ */
+export function impactFx(x, y, z, dx, dz, kind, k = 1) {
+  const rich = fxRich(), im = impacts.next();
+  if (kind === 'flesh') {
+    burst(x, y, z, 'blood', 5 * k, 3.2, dx, dz);
+    burst(x, y, z, 'blood', 2 * k, 1.6, -dx * 0.6, -dz * 0.6); // respingo para trás, na direção de quem atirou
+    im.s.visible = true; im.s.material.color.setHex(0xffe0c0); im.life = im.max = 0.06; im.size = 0.55 * (0.7 + 0.3 * k);
+    if (rich) { im.mist.visible = true; im.mist.material.color.setHex(0x6a0808); im.ml = im.mmax = 0.32; im.msize = 0.7 + 0.4 * k; }
+    if (Math.random() < 0.35 * k) decal(x + dx * 0.9, z + dz * 0.9, 0.45 + Math.random() * 0.3);
+  } else {
+    burst(x, y, z, 'spark', 5 * k, 3, -dx * 0.7, -dz * 0.7);
+    burst(x, y, z, 'chip', 3 * k, 2.2, -dx * 0.6, -dz * 0.6);
+    if (rich || Math.random() < 0.5) burst(x - dx * 0.1, y, z - dz * 0.1, 'dust', 2 * k, 0.9, -dx * 0.5, -dz * 0.5);
+    im.s.visible = true; im.s.material.color.setHex(0xffc060); im.life = im.max = 0.07; im.size = 0.9 * (0.7 + 0.3 * k);
+  }
+  im.s.position.set(x - dx * 0.08, y, z - dz * 0.08); im.s.scale.setScalar(im.size); im.s.material.opacity = 1;
+  if (im.mist.visible) { im.mist.position.set(x + dx * 0.2, y, z + dz * 0.2); im.mist.scale.setScalar(im.msize * 0.5); }
+}
+/** v11: boca do cano — cápsula ejetada para a direita, faíscas para a frente e (Médio/Alto) um sopro de fumaça. */
+export function muzzleFx(tip, fx, fz, id) {
+  const rx = -fz, rz = fx; // direita do jogador
+  if (id !== 'shotgun' || Math.random() < 0.5) burst(tip.x - fx * 0.25 + rx * 0.05, tip.y, tip.z - fz * 0.25 + rz * 0.05, 'brass', 1, 1, -rx * 0.9 - fx * 0.2, -rz * 0.9 - fz * 0.2);
+  burst(tip.x + fx * 0.15, tip.y, tip.z + fz * 0.15, 'spark', id === 'shotgun' ? 6 : 2, id === 'shotgun' ? 5 : 3.5, fx * 1.4, fz * 1.4);
+  if (fxRich() && (id === 'shotgun' || Math.random() < (id === 'smg' ? 0.25 : 0.6))) {
+    const p = smokes.next(); p.s.visible = true; p.life = p.max = rand(0.5, 0.8); p.vy = rand(0.4, 0.8); p.g = id === 'shotgun' ? 0.7 : 0.35;
+    p.s.position.set(tip.x + fx * 0.25, tip.y + 0.05, tip.z + fz * 0.25); p.s.scale.setScalar(p.g);
+  }
 }
 
 // ---------- manchas no chão ----------
@@ -168,14 +220,25 @@ export function updateFx(dt) {
     p.life -= dt; if (p.life <= 0) { p.m.visible = false; return; }
     p.vy -= p.grav * dt;
     const pos = p.m.position; pos.x += p.vx * dt; pos.y += p.vy * dt; pos.z += p.vz * dt;
-    if (pos.y < 0.04) { pos.y = 0.04; p.vx *= 0.6; p.vz *= 0.6; p.vy = 0; }
+    if (pos.y < 0.04) { pos.y = 0.04; p.vx *= 0.6; p.vz *= 0.6; p.vy = p.m.material === pMats.brass && p.vy < -1.5 ? -p.vy * 0.35 : 0; }
+    if (p.m.material === pMats.brass) { p.m.rotation.x += dt * 18; p.m.rotation.y += dt * 11; }
     if (p.shrink) { const k = Math.max(0.05, p.life / p.life0); if (p.spark) p.m.scale.set(p.s0 * 0.5 * k, p.s0 * 0.5 * k, p.s0 * 2.2 * k); else p.m.scale.setScalar(p.s0 * k); }
     if (p.spark) p.m.lookAt(pos.x + p.vx, pos.y + p.vy, pos.z + p.vz);
   });
   tracers.forEach((t) => {
+    if (t.head.visible) {
+      // projétil viaja da boca do cano até o alvo; o rastro aparece logo e some depressa
+      t.t += dt * TR_SPEED; const len = t.head.scale.z, s = Math.min(t.t, t.dist) - len * 0.5;
+      t.head.position.copy(t.a).addScaledVector(t.d, Math.max(0, Math.min(s, t.dist - len)));
+      if (t.t >= t.dist + len * 0.5) t.head.visible = false;
+    }
     if (!t.m.visible) return;
-    t.life -= dt; t.m.material.opacity = Math.max(0, t.life / 0.08);
+    t.life -= dt; t.m.material.opacity = Math.max(0, t.life / 0.1) * 0.35 * t.k;
     if (t.life <= 0) t.m.visible = false;
+  });
+  impacts.forEach((im) => {
+    if (im.s.visible) { im.life -= dt; const k = Math.max(0, im.life / im.max); im.s.material.opacity = k; im.s.scale.setScalar(im.size * (1.4 - 0.4 * k)); if (im.life <= 0) im.s.visible = false; }
+    if (im.mist.visible) { im.ml -= dt; const k = Math.max(0, im.ml / im.mmax); im.mist.material.opacity = 0.55 * k; im.mist.scale.setScalar(im.msize * (1.3 - 0.8 * k)); im.mist.position.y -= dt * 0.3; if (im.ml <= 0) im.mist.visible = false; }
   });
   decals.forEach((d) => {
     if (!d.m.visible) return;
@@ -185,7 +248,8 @@ export function updateFx(dt) {
 }
 export function clearFx() {
   particles.forEach((p) => { p.m.visible = false; });
-  tracers.forEach((t) => { t.m.visible = false; });
+  tracers.forEach((t) => { t.m.visible = false; t.head.visible = false; });
+  impacts.forEach((im) => { im.s.visible = false; im.mist.visible = false; });
   decals.forEach((d) => { d.m.visible = false; });
   rings.forEach((w) => { w.m.visible = false; });
   tgs.forEach((t) => { t.edge.visible = t.fill.visible = false; t.life = 0; });

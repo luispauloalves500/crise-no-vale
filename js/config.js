@@ -36,19 +36,31 @@ export const CAMERA = {
   PITCH_MAX: 0.35,
 };
 
+// v11: precisão — spread/aimSpread são o 1º tiro; cada disparo soma `bloom` (até bloomMax) e ele volta com
+// taxa `bloomRec` (1/s, exponencial). Distribuição triangular (mais tiros perto do centro); escopeta em leque estratificado.
 export const WEAPONS = [
-  { id: 'pistol',  name: 'PISTOLA',  size: 12, startRes: Infinity, dmg: 24, rate: 0.2,  spread: 0.018, aimSpread: 0.006,
+  { id: 'pistol',  name: 'PISTOLA',  size: 12, startRes: Infinity, dmg: 24, rate: 0.2,  spread: 0.015, aimSpread: 0.0035,
+    bloom: 0.007, bloomMax: 0.028, bloomRec: 6,
     pellets: 1, reload: 1.1, knock: 3, kick: 0.035, range: 45, crit: 1.6,
-    noise: 15, shake: 0.09, xkick: 9, flash: 0.55 },
-  { id: 'shotgun', name: 'ESCOPETA', size: 6,  startRes: 6,        dmg: 15, rate: 0.75, spread: 0.11,  aimSpread: 0.075,
+    noise: 15, shake: 0.09, xkick: 7, flash: 0.55, fov: 0.8, tracer: 0xffe9a0 },
+  { id: 'shotgun', name: 'ESCOPETA', size: 6,  startRes: 6,        dmg: 15, rate: 0.75, spread: 0.10,  aimSpread: 0.062,
+    bloom: 0, bloomMax: 0, bloomRec: 5,
     pellets: 8, reload: 1.8, knock: 6, kick: 0.09,  range: 30, crit: 1.3,
     falloffStart: 5, falloffLen: 22, falloffMin: 0.5,     // v5: um pouco mais forte de perto (antes 4 / 0,45)
-    noise: 22, shake: 0.24, xkick: 22, flash: 1, resMax: 36 },
+    noise: 22, shake: 0.24, xkick: 18, flash: 1, resMax: 36, fov: 2.2, tracer: 0xffc070 },
   // v6: terceira arma — submetralhadora automática (segure o botão). Dano baixo por tiro, cadência alta.
-  { id: 'smg',     name: 'SUBMETRALHADORA', size: 30, startRes: 0, dmg: 13, rate: 0.085, spread: 0.04, aimSpread: 0.014,
+  { id: 'smg',     name: 'SUBMETRALHADORA', size: 30, startRes: 0, dmg: 13, rate: 0.085, spread: 0.032, aimSpread: 0.009,
+    bloom: 0.0045, bloomMax: 0.04, bloomRec: 5,
     pellets: 1, reload: 1.5, knock: 1.4, kick: 0.022, range: 38, crit: 1.5,
-    noise: 17, shake: 0.06, xkick: 6, flash: 0.45, resMax: 120, auto: true },
+    noise: 17, shake: 0.06, xkick: 4, flash: 0.45, resMax: 120, auto: true, fov: 0.5, tracer: 0xfff2c0 },
 ];
+// v11: dispersão extra em movimento e assistência leve de mira (só mirando; controle um pouco mais generoso)
+export const AIM = {
+  MOVE_HIP: 1.4, MOVE_AIM: 1.15, RUN: 1.8,   // multiplicadores de dispersão
+  ASSIST_R: 0.35, ASSIST_R_PAD: 0.7,         // folga lateral (m) além do corpo do alvo
+  ASSIST_ANG: 0.1,                           // cone máximo (rad) da assistência
+  ASSIST_PULL: 0.6,                          // quanto o tiro puxa para o centro do alvo (0..1)
+};
 // v5: raio de "barulho" (acorda inimigos em patrulha). Antes: pistola 18, escopeta 26.
 export const NOISE = { PISTOL: 15, SHOTGUN: 22, SMG: 17, GRENADE: 30 };
 export const SHOTGUN_RES_MAX = 36;

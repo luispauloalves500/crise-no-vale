@@ -109,7 +109,10 @@ export function hitMarker(kill, crit) {
   el.hitmark.classList.toggle('kill', !!kill); el.hitmark.classList.toggle('crit', !kill && !!crit);
 }
 export function kickCrosshair(px) { spread = Math.min(40, spread + px); }
-export function setCrossEnemy(on) { el.cross.classList.toggle('enemy', on); }
+export function setCrossEnemy(on) { if (crossEnemy !== on) { crossEnemy = on; el.cross.classList.toggle('enemy', on); } }
+/** v11: abertura real da dispersão em px (combat.js); null volta ao cálculo antigo. */
+export function setCrossGap(px) { crossGap = px; }
+let crossEnemy = false, crossGap = null;
 /** Ângulo do atacante relativo ao para-frente da câmera (0 = à frente). */
 export function damageFrom(relAngle, dmg = 10) {
   el.dmgDir.style.transform = `rotate(${-relAngle}rad)`; el.dmgDir.style.transition = 'none'; el.dmgDir.style.opacity = 1; dirT = 0.6;
@@ -215,7 +218,7 @@ export function updateHUD(dt, d) {
 
   // retícula: abre com recuo e ao andar, fecha mirando
   spread = Math.max(0, spread - dt * 90);
-  const base = (G.aiming ? 4 : 9) + (d.moving ? 5 : 0) + spread;
+  const base = crossGap != null ? Math.min(64, Math.max(G.aiming ? 2.5 : 4, crossGap)) + spread * 0.5 : (G.aiming ? 4 : 9) + (d.moving ? 5 : 0) + spread;
   el.cross.style.setProperty('--g', base.toFixed(1) + 'px');
 
   if (hitT > 0) {

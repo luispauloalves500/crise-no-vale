@@ -1,5 +1,23 @@
 # Melhorias
 
+## v10.1: polimento de combate e movimento
+
+### Precisão dos tiros (`js/combat.js`, `WEAPONS`/`AIM` em `js/config.js`)
+- O tiro sai na direção real da câmera (com tremor/recuo incluídos): a retícula marca exatamente onde a bala vai.
+- Dispersão triangular (a maioria perto do centro); escopeta em leque estratificado (padrão consistente, sem buracos).
+- **Bloom** por arma: o 1º tiro é preciso (pistola mirando 0,0035 rad), cada disparo soma um pouco e volta rápido. Andar/correr abre a dispersão (×1,4 / ×1,8; mirando andando só ×1,15).
+- **Assistência leve** só mirando: alvo a poucos cm da borda do corpo (cone ≤0,1 rad, com linha de visão) puxa o tiro ~60% para o centro; mais folga no controle. A retícula fica vermelha nesses casos e o tamanho dela agora é a dispersão real em pixels.
+- Número de dano sai do ponto médio onde os tiros acertaram.
+
+### Efeito dos tiros (`js/fx.js`)
+- Traçante com "projétil" que viaja até o alvo (160 m/s visuais) + rastro fino; cor por arma.
+- Impacto: clarão curto; parede = faíscas + lascas + poeira; inimigo = sangue direcional + respingo + névoa (Médio/Alto) + mancha.
+- Cápsula ejetada (quica no chão), faíscas na boca do cano, sopro de fumaça (Médio/Alto) e "soco" de FOV no disparo (respeita movimento reduzido). Tudo em pools fixos e escalado por `quality.fx`.
+
+### Marina andando (`updateHero` em `js/player.js`)
+- Causa do "travado": o clipe de andar (~1,3 m/s) tocava no máx. 1,5× com o jogador a 5,2 m/s — pés deslizando e passo lento.
+- Agora andar/correr usam **uma fase compartilhada** com cadência casada com a velocidade real (`player.spd`), mistura andar→correr pela velocidade, entrada rápida no WASD, passos (som) no momento em que o pé pisa, quadril gira para o lado no strafe (tronco continua mirando) e o balanço do tronco/braço ficou ~3× mais presente.
+
 ## v10: Pontos de Extinção e a loja do Terminal TELLUS
 
 ### Moeda: Pontos de Extinção (PE)
