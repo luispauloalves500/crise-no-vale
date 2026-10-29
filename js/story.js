@@ -108,6 +108,17 @@ export const LINES = {
   log5: [['ROCHA', 'O Brandt derrubou a energia de propósito... Isso aqui é prova.']],
   log4: [['ROCHA', 'Tiraram o fusível... a queda de energia não foi acidente.']],
   log7: [['ROCHA', 'As caixas de amostras sumiram. Para onde?']],
+  // ---------- v5 ----------
+  lockdown: [['RADIO', 'ALERTA: acesso não autorizado à sala da diretoria. Protocolo de contenção ativado.', R],
+    ['BRANDT', '(gravação) Se você está ouvindo isto, mexeu no que não devia. Fique à vontade — a matilha já está a caminho.', R],
+    ['ROCHA', 'Uma armadilha... ele trancou a própria sala.'],
+    ['LIMA', 'Rocha, a sirene da diretoria está tocando no laboratório inteiro! Eles vão esperar você na porta!', R]],
+  lockdown_open: [['ROCHA', 'Lá vêm eles. Bem-vindos.']],
+  mud: [['LIMA', 'Eles fazem ninho no lodo quente do pântano. Evite o meio das poças!', R]],
+  intercept: [['RADIO', '...chiado... Tellus-2 para a base: achamos uma caixa RAIZ na margem do rio. Vazia. Arranhada por dentro.', R],
+    ['RADIO', '...As outras duas seguiram correnteza abaixo. Ordem do conselho: o nome do Brandt não entra no relatório.', R],
+    ['ROCHA', 'Doutora, ouviu isso? A Tellus já está no vale.'],
+    ['LIMA', 'Ouvi. Gravei tudo. Agora ninguém vai dizer que o Brandt agiu sozinho.', R]],
 };
 export const BARKS = [
   'Fique perto de mim!', 'Ouvi alguma coisa nos galpões...', 'Eu ajudei a criar esses animais. Nunca pensei que teria medo deles.',
@@ -212,6 +223,7 @@ export function epilogue() {
   if (proof) pages.push({ kicker: 'UMA SEMANA DEPOIS', title: 'A VERDADE', text: 'Desta vez, acreditaram. A gravação de Brandt e a ordem de serviço do fusível chegam aos inspetores do governo.\nA Fundação Tellus é investigada, o Projeto RAIZ é encerrado e a estação é lacrada.\nO corpo de Otávio Brandt nunca foi encontrado.' });
   else if (S.logs.has('log5')) pages.push({ kicker: 'UMA SEMANA DEPOIS', title: 'MEIA VERDADE', text: 'A gravação de Brandt vira manchete, mas a Tellus diz que ele agiu sozinho e que a queda de energia foi acidente.\nSem a ordem de serviço do fusível, ninguém mais responde. O Projeto RAIZ "é encerrado" — no papel.' });
   else pages.push({ kicker: 'UMA SEMANA DEPOIS', title: 'VERSÃO OFICIAL', text: 'Sem provas, o relatório da Tellus fala em "acidente natural causado pela tempestade". O diretor Otávio Brandt é dado como desaparecido.\nO Projeto RAIZ muda de nome e de endereço.\n(As provas estavam pelo caminho: procure os registros do diretor e da manutenção.)' });
+  if (S.said.has('intercept')) pages.push({ kicker: 'RÁDIO INTERCEPTADO', title: 'TELLUS-2', who: 'Gravação da Dra. Lima', radio: true, text: '"...achamos uma caixa RAIZ na margem do rio. Vazia. Arranhada por dentro... o nome do Brandt não entra no relatório."\nA gravação da Dra. Lima vai junto com o resto das provas. A Fundação Tellus nega que tivesse uma equipe no vale.' });
   if (n === TOTAL_LOGS) pages.push({ kicker: 'ARQUIVO COMPLETO • 7/7', title: 'RIO ABAIXO', text: 'Com os sete registros, Lima monta o quebra-cabeça inteiro: as três caixas de amostras não estavam nos destroços. As marcas de garra levavam ao penhasco... e de lá, ao rio.\nEm algum lugar, rio abaixo, alguma coisa ainda está crescendo.' });
   else pages.push({ kicker: 'FIM', title: `REGISTROS: ${n}/${TOTAL_LOGS}`, text: 'Ainda há partes da história escondidas na estação. Jogue de novo e leia todos os registros para descobrir o que aconteceu com as amostras do Projeto RAIZ.' });
   return pages;

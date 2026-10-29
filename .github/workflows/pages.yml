@@ -1,0 +1,42 @@
+# Publica o jogo (site estático) no GitHub Pages a cada push na main.
+# Ativação única: Settings → Pages → Source: GitHub Actions
+# URL: https://luispauloalves500.github.io/crise-no-vale/
+name: Publicar no GitHub Pages
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: pages
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Configurar Pages
+        uses: actions/configure-pages@v5
+      - name: Montar o site
+        run: |
+          mkdir -p _site
+          cp -r index.html css js _site/
+          touch _site/.nojekyll
+      - name: Enviar artefato
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: _site
+      - name: Publicar
+        id: deployment
+        uses: actions/deploy-pages@v4
