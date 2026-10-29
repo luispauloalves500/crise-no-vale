@@ -1,7 +1,7 @@
 // combat.js — disparo, granadas, detecção de acertos, dano/abates, combo e itens (do mapa e drops).
 import * as THREE from 'three';
 import { scene, camera, castWorld, rayCircle, resolve, GLOW } from './world.js';
-import { PICKUPS, SHOTGUN_RES_MAX, SMG_RES_MAX, COMBO, PLAYER, GRENADE, INVENTORY, ARMOR } from './config.js';
+import { PICKUPS, SHOTGUN_RES_MAX, SMG_RES_MAX, COMBO, PLAYER, GRENADE, INVENTORY, ARMOR, NOISE } from './config.js';
 import { SETTINGS } from './settings.js';
 import { G } from './state.js';
 import { player, weapons, arms, bag, curWeapon, startReload, muzzleFlash, gunTip, heal, switchWeapon, hurtPlayer } from './player.js';
