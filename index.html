@@ -99,54 +99,67 @@
       Verifique também sua conexão (o Three.js vem de CDN).</div>
   </div></div>
 
-  <!-- ===== MENU ===== -->
-  <div id="menu" class="ov"><div class="box">
-    <h1>CRISE NO VALE</h1>
-    <div class="sub">AÇÃO E SOBREVIVÊNCIA EM TERCEIRA PESSOA • HISTÓRIA ORIGINAL</div>
-    <p>Há três dias a Estação de Pesquisa Vale Verde, da Fundação Tellus, pediu socorro — e ficou em silêncio.
-       Como a agente <b>Marina Rocha</b>, você desembarca no cais sob a tempestade. Atravesse as ruínas, <b>restaure a energia</b>,
-       resgate a <b>Dra. Helena Lima</b> e descubra o que o <b>Projeto RAIZ</b> acordou. Algo enorme espera no heliponto.</p>
-    <table class="keys">
-      <tr><td>W A S D</td><td>Mover (relativo à câmera) • Shift correr</td></tr>
-      <tr><td>Mouse</td><td>Olhar e mirar • Clique/Espaço atirar • Botão direito zoom</td></tr>
-      <tr><td>R</td><td>Recarregar</td></tr>
-      <tr><td>1 / 2 / 3 • Q • Roda</td><td>Pistola / Escopeta / Submetralhadora (encontre-as) • Alternar</td></tr>
-      <tr><td>G</td><td>Arremessar granada</td></tr>
-      <tr><td>H</td><td>Usar kit médico (o colete absorve dano sozinho)</td></tr>
-      <tr><td>E</td><td>Interagir (terminais, gerador, sobrevivente, registros)</td></tr>
-      <tr><td>Tab</td><td>Mapa das áreas</td></tr>
-      <tr><td>V • M • B • P/Esc</td><td>Trocar ombro • Som • Bloom • Pausar</td></tr>
-      <tr><td>Controle</td><td>Analógicos mover/mirar • RT atirar • LT mira • A interagir • X recarregar • B granada • Y kit • LB/RB arma • Start pausa</td></tr>
-    </table>
-    <p class="foes">Inimigos: <b class="c-raptor">Raptor</b> (bote rápido) •
-      <b class="c-spitter">Cuspidor</b> (ácido de longe) • <b class="c-brute">Bruto</b> (investida) • <b class="c-boss">Colosso</b> (???) • <b class="c-boss">Matriarca</b> (Ato 2)<br>
-      <b class="c-save">Terminais verdes</b> salvam o progresso e restauram a vida. <b class="c-log">Tablets azuis</b> guardam os 9 registros da estação — reúna todos para outro final.</p>
-    <button id="startBtn" disabled>CARREGANDO…</button>
-    <div><button id="continueBtn" class="ghost hidden">CONTINUAR DO ÚLTIMO TERMINAL</button></div>
-    <div id="best" class="small"></div>
+  <!-- ===== MENU (v9: hierarquia título → botões → detalhes recolhíveis) ===== -->
+  <div id="menu" class="ov"><div class="box menu-box">
+    <div class="kicker">FUNDAÇÃO TELLUS • ESTAÇÃO VALE VERDE</div>
+    <h1 class="title">CRISE NO VALE</h1>
+    <div class="sub">Ação e sobrevivência em terceira pessoa • história original</div>
+    <p class="synopsis">A Estação Vale Verde pediu socorro há três dias e ficou em silêncio. Como a agente <b>Marina Rocha</b>,
+       atravesse as ruínas sob a tempestade, <b>restaure a energia</b> e resgate a <b>Dra. Helena Lima</b>
+       — antes que o <b>Projeto RAIZ</b> engula o vale.</p>
+    <div class="acts">Ato 1 — O Vale <span>•</span> Ato 2 — Rio Abaixo</div>
+    <div class="cta">
+      <button id="startBtn" class="primary" disabled>CARREGANDO…</button>
+      <div><button id="continueBtn" class="ghost secondary hidden">CONTINUAR DO ÚLTIMO TERMINAL</button></div>
+      <div id="best" class="small"></div>
+    </div>
     <div class="qsel"><span>QUALIDADE GRÁFICA</span>
       <button class="ghost" data-q="auto">Auto</button><button class="ghost" data-q="baixo">Baixo</button><button class="ghost" data-q="medio">Médio</button><button class="ghost" data-q="alto">Alto</button>
       <div class="small qnote"></div></div>
-    <details class="sset"><summary>AJUSTES — CONTROLES, SOM E ACESSIBILIDADE</summary>
-      <label>Sensibilidade do mouse <b data-sv="sens">1,00×</b><input type="range" data-s="sens" min="0.2" max="3" step="0.05"></label>
-      <label class="chk"><input type="checkbox" data-s="invertY"> Inverter eixo Y</label>
-      <label>Volume geral <b data-sv="master">100%</b><input type="range" data-s="master" min="0" max="1" step="0.05"></label>
-      <label>Efeitos <b data-sv="sfx">100%</b><input type="range" data-s="sfx" min="0" max="1" step="0.05"></label>
-      <label>Ambiente <b data-sv="amb">100%</b><input type="range" data-s="amb" min="0" max="1" step="0.05"></label>
-      <label class="chk"><input type="checkbox" data-s="reducedMotion"> Movimento reduzido (menos tremor, partículas e recuo)</label>
-      <label class="chk"><input type="checkbox" data-s="gamepad"> Controle (gamepad) <span class="small padst"></span></label>
-      <button class="ghost" data-sreset>Restaurar padrões</button>
-      <div class="small">M liga/desliga todo o som. Os ajustes ficam salvos neste navegador.</div>
-    </details>
+    <div class="fold">
+      <details class="sset info"><summary>CONTROLES</summary>
+        <table class="keys">
+          <tr><td>W A S D</td><td>Mover (relativo à câmera) • Shift correr</td></tr>
+          <tr><td>Mouse</td><td>Olhar e mirar • Clique/Espaço atirar • Botão direito zoom</td></tr>
+          <tr><td>R</td><td>Recarregar</td></tr>
+          <tr><td>1 / 2 / 3 • Q • Roda</td><td>Pistola / Escopeta / Submetralhadora (encontre-as) • Alternar</td></tr>
+          <tr><td>G</td><td>Arremessar granada</td></tr>
+          <tr><td>H</td><td>Usar kit médico (o colete absorve dano sozinho)</td></tr>
+          <tr><td>E</td><td>Interagir (terminais, gerador, sobrevivente, registros)</td></tr>
+          <tr><td>Tab</td><td>Mapa das áreas</td></tr>
+          <tr><td>V • M • B • P/Esc</td><td>Trocar ombro • Som • Bloom • Pausar</td></tr>
+          <tr><td>Controle</td><td>Analógicos mover/mirar • RT atirar • LT mira • A interagir • X recarregar • B granada • Y kit • LB/RB arma • Start pausa</td></tr>
+        </table>
+      </details>
+      <details class="sset info"><summary>AMEAÇAS E PISTAS</summary>
+        <p class="foes"><b class="c-raptor">Raptor</b> — bote rápido, ataca em arco<br>
+          <b class="c-spitter">Cuspidor</b> — ácido de longe<br>
+          <b class="c-brute">Bruto</b> — investida pesada; bata-o numa parede<br>
+          <b class="c-boss">Colosso</b> e <b class="c-boss">Matriarca</b> — ???</p>
+        <p class="foes"><b class="c-save">Terminais verdes</b> salvam o progresso e restauram a vida.<br>
+          <b class="c-log">Tablets azuis</b> guardam os 9 registros da estação — reúna todos para outro final.</p>
+      </details>
+      <details class="sset"><summary>AJUSTES — CONTROLES, SOM E ACESSIBILIDADE</summary>
+        <label>Sensibilidade do mouse <b data-sv="sens">1,00×</b><input type="range" data-s="sens" min="0.2" max="3" step="0.05"></label>
+        <label class="chk"><input type="checkbox" data-s="invertY"> Inverter eixo Y</label>
+        <label>Volume geral <b data-sv="master">100%</b><input type="range" data-s="master" min="0" max="1" step="0.05"></label>
+        <label>Efeitos <b data-sv="sfx">100%</b><input type="range" data-s="sfx" min="0" max="1" step="0.05"></label>
+        <label>Ambiente <b data-sv="amb">100%</b><input type="range" data-s="amb" min="0" max="1" step="0.05"></label>
+        <label class="chk"><input type="checkbox" data-s="reducedMotion"> Movimento reduzido (menos tremor, partículas e recuo)</label>
+        <label class="chk"><input type="checkbox" data-s="gamepad"> Controle (gamepad) <span class="small padst"></span></label>
+        <button class="ghost" data-sreset>Restaurar padrões</button>
+        <div class="small">M liga/desliga todo o som. Os ajustes ficam salvos neste navegador.</div>
+      </details>
+    </div>
     <div id="bgLoad" class="small"></div>
-    <div class="small">Clique na tela para travar o mouse. Esc libera o mouse e pausa.</div>
+    <div class="small hint">Clique na tela para travar o mouse • Esc libera o mouse e pausa</div>
   </div></div>
 
   <!-- ===== PAUSA ===== -->
-  <div id="pause" class="ov hidden"><div class="box">
+  <div id="pause" class="ov hidden"><div class="box pause-box">
     <h1 class="h-mid">PAUSADO</h1>
     <p id="pauseObj"></p>
-    <button id="resumeBtn">CONTINUAR</button>
+    <button id="resumeBtn" class="primary">CONTINUAR</button>
     <div><button id="quitBtn" class="ghost">MENU PRINCIPAL</button></div>
     <div class="qsel"><span>QUALIDADE GRÁFICA</span>
       <button class="ghost" data-q="auto">Auto</button><button class="ghost" data-q="baixo">Baixo</button><button class="ghost" data-q="medio">Médio</button><button class="ghost" data-q="alto">Alto</button>
@@ -165,10 +178,10 @@
   </div></div>
 
   <!-- ===== FIM ===== -->
-  <div id="end" class="ov hidden"><div class="box">
+  <div id="end" class="ov hidden"><div class="box end-box">
     <h1 id="endTitle" class="h-mid">VOCÊ FOI DEVORADO</h1>
     <p id="endText"></p>
-    <button id="continueEndBtn" class="hidden">CONTINUAR DO ÚLTIMO TERMINAL</button>
+    <button id="continueEndBtn" class="primary hidden">CONTINUAR DO ÚLTIMO TERMINAL</button>
     <div><button id="restartBtn" class="ghost">NOVO JOGO</button></div>
     <div class="small">Enter: continuar do terminal (ou novo jogo)</div>
   </div></div>

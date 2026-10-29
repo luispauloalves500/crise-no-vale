@@ -1,5 +1,26 @@
 # Melhorias
 
+## v9: menu principal, LOD e desempenho
+
+### Menu principal
+- Hierarquia nova: título com brilho suave + chamada curta → sinopse de 3 linhas → **JOGAR** em destaque e "Continuar do último terminal" como botão secundário.
+- Controles, ameaças/pistas e ajustes ficam em blocos recolhíveis (`<details>`), no mesmo estilo dos ajustes; Ato 1 / Ato 2 numa linha discreta.
+- Painel mais largo e limpo, tipografia e espaçamento revistos, entrada animada em CSS. As animações respeitam `prefers-reduced-motion` e o ajuste "Movimento reduzido" (`body.rm`).
+- Pausa e fim ganharam o mesmo visual (painel compacto, botão principal destacado). Todos os ids e ganchos de `ui.js`/`main.js` foram mantidos.
+- No menu, a Marina respira no Weapon_Idle (antes ficava na pose de referência); o mixer roda a ~15 Hz só nesse estado.
+
+### LOD por distância (`js/lod.js`)
+- Distâncias por preset: baixo 18/35/55 m, médio 28/50/80 m, alto 40/70/110 m (`lodNear/lodMid/lodFar` em `js/quality.js`), presas ao alcance da neblina de cada área.
+- Perto: detalhe completo + sombra (respeitando as camadas de sombra do preset). Meio: sem sombra. Longe: detalhes pequenos (destroços, janelas apagadas, canos, portas, anéis de contêiner, unidades de telhado) somem; árvores, rochas grandes, cipós e janelas acesas somem só depois de `lodFar`.
+- Só objetos estáticos criados pelos construtores de `world.js` entram no LOD (marcados com `userData.lod`); a lógica do jogo nunca esconde nem move esses objetos.
+- Avaliado a ~6 Hz com histerese de 2 m (sem piscar na borda), sem alocação por quadro, sem `THREE.LOD`. Reaplica na troca de área e de qualidade.
+- **Inimigos:** longe perdem a sombra, depois dentes/garras e a barra de vida, e por fim o brilho dos olhos. Quem não está em alerta e está longe pensa a cada 2 ou 4 quadros (dt acumulado, limitado a 0,12 s). O chefe nunca entra no LOD.
+- Depuração: `__game.lodStats` e `__game.forceLod()` no console.
+
+### Otimizações gerais
+- Objetos do LOD têm `matrixAutoUpdate = false` (matriz calculada uma vez ao construir a área).
+- Partículas de efeito voltaram a usar frustum culling (chuva, respingos e raios continuam sem, de propósito; o modelo da Marina também, por ser malha com esqueleto).
+
 ## v8.1: animações da Marina mais fluidas
 
 - **Locomoção:** pesos de andar/correr sobem rápido e descem devagar ao parar; na troca andar↔correr os pesos são normalizados e o clipe mais fraco segue a fase dos pés do mais forte; velocidade dos clipes suavizada (de costas passa suave pelo zero).

@@ -36,11 +36,14 @@ canvas#game{display:block;position:fixed;inset:0}
   background:rgba(0,0,0,.4);padding:5px 10px;border-radius:4px;white-space:nowrap}
 @media (max-width:1100px){#hint{display:none}}
 
-/* overlays (menu / pausa / fim) */
-.ov{position:fixed;inset:0;display:flex;align-items:center;justify-content:center;
-  background:radial-gradient(ellipse at center,rgba(10,30,15,.82),rgba(0,0,0,.95))}
-.box{max-width:640px;max-height:96vh;overflow:auto;padding:28px 38px;text-align:center;
-  border:1px solid rgba(140,200,140,.3);border-radius:10px;background:rgba(4,10,6,.7)}
+/* overlays (menu / pausa / fim) — v9: painel mais largo e limpo, hierarquia clara */
+.ov{position:fixed;inset:0;display:flex;align-items:center;justify-content:center;padding:2vh 16px;
+  background:radial-gradient(ellipse at 50% 40%,rgba(10,30,15,.62),rgba(0,0,0,.93) 75%)}
+.box{max-width:640px;width:100%;max-height:96vh;overflow:auto;padding:28px 38px;text-align:center;
+  border:1px solid rgba(140,200,140,.22);border-radius:12px;
+  background:linear-gradient(180deg,rgba(8,20,11,.78),rgba(3,8,5,.86));
+  box-shadow:0 24px 70px rgba(0,0,0,.6),inset 0 1px 0 rgba(190,240,170,.06);
+  scrollbar-width:thin;scrollbar-color:#2e4a32 transparent}
 .box h1{margin:0;font-size:54px;letter-spacing:6px;color:#cfe9a8;text-shadow:0 0 22px #2c7a3c,0 3px 6px #000}
 .box h1.h-mid{font-size:42px}
 .box .sub{color:#8fb08a;letter-spacing:2px;font-size:14px;margin:6px 0 16px}
@@ -51,11 +54,59 @@ table.keys{margin:10px auto;border-collapse:collapse;font-size:15px;text-align:l
 table.keys td{padding:2px 10px}
 table.keys td:first-child{color:#f0d68a;font-weight:bold;text-align:right}
 button{margin-top:14px;font:bold 18px "Trebuchet MS",sans-serif;letter-spacing:3px;padding:12px 34px;
-  background:#2f6b3a;color:#efe;border:1px solid #6c6;border-radius:6px;cursor:pointer}
+  background:#2f6b3a;color:#efe;border:1px solid #6c6;border-radius:6px;cursor:pointer;
+  transition:background .15s,border-color .15s,box-shadow .15s,transform .15s}
 button:hover:not(:disabled){background:#3d8a4b}
+button:focus-visible{outline:2px solid #cfe9a8;outline-offset:2px}
 button:disabled{opacity:.5;cursor:wait}
 button.ghost{background:transparent;font-size:14px;padding:8px 20px;border-color:#486}
+button.ghost:hover:not(:disabled){background:rgba(61,138,75,.22)}
+/* botão principal (JOGAR / continuar da pausa) */
+button.primary{min-width:260px;padding:15px 40px;font-size:20px;letter-spacing:5px;
+  background:linear-gradient(180deg,#3f8c4c,#2a6234);border-color:#8fdc86;
+  box-shadow:0 0 0 1px rgba(0,0,0,.4),0 6px 22px rgba(60,180,90,.28)}
+button.primary:hover:not(:disabled){background:linear-gradient(180deg,#4ea35c,#337540);box-shadow:0 0 0 1px rgba(0,0,0,.4),0 8px 30px rgba(80,210,110,.4);transform:translateY(-1px)}
+button.secondary{min-width:260px;margin-top:10px;font-size:13px;letter-spacing:2px;color:#cfe0c8}
 .small{font-size:12px;color:#789;margin-top:12px}
+
+/* ===== v9: menu principal ===== */
+.menu-box{max-width:720px;padding:34px 44px 22px;animation:boxIn .6s cubic-bezier(.2,.7,.2,1) both}
+.menu-box .kicker{font-size:11px;letter-spacing:5px;color:#6f9a78;margin-bottom:8px}
+.menu-box h1.title{font-size:clamp(40px,7.4vw,64px);letter-spacing:.14em;line-height:1.02;
+  background:linear-gradient(180deg,#eaf7cf 15%,#a9d68a 85%);-webkit-background-clip:text;background-clip:text;color:transparent;
+  filter:drop-shadow(0 0 14px rgba(60,170,80,.38)) drop-shadow(0 3px 4px #000);text-shadow:none;
+  animation:titleIn .9s .1s cubic-bezier(.2,.7,.2,1) both,titleGlow 5s 1.2s ease-in-out infinite}
+.menu-box .sub{font-size:12px;letter-spacing:3px;text-transform:uppercase;color:#86a882;margin:10px 0 14px}
+.menu-box .synopsis{max-width:560px;margin:0 auto;font-size:15px;line-height:1.6;color:#bccab8}
+.menu-box .synopsis b{color:#e6efd9}
+.menu-box .acts{margin-top:10px;font-size:11px;letter-spacing:3px;color:#6d8a74;text-transform:uppercase}
+.menu-box .acts span{margin:0 8px;color:#3e5a44}
+.menu-box .cta{margin:18px 0 4px;animation:fadeUp .6s .35s ease both}
+.menu-box .cta .small{margin-top:10px}
+#best:empty{display:none}
+.menu-box .qsel{margin-top:16px;padding-top:14px;border-top:1px solid rgba(140,200,140,.12)}
+.menu-box .fold{display:grid;gap:8px;margin-top:14px;animation:fadeUp .6s .5s ease both}
+.menu-box .fold .sset{margin:0 auto;width:100%;max-width:560px}
+.menu-box .hint{margin-top:10px;color:#5f7568}
+.sset.info table.keys{font-size:13px;margin:6px auto 8px}
+.sset.info table.keys td{padding:3px 8px;vertical-align:top}
+.sset.info table.keys tr+tr td{border-top:1px solid rgba(140,200,140,.07)}
+.sset.info .foes{font-size:13px;line-height:1.6;margin:8px 4px}
+@keyframes boxIn{from{opacity:0;transform:translateY(14px) scale(.985)}to{opacity:1;transform:none}}
+@keyframes titleIn{from{opacity:0;letter-spacing:.32em}to{opacity:1;letter-spacing:.14em}}
+@keyframes titleGlow{0%,100%{filter:drop-shadow(0 0 12px rgba(60,170,80,.32)) drop-shadow(0 3px 4px #000)}50%{filter:drop-shadow(0 0 22px rgba(80,200,100,.5)) drop-shadow(0 3px 4px #000)}}
+@keyframes fadeUp{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:none}}
+/* pausa / fim: mesma linguagem, mais compactos */
+.pause-box,.end-box{max-width:560px;animation:boxIn .35s cubic-bezier(.2,.7,.2,1) both}
+.pause-box h1,.end-box h1{letter-spacing:.16em}
+#pauseObj{color:#f0d68a;font-size:15px;margin:10px 0 4px}
+#pauseObj:empty{display:none}
+#endText{font-size:15px}
+@media (max-height:760px){.menu-box{padding:22px 32px 16px}.menu-box .synopsis{font-size:14px}.menu-box .cta{margin-top:12px}}
+@media (max-width:560px){.box{padding:22px 18px}.menu-box .kicker{letter-spacing:3px}button.primary,button.secondary{min-width:0;width:100%}}
+/* acessibilidade: sistema pediu menos movimento, ou o ajuste "Movimento reduzido" (body.rm) */
+@media (prefers-reduced-motion:reduce){.menu-box,.menu-box h1.title,.menu-box .cta,.menu-box .fold,.pause-box,.end-box{animation:none!important}button{transition:none}}
+body.rm .menu-box,body.rm .menu-box h1.title,body.rm .menu-box .cta,body.rm .menu-box .fold,body.rm .pause-box,body.rm .end-box{animation:none!important}
 code{background:#0c1a10;padding:1px 5px;border-radius:3px;color:#cfe9a8}
 /* aparece só se o JS não iniciar (ex.: módulo bloqueado em file://) — main.js remove este aviso */
 #loadErr{color:#f99;font-size:13px;margin-top:12px;opacity:0;animation:revealErr .3s ease 3s forwards}
@@ -108,7 +159,11 @@ code{background:#0c1a10;padding:1px 5px;border-radius:3px;color:#cfe9a8}
 #obj2:empty{display:none}
 /* v6: painel de ajustes (menu e pausa) */
 .sset{margin:12px auto 0;max-width:480px;text-align:left;font-size:13px;color:#c8d6c4;border:1px solid #2e4a32;border-radius:6px;padding:4px 10px;background:rgba(10,20,12,.45)}
-.sset summary{cursor:pointer;letter-spacing:2px;font-size:12px;color:#9fb79a;padding:4px 0;text-align:center}
+.sset summary{cursor:pointer;letter-spacing:2px;font-size:12px;color:#9fb79a;padding:6px 0;text-align:center;list-style:none;transition:color .15s}
+.sset summary::-webkit-details-marker{display:none}
+.sset summary::before{content:'▸';display:inline-block;margin-right:8px;color:#5f9a68;transition:transform .15s}
+.sset[open] summary::before{transform:rotate(90deg)}
+.sset summary:hover{color:#cfe9a8}
 .sset label{display:block;margin:7px 0}
 .sset label b{float:right;color:#f0d68a;font-weight:normal}
 .sset input[type=range]{display:block;width:100%;accent-color:#6c6}
