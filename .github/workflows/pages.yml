@@ -32,6 +32,14 @@ jobs:
         run: |
           mkdir -p _site
           cp -r index.html css js _site/
+          # modelo GLB da Marina: versionado em base64 (texto) → decodificado para o binário servido
+          mkdir -p _site/assets
+          if [ -f assets/marina.min.glb ]; then cp assets/marina.min.glb _site/assets/; fi
+          if [ -f assets/marina.min.glb.b64 ]; then
+            base64 -d assets/marina.min.glb.b64 > _site/assets/marina.min.glb
+            cp assets/marina.min.glb.b64 _site/assets/
+          fi
+          ls -l _site/assets
           touch _site/.nojekyll
       - name: Enviar artefato
         uses: actions/upload-pages-artifact@v3

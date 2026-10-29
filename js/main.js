@@ -8,7 +8,7 @@ import { initAudio, sfx, toggleMute, isMuted, setAmbience, setMuffle, ambienceSt
 import { SETTINGS, loadSettings, setSetting, resetSettings, onSettings } from './settings.js';
 import { pollGamepad, pad } from './gamepad.js';
 import { updateFx, clearFx } from './fx.js';
-import { player, bag, events, resetPlayer, updatePlayer, updateCamera, menuCamera, switchWeapon, startReload, arms, curWeapon, useMed, weapons } from './player.js';
+import { heroReady, heroInfo, player, bag, events, resetPlayer, updatePlayer, updateCamera, menuCamera, switchWeapon, startReload, arms, curWeapon, useMed, weapons } from './player.js';
 import { enemies, spawnEnemy, updateEnemies, clearEnemies, prewarmEnemies, poolStats } from './enemies.js';
 import { fire, throwGrenade, updateCombat, clearPickups, pickups, damageEnemy } from './combat.js';
 import { updateSurvivor, hideSurvivor, survivor } from './npc.js';
@@ -197,13 +197,16 @@ async function compileShaders(extra) {
 }
 async function boot() {
   G.state = 'loading';
-  const steps = 4; let n = 0;
+  const steps = 5; let n = 0;
   const step = async (txt) => { ui.setLoading(n++ / steps, txt); await nextFrame(); };
   applyQualityNow(); refreshQualityUI();
   if (quality.firstRun) document.querySelectorAll('#menu .qsel').forEach((q) => { q.classList.add('first'); q.querySelector('span').textContent = `PRIMEIRA VEZ? ESCOLHA A QUALIDADE (AUTO DETECTOU: ${quality.p.label.toUpperCase()})`; });
   await step(`Carregando… qualidade ${quality.p.label}${quality.mode === 'auto' ? ' (auto)' : ''}`);
   await step('Carregando… 1/' + AREAS.length + ' ' + AREA.porto.name.toLowerCase());
   buildArea(AREA.porto);
+  await step('Carregando… personagem (Marina)');
+  const heroOk = await heroReady; // nunca trava: em falha/tempo esgotado volta à malha antiga
+  if (!heroOk) ui.setLoading(n / steps, 'Modelo da Marina indisponível — usando personagem simples');
   await step('Carregando… criaturas');
   const warm = prewarmEnemies();
   // tela de menu: mostra o cais ao fundo
@@ -242,6 +245,7 @@ window.__game = {
   get ambience() { return ambienceState(); }, get muted() { return isMuted(); }, toggleMute,
   // v6: ajustes, controle e armas
   SETTINGS, setSetting, getVolumes, pad, cycleWeapon, switchWeapon, arms,
+  hero: heroInfo, // v8: modelo GLB da Marina
   // v4: desempenho
   quality, setQuality: (m) => { setQualityMode(m); refreshQualityUI(); }, PRESETS, poolStats, streamStats, bounds, hudStats: ui.hudStats,
   areas: () => AREAS.map((a) => ({ id: a.id, built: isBuilt(a), builds: a.builds || 0, unloads: a.unloads || 0 })),

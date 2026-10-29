@@ -6,3 +6,6 @@ Thumbs.db
 .idea/
 dist/
 .env
+# modelo original (14 MB) — o jogo usa assets/marina.min.glb(.b64)
+assets/marina.glb
+assets/marina.min.glb

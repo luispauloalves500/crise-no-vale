@@ -1,5 +1,7 @@
-// player.js — personagem (malha low-poly), movimento, vida, armas e câmera em terceira pessoa.
+// player.js — personagem (modelo GLB da Marina, com malha low-poly de reserva), movimento, vida, armas e câmera em terceira pessoa.
 import * as THREE from 'three';
+import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
+import { MeshoptDecoder } from 'three/addons/libs/meshopt_decoder.module.js';
 import { scene, camera, resolve, castWorld, inWater, bounds, GLOW } from './world.js';
 import { PLAYER, CAMERA, WEAPONS, COLORS, GRENADE, INVENTORY, PICKUPS, ARMOR } from './config.js';
 import { G } from './state.js';
@@ -15,7 +17,9 @@ export const player = { pos: new THREE.Vector3(), r: PLAYER.RADIUS, hp: PLAYER.H
 export const events = { onDeath: null };
 
 // ---------- malha ----------
+// pg = raiz do personagem (segue player.pos / yaw). body = malha procedural antiga (reserva se o GLB falhar).
 export const pg = new THREE.Group(); scene.add(pg);
+const body = new THREE.Group(); pg.add(body);
 const suit = new THREE.MeshStandardMaterial({ color: 0x4b5a3a, roughness: 0.8 });
 const vest = new THREE.MeshStandardMaterial({ color: 0x2a2f2a, roughness: 0.7 });
 const skinM = new THREE.MeshStandardMaterial({ color: 0xd0a07a, roughness: 0.8 });
@@ -24,7 +28,7 @@ const bootM = new THREE.MeshStandardMaterial({ color: 0x1c1712, roughness: 0.9 }
 const packM = new THREE.MeshStandardMaterial({ color: 0x3a3a2a, roughness: 0.9 });
 const gunM = new THREE.MeshStandardMaterial({ color: 0x151515, metalness: 0.6, roughness: 0.4 });
 const woodM = new THREE.MeshStandardMaterial({ color: 0x5a3a20, roughness: 0.8 });
-function part(geo, mat, x, y, z, parent = pg) { const m = new THREE.Mesh(geo, mat); m.position.set(x, y, z); m.castShadow = true; parent.add(m); return m; }
+function part(geo, mat, x, y, z, parent = body) { const m = new THREE.Mesh(geo, mat); m.position.set(x, y, z); m.castShadow = true; parent.add(m); return m; }
 const B = (w, h, d) => new THREE.BoxGeometry(w, h, d);
 
 const torso = part(B(0.62, 0.75, 0.36), suit, 0, 1.25, 0);
@@ -33,11 +37,11 @@ part(B(0.46, 0.5, 0.2), packM, 0, 1.32, -0.28);        // mochila
 part(new THREE.SphereGeometry(0.2, 12, 10), skinM, 0, 1.85, 0);
 part(new THREE.SphereGeometry(0.21, 12, 10, 0, Math.PI * 2, 0, Math.PI * 0.55), hairM, 0, 1.9, -0.02);
 part(B(0.12, 0.22, 0.12), hairM, 0, 1.72, -0.2);        // rabo de cavalo
-const legL = new THREE.Group(), legR = new THREE.Group(); legL.position.set(-0.16, 0.9, 0); legR.position.set(0.16, 0.9, 0); pg.add(legL, legR);
+const legL = new THREE.Group(), legR = new THREE.Group(); legL.position.set(-0.16, 0.9, 0); legR.position.set(0.16, 0.9, 0); body.add(legL, legR);
 for (const leg of [legL, legR]) { part(B(0.22, 0.88, 0.26), suit, 0, -0.44, 0, leg); part(B(0.24, 0.16, 0.34), bootM, 0, -0.84, 0.04, leg); }
-const armR = new THREE.Group(); armR.position.set(0.38, 1.5, 0); pg.add(armR);
+const armR = new THREE.Group(); armR.position.set(0.38, 1.5, 0); body.add(armR);
 part(B(0.16, 0.16, 0.6), suit, 0, -0.08, 0.25, armR);
-const armL = new THREE.Group(); armL.position.set(-0.38, 1.5, 0); pg.add(armL);
+const armL = new THREE.Group(); armL.position.set(-0.38, 1.5, 0); body.add(armL);
 part(B(0.16, 0.16, 0.6), suit, 0.12, -0.08, 0.25, armL); armL.rotation.y = -0.45;
 // detalhes: cinto, bolsos, ombreiras, joelheiras, mãos, rádio e faixa refletiva
 const beltM = new THREE.MeshStandardMaterial({ color: 0x1a1612, roughness: 0.6, metalness: 0.2 });
@@ -55,18 +59,19 @@ for (const [arm, x] of [[armR, 0], [armL, 0.12]]) {
   part(new THREE.SphereGeometry(0.085, 8, 6), skinM, x, -0.08, 0.58, arm);         // mão
 }
 
-// armas visíveis (troca de modelo)
-const pistolMesh = new THREE.Group(); armR.add(pistolMesh);
+// armas visíveis (troca de modelo). gunRig agrupa armas + ponta do cano; vai para a mão do modelo GLB quando ele carrega.
+const gunRig = new THREE.Group(); armR.add(gunRig);
+const pistolMesh = new THREE.Group(); gunRig.add(pistolMesh);
 part(B(0.1, 0.16, 0.42), gunM, 0, -0.06, 0.68, pistolMesh);
 part(B(0.08, 0.06, 0.3), gunM, 0, 0.04, 0.74, pistolMesh);                 // ferrolho
 part(B(0.08, 0.2, 0.1), gunM, 0, -0.2, 0.58, pistolMesh).rotation.x = 0.25; // empunhadura
-const shotgunMesh = new THREE.Group(); armR.add(shotgunMesh); shotgunMesh.visible = false;
+const shotgunMesh = new THREE.Group(); gunRig.add(shotgunMesh); shotgunMesh.visible = false;
 part(B(0.09, 0.09, 0.95), gunM, 0, -0.04, 0.85, shotgunMesh);
 part(B(0.12, 0.12, 0.35), woodM, 0, -0.1, 0.62, shotgunMesh);
 part(B(0.1, 0.16, 0.3), woodM, 0, -0.14, 0.25, shotgunMesh);
 part(new THREE.CylinderGeometry(0.035, 0.035, 0.9, 8), gunM, 0, -0.11, 0.85, shotgunMesh).rotation.x = Math.PI / 2; // tubo do carregador
 // v6: submetralhadora compacta (corpo curto, pente vertical, coronha dobrável)
-const smgMesh = new THREE.Group(); armR.add(smgMesh); smgMesh.visible = false;
+const smgMesh = new THREE.Group(); gunRig.add(smgMesh); smgMesh.visible = false;
 part(B(0.1, 0.14, 0.55), gunM, 0, -0.05, 0.7, smgMesh);
 part(B(0.05, 0.05, 0.22), gunM, 0, -0.03, 1.02, smgMesh);                 // cano
 part(B(0.07, 0.26, 0.08), gunM, 0, -0.24, 0.74, smgMesh).rotation.x = 0.12; // pente
@@ -75,7 +80,7 @@ part(B(0.04, 0.04, 0.32), gunM, 0, 0.0, 0.3, smgMesh);                   // coro
 const gunMeshes = [pistolMesh, shotgunMesh, smgMesh];
 function showGun(i) { gunMeshes.forEach((m, k) => { m.visible = k === i; }); }
 
-export const gunTip = new THREE.Object3D(); gunTip.position.set(0, -0.05, 0.98); armR.add(gunTip);
+export const gunTip = new THREE.Object3D(); gunTip.position.set(0, -0.05, 0.98); gunRig.add(gunTip);
 // clarão do disparo: sprite + "estrela" de dois planos + luz forte
 const flash = new THREE.Sprite(new THREE.SpriteMaterial({ map: GLOW, color: COLORS.muzzle, blending: THREE.AdditiveBlending, depthWrite: false, transparent: true }));
 flash.visible = false; gunTip.add(flash);
@@ -87,6 +92,147 @@ const flashLight = new THREE.PointLight(0xffc060, 0, 12, 2); gunTip.add(flashLig
 const torch = new THREE.SpotLight(0xfff0d0, 70, 34, Math.PI / 7, 0.45, 1.5);
 torch.position.set(0.38, 1.45, 0.3); torch.castShadow = true; torch.shadow.mapSize.set(1024, 1024); torch.shadow.bias = -0.0005;
 pg.add(torch); const torchT = new THREE.Object3D(); torchT.position.set(0.38, 0.6, 12); pg.add(torchT); torch.target = torchT;
+
+// ---------- modelo GLB da Marina (Mixamo) ----------
+// Carrega assets/marina.min.glb (meshopt + webp). Se falhar ou demorar demais, a malha procedural continua.
+export const HERO = { url: 'assets/marina.min.glb', height: 1.82, timeout: 25000 };
+const hero = { ok: false, model: null, mixer: null, act: {}, spine: null, fireW: 0, fireT: -9, fireAct: null, relW: 0, relAct: null, aimW: 0, raiseW: 0, walkW: 0, runW: 0, err: '' };
+// ossos da parte de cima (animados pelos clipes de arma) — retirados dos clipes de locomoção para as camadas não brigarem
+const UPPER = /Spine1|Spine2|Neck|Head|Shoulder|Arm|ForeArm|Hand/;
+const FIRE_CLIP = { pistol: ['Fire_Pistol_Controlled', 'Fire_Revolver'], shotgun: ['Fire_Shotgun_Heavy_REV4', 'Fire_Shotgun'], smg: ['Fire_SMG_Burst_REV4', 'Fire_SMG'] };
+const GRIP_OFS = new THREE.Vector3(0, 0.17, -0.48); // ponto da empunhadura (no espaço do braço antigo) → origem do soquete
+const GUN_SCALE = 0.55; // as armas procedurais eram exageradas para o boneco antigo
+const RELOAD_CLIP = { pistol: ['Reload_Revolver'], shotgun: ['Reload_Shotgun'], smg: ['Reload_SMG_REV4'] };
+function lowerOnly(clip) {
+  const c = clip.clone(); c.name = clip.name + '_pernas';
+  c.tracks = c.tracks.filter((t) => { const bone = t.name.split('.')[0]; return !(bone.startsWith('mixamorig') && UPPER.test(bone)); });
+  return c;
+}
+// descarta trilhas malformadas (nº de valores ≠ nº de chaves × tamanho) — travariam o AnimationMixer
+const STRIDE = { quaternion: 4, vector: 3 };
+function sane(clip) {
+  clip.tracks = clip.tracks.filter((t) => { const st = STRIDE[t.ValueTypeName]; return t.times.length > 0 && (!st || t.values.length === t.times.length * st); });
+  return clip;
+}
+function heroAction(clips, names, { lower = false, once = false } = {}) {
+  for (const n of names) {
+    let clip = clips.find((c) => c.name === n); if (!clip) continue; clip = sane(clip);
+    const a = hero.mixer.clipAction(lower ? lowerOnly(clip) : clip);
+    if (once) { a.setLoop(THREE.LoopOnce, 1); a.clampWhenFinished = true; }
+    a.enabled = true; a.setEffectiveWeight(0); a.play(); a.paused = once; return a;
+  }
+  return null;
+}
+function loadGLB(loader, url) {
+  return new Promise((res, rej) => loader.load(url, res, undefined, rej));
+}
+async function loadHeroInner() {
+  if (/[?&]heroi=0/.test(location.search)) throw new Error('desligado por ?heroi=0');
+  const loader = new GLTFLoader(); loader.setMeshoptDecoder(MeshoptDecoder);
+  let gltf;
+  try { gltf = await loadGLB(loader, HERO.url); } catch (e) {
+    // reserva: cópia em base64 versionada no repositório (o GitHub Pages normalmente já serve o .glb binário)
+    const r = await fetch(HERO.url + '.b64'); if (!r.ok) throw e;
+    const bin = Uint8Array.from(atob((await r.text()).replace(/\s+/g, '')), (ch) => ch.charCodeAt(0));
+    gltf = await new Promise((res, rej) => loader.parse(bin.buffer, '', res, rej));
+  }
+  const model = gltf.scene;
+  model.traverse((o) => { if (o.isMesh) { o.castShadow = true; o.receiveShadow = true; o.frustumCulled = false; if (o.material) o.material.side = THREE.FrontSide; } });
+  // escala para ~1,8 m e pés no chão (y=0); o modelo já vem Y-up e virado para +Z (mesma frente do jogador)
+  model.updateMatrixWorld(true);
+  const box = new THREE.Box3().setFromObject(model), h = Math.max(0.01, box.max.y - box.min.y), k = HERO.height / h;
+  model.scale.setScalar(k); model.position.y = -box.min.y * k;
+  const socket = model.getObjectByName('WeaponSocket_R') || model.getObjectByName('mixamorig:RightHand') || model.getObjectByName('mixamorigRightHand');
+  if (!socket) throw new Error('osso da mão direita não encontrado');
+  const bone = (n) => model.getObjectByName('mixamorig:' + n) || model.getObjectByName('mixamorig' + n);
+  hero.spine = bone('Spine2'); hero.armR = bone('RightArm'); hero.handR = bone('RightHand'); hero.socket = socket;
+  hero.mixer = new THREE.AnimationMixer(model);
+  const clips = gltf.animations;
+  const A = hero.act;
+  A.walk = heroAction(clips, ['Walking_Woman', 'Walking'], { lower: true });
+  A.run = heroAction(clips, ['Running', 'Walking'], { lower: true });
+  A.idle = heroAction(clips, ['Weapon_Idle']);
+  A.aim = heroAction(clips, ['Aim_Pistol']);
+  for (const id in FIRE_CLIP) { A['fire_' + id] = heroAction(clips, FIRE_CLIP[id], { once: id !== 'smg' }); A['reload_' + id] = heroAction(clips, RELOAD_CLIP[id], { once: true }); }
+  if (A.idle) A.idle.setEffectiveWeight(1);
+  // armas procedurais vão para o soquete da mão: o cano (+Z antigo) segue o +Y do soquete; a empunhadura fica na palma
+  gunRig.removeFromParent(); socket.add(gunRig);
+  gunRig.rotation.set(-Math.PI / 2, 0, 0); gunRig.scale.setScalar(GUN_SCALE / k);
+  gunRig.position.set(0, 0, 0); for (const c of gunRig.children) c.position.add(GRIP_OFS);
+  pg.add(model); body.visible = false;
+  hero.model = model; hero.ok = true;
+  return true;
+}
+/** Promessa do carregamento do personagem: resolve true (GLB) ou false (malha antiga), nunca trava. */
+export const heroReady = Promise.race([
+  loadHeroInner(),
+  new Promise((_, rej) => setTimeout(() => rej(new Error('tempo esgotado')), HERO.timeout)),
+]).catch((e) => { hero.err = String(e && e.message || e); console.warn('modelo da Marina indisponível, usando malha antiga:', hero.err); return false; });
+export const heroInfo = () => ({ ok: hero.ok, err: hero.err, weights: { walk: hero.walkW, run: hero.runW, aim: hero.aimW, fire: hero.fireW, reload: hero.relW } });
+function heroFire() {
+  if (!hero.ok) return;
+  const id = curWeapon().id, a = hero.act['fire_' + id]; if (!a) return;
+  if (hero.fireAct && hero.fireAct !== a) hero.fireAct.setEffectiveWeight(0);
+  if (id === 'smg') { if (hero.fireT <= 0) a.reset(); a.paused = false; hero.fireT = 0.25; } // automática: o clipe segue em laço enquanto atira
+  else { a.reset(); a.paused = false; a.timeScale = id === 'shotgun' ? 1.4 : 1.2; hero.fireT = a.getClip().duration / a.timeScale * 0.8; }
+  hero.fireAct = a;
+}
+const _q = new THREE.Quaternion(), _qp = new THREE.Quaternion(), _ax = new THREE.Vector3(), _qi = new THREE.Quaternion();
+const _a = new THREE.Vector3(), _b = new THREE.Vector3(), _t = new THREE.Vector3();
+// aplica uma rotação dada no espaço do mundo a um osso (convertida para o espaço do pai)
+function rotWorld(o, q) {
+  o.parent.updateWorldMatrix(true, false); o.parent.getWorldQuaternion(_qp);
+  _q.copy(q).premultiply(_qp.clone().invert()).multiply(_qp);
+  o.quaternion.premultiply(_q); o.updateWorldMatrix(false, true);
+}
+function updateHero(dt, mk) {
+  if (!hero.ok) return;
+  const A = hero.act, w = curWeapon();
+  // locomoção (pernas): parado = pose base, andar ou correr; velocidade do clipe acompanha a do jogador
+  const speed = Math.hypot(player.vx, player.vz), back = player.moving && !player.running && (keys.KeyS || keys.ArrowDown) && !(keys.KeyW || keys.ArrowUp);
+  hero.runW = damp(hero.runW, player.dead ? 0 : player.running ? 1 : 0, 8, dt);
+  hero.walkW = damp(hero.walkW, player.dead ? 0 : player.moving && !player.running ? 1 : 0, 8, dt);
+  if (A.walk) { A.walk.setEffectiveWeight(hero.walkW); A.walk.timeScale = clamp(speed / PLAYER.WALK, 0.4, 1.4) * (back ? -1 : 1); }
+  if (A.run) { A.run.setEffectiveWeight(hero.runW); A.run.timeScale = clamp(speed / PLAYER.RUN, 0.6, 1.3); }
+  // tronco/braços: disparo e recarga sobrepõem a base (parado com arma ou mirando)
+  hero.fireT -= dt;
+  hero.fireW = damp(hero.fireW, hero.fireT > 0 ? 1 : 0, hero.fireT > 0 ? 30 : 10, dt);
+  const ra = A['reload_' + w.id];
+  if (arms.reloading > 0 && ra) {
+    if (hero.relAct !== ra) { if (hero.relAct) hero.relAct.setEffectiveWeight(0); ra.reset(); ra.paused = false; hero.relAct = ra; }
+    ra.timeScale = ra.getClip().duration / Math.max(0.2, arms.reloadTotal);
+  } else if (arms.reloading <= 0 && hero.relAct && hero.relW < 0.02) { hero.relAct.setEffectiveWeight(0); hero.relAct = null; }
+  hero.relW = damp(hero.relW, arms.reloading > 0 ? 1 : 0, 10, dt);
+  if (hero.relAct) hero.relAct.setEffectiveWeight(hero.relW);
+  const over = Math.max(hero.fireW * (1 - hero.relW), hero.relW);
+  if (hero.fireAct) hero.fireAct.setEffectiveWeight(hero.fireW * (1 - hero.relW));
+  hero.aimW = damp(hero.aimW, G.aiming ? 1 : 0, 12, dt);
+  if (A.aim) A.aim.setEffectiveWeight(hero.aimW * (1 - over));
+  if (A.idle) A.idle.setEffectiveWeight((1 - hero.aimW) * (1 - over));
+  hero.mixer.update(player.dead ? 0 : dt);
+  // inclina o tronco com a mira (pitch da câmera) + coice do disparo
+  if (hero.spine && !player.dead) {
+    const ang = G.pitch * 0.85 + armKick * 0.25 * mk - armSwap * 0.5;
+    hero.spine.parent.updateWorldMatrix(true, false); hero.spine.parent.getWorldQuaternion(_qp);
+    _ax.set(-Math.cos(G.yaw), 0, Math.sin(G.yaw)); // eixo "direita" do jogador no mundo
+    _q.setFromAxisAngle(_ax, ang); // rotação no mundo → espaço do pai do osso
+    _q.premultiply(_qp.clone().invert()).multiply(_qp);
+    hero.spine.quaternion.premultiply(_q);
+  }
+  // braço direito levanta a arma para a mira (os clipes de arma do GLB mantêm o braço baixo):
+  // ombro→mão e cano (+Y do soquete) giram em direção ao centro da mira, com peso suave
+  const want = !player.dead && (G.aiming || hero.fireT > -0.7) ? 1 : 0;
+  hero.raiseW = damp(hero.raiseW, want, want ? 14 : 6, dt);
+  const r = hero.raiseW * (1 - hero.relW);
+  if (r > 0.01 && hero.armR && hero.handR) {
+    _t.set(Math.sin(G.yaw) * Math.cos(G.pitch), Math.sin(G.pitch), Math.cos(G.yaw) * Math.cos(G.pitch));
+    hero.armR.updateWorldMatrix(true, true);
+    hero.armR.getWorldPosition(_a); hero.socket.getWorldPosition(_b);
+    _q.setFromUnitVectors(_b.sub(_a).normalize(), _t); rotWorld(hero.armR, _qi.identity().slerp(_q, r));
+    hero.socket.getWorldQuaternion(_qp); _b.set(0, 1, 0).applyQuaternion(_qp);
+    _q.setFromUnitVectors(_b, _t); rotWorld(hero.handR, _qi.identity().slerp(_q, r));
+  }
+}
 
 // ---------- armas ----------
 export const weapons = WEAPONS.map((w) => ({ ...w, mag: w.size, res: w.startRes }));
@@ -126,6 +272,7 @@ export function muzzleFlash(s = 0.55, kick = 0.035) {
   flashLight.intensity = 40 + s * 50;
   recoil += kick;
   armKick = Math.min(0.7, armKick + kick * 5); // v6: coice visível no braço/arma
+  heroFire();
 }
 let armKick = 0, armSwap = 0;
 
@@ -219,6 +366,7 @@ export function updatePlayer(dt) {
     if (t > 0.55 && t < 0.7) armR.rotation.x -= 0.12 * Math.sin((t - 0.55) / 0.15 * Math.PI); // tranco do pente
   }
   armL.rotation.x = armR.rotation.x;
+  updateHero(dt, mk);
   // poeira ao correr
   if (run) { player.stepT -= dt; if (player.stepT <= 0) { player.stepT = 0.16; burst(player.pos.x - fx * 0.3, 0.1, player.pos.z - fz * 0.3, 'dust', 2, 0.8); } }
   player.inv -= dt;
