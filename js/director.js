@@ -9,8 +9,8 @@ import { idle } from './idle.js';
 import { player, placePlayer, snapshotBag, restoreBag, resetPlayer } from './player.js';
 import { spawnEnemy, clearEnemies, enemyEvents, makeNoise } from './enemies.js';
 import { spawnPickup, clearPickups, combatEvents, resetCombat } from './combat.js';
-import { survivor, resetSurvivor, hideSurvivor } from './npc.js';
-import { clearFx, burst } from './fx.js';
+import { survivor, resetSurvivor, hideSurvivor, reviveSurvivor } from './npc.js';
+import { clearFx, burst, decal, shockwave } from './fx.js';
 import { sfx } from './audio.js';
 import * as ui from './ui.js';
 import { damp, rand } from './utils.js';
@@ -26,6 +26,7 @@ export const D = {
   boss: null, objectives: 0, lockMsgT: 0, mapDirty: true, lastObj: '',
   heli: null,           // animação do helicóptero de resgate { t, landed }
   barkT: 12, wasDown: false, talkI: 0,
+  lockdown: null,       // v5: sala da diretoria trancada { t, flashT }
 };
 const F = D.flags;
 const CONTROL_SPOT = { x: 19.6, z: -16 };
@@ -35,6 +36,7 @@ function resetCampaign() {
   D.st = Object.fromEntries(AREAS.map((a) => [a.id, freshArea()]));
   D.enc = new Set(); D.visited = new Set(); D.queue = []; D.trans = null; D.event = null; D.boss = null; D.objectives = 0;
   D.heli = null; D.barkT = 12; D.wasDown = false; D.talkI = 0;
+  if (D.lockdown) endLockdown(true); D.lockdown = null;
 }
 
 // ---------- sala da diretoria (laboratório): porta blindada que abre com a energia ----------
@@ -131,6 +133,7 @@ export function enterArea(id, doorId, at) {
   if (F.power) (a.refs.powerLamps || []).forEach((L) => { L.on = true; });
   if (a.refs.heli) { a.refs.heli.group.visible = false; }
   D.heli = null; D.barkT = 10;
+  if (D.lockdown) endLockdown(true);
   // falas de chegada (uma vez por campanha)
   const lines = story.LINES['enter_' + id];
   if (lines && !(id === 'lab' && F.power) && !(id === 'patio' && F.heliCode)) setTimeoutGame(first ? 2.2 : 0.8, () => story.say(lines, 'enter_' + id, true));
@@ -149,8 +152,48 @@ function fireEncounter(e) {
   D.enc.add(e.id);
   const base = e.delay || 0;
   if (e.boss) { F.bossFight = true; syncGates(D.area, false); setTimeoutGame(base + 1.5, () => story.say(story.LINES.boss_start, 'boss_start', true)); }
-  if (e.msg) setTimeoutGame(base, () => { ui.announce(e.msg, e.boss ? '#ff60ff' : '#ff9a80'); e.boss ? sfx.bossRoar() : sfx.ambush(); });
-  for (const s of e.spawn) D.queue.push({ t: base + (s.delay || 0), type: s.type, x: s.x, z: s.z, from: s.from, boss: e.boss });
+  if (e.msg) setTimeoutGame(base, () => {
+    ui.announce(e.msg, e.boss ? '#ff60ff' : '#ff9a80');
+    if (e.boss) { sfx.bossRoar(); sfx.stinger('boss'); } else sfx.stinger('ambush');
+  });
+  if (e.beat && BEAT[e.beat]) BEAT[e.beat](e);
+  for (const s of e.spawn) D.queue.push({ t: base + (s.delay || 0), type: s.type, x: s.x, z: s.z, from: s.from, boss: e.boss, fx: s.fx });
+}
+
+// ---------- v5: momentos roteirizados ----------
+const BEAT = {
+  /** Sala do Brandt: porta blindada bate, alarme e gravação do diretor; reabre com a matilha no corredor. */
+  lockdown() {
+    if (!AREA.lab.refs || !AREA.lab.refs.sideDoor) return;
+    setSideDoor(false, false); D.lockdown = { t: 0, dur: 7, flashT: 0 };
+    sfx.slam(); sfx.siren(); G.shake = Math.max(G.shake, 0.45);
+    burst(-17, 1.6, 11.3, 'dust', 18, 2.5); flashAt(-17, 3, 14, 0xff2010, 120);
+    const L = AREA.lab.refs.roomLamp; if (L) { L.color = 0xff2020; L.mode = 'pulse'; L.base = 30; }
+    ui.announce('PROTOCOLO DA DIRETORIA — a porta blindada trancou!', '#ff6050');
+    story.say(story.LINES.lockdown, 'lockdown', true);
+    makeNoise(-17, 12, 60);  // o alarme chama tudo o que estiver no laboratório
+  },
+  /** Pântano: bolhas e ronco antes dos raptores saírem da lama. */
+  mud(e) {
+    const z = e.zone; sfx.mudBurst();
+    for (let i = 0; i < 3; i++) setTimeoutGame(0.25 + i * 0.45, () => { burst(z.x + rand(-2.5, 2.5), 0.15, z.z + rand(-3, 3), 'dust', 8, 1.6); if (i === 1) sfx.mudBurst(); });
+    setTimeoutGame(4.5, () => story.say(story.LINES.mud, 'mud'));
+  },
+};
+function endLockdown(instant) {
+  const L = AREA.lab.refs && AREA.lab.refs.roomLamp; if (L) { L.color = 0xfff0d0; L.mode = 'steady'; L.base = 18; }
+  D.lockdown = null;
+  if (F.power) setSideDoor(true, instant);
+}
+function updateLockdown(dt) {
+  const K = D.lockdown; if (!K) return;
+  K.t += dt;
+  if ((K.flashT -= dt) <= 0) { K.flashT = 0.9; flashAt(-17, 3.2, 14, 0xff1a10, 70); sfx.siren(); }
+  if (K.t >= K.dur) {
+    endLockdown(false); sfx.door(); sfx.stinger('ambush');
+    ui.announce('A porta está abrindo — tem coisa esperando no corredor!', '#ff9a80');
+    story.say(story.LINES.lockdown_open, 'lockdown_open');
+  }
 }
 // temporizador simples sincronizado com o jogo (pausa junto)
 const timers = [];
@@ -279,6 +322,7 @@ function updateEvent(dt) {
 // ---------- interação (tecla E) ----------
 function interactables() {
   const out = [], a = D.area;
+  if (survivor.visible && survivor.downT > 0) out.push({ kind: 'revive', x: survivor.pos.x, z: survivor.pos.z, near: 3 });
   for (const t of a.refs.terminals) out.push({ kind: t.kind, x: t.x, z: t.z, t });
   if (a.id === 'patio' && survivor.visible && !survivor.following && !F.heliCode) out.push({ kind: 'survivor', x: survivor.pos.x, z: survivor.pos.z });
   if (a.id === 'patio' && survivor.visible && F.heliCode && !D.event) out.push({ kind: 'talk', x: survivor.pos.x, z: survivor.pos.z });
@@ -287,7 +331,10 @@ function interactables() {
 }
 function nearestInteract() {
   let best = null, bd = 2.4;
-  for (const it of interactables()) { const d = Math.hypot(it.x - player.pos.x, it.z - player.pos.z); if (d < bd) { bd = d; best = it; } }
+  for (const it of interactables()) {
+    const d = Math.hypot(it.x - player.pos.x, it.z - player.pos.z) - (it.near ? it.near - 2.4 : 0); // levantar a Lima tem alcance maior
+    if (d < bd) { bd = d; best = it; }
+  }
   return best;
 }
 function promptFor(it) {
@@ -301,6 +348,7 @@ function promptFor(it) {
     case 'control':
       if (F.heliCode) return { text: 'Portão do heliponto liberado', locked: true };
       return { text: `Precisa da ${survivor.name} para o código`, locked: true };
+    case 'revive': return { text: `⚠ Levantar a ${survivor.name}`, urgent: true };
     case 'survivor': return { text: `Falar com ${survivor.name}` };
     case 'talk': return { text: `Conversar com ${survivor.name}` };
     case 'log': return { text: `Ler registro: ${story.LOGS[it.l.id].title}${story.S.logs.has(it.l.id) ? ' (lido)' : ''}` };
@@ -310,6 +358,7 @@ function promptFor(it) {
 export function interact() {
   if (G.state !== 'play' || D.trans || player.dead) return;
   const it = nearestInteract(); if (!it) return;
+  if (it.kind === 'revive') { reviveSurvivor(true); story.clearSpeech(); story.sayOne('LIMA', REVIVE_LINES[survivor.downs % REVIVE_LINES.length]); return; }
   if (it.kind === 'save') saveGame(it.t);
   else if (it.kind === 'generator' && !F.power && !D.event) startGenerator(it);
   else if (it.kind === 'control' && !F.heliCode) ui.feed(`Traga a ${survivor.name} até aqui`, '#ffb070');
@@ -322,6 +371,7 @@ export function interact() {
     story.clearSpeech(); story.sayOne('LIMA', story.POST_CODE[D.talkI++ % story.POST_CODE.length]);
   } else if (it.kind === 'log') readLog(it.l.id);
 }
+const REVIVE_LINES = ['Obrigada... continua!', 'Estou bem, estou bem — vamos!', 'Essa foi perto. Não para!'];
 function readLog(id) {
   const first = !story.S.logs.has(id);
   sfx.save();
@@ -385,6 +435,8 @@ enemyEvents.onKilled = (e) => {
     objectiveDone(); G.score += SCORE.OBJECTIVE;
     bossGlow(null); flashAt(e.pos.x, 2, e.pos.z, 0xff6020, 260); G.shake = Math.max(G.shake, 0.9);
     setTimeoutGame(1.4, () => story.say(story.LINES.boss_dead, 'boss_dead', true));
+    // v5: rádio interceptado — a equipe da Tellus já está no vale procurando as caixas do RAIZ
+    setTimeoutGame(10, () => { if (!F.rescued) story.say(story.LINES.intercept, 'intercept'); });
   }
 };
 enemyEvents.onBossPhase = (e, ph) => {
@@ -405,6 +457,7 @@ export function updateDirector(dt) {
     const q = D.queue[i]; q.t -= dt; if (q.t > 0) continue;
     D.queue.splice(i, 1);
     const e = q.x !== undefined ? spawnEnemy(q.type, q.x, q.z) : spawnEnemy(q.type, undefined, undefined, { from: q.from });
+    if (q.fx === 'mud') { burst(e.pos.x, 0.3, e.pos.z, 'dust', 26, 4.5); decal(e.pos.x, e.pos.z, 2.6, 0x1a1408); shockwave(e.pos.x, e.pos.z, 2.2, 0x8a7a50); sfx.mudBurst(); G.shake = Math.max(G.shake, 0.3); }
     if (e.cfg.boss) { D.boss = e; G.shake = 0.8; ui.banner('O COLOSSO', 'Atraia-o contra as paredes: atordoado, ele fica vulnerável', 3.6); }
   }
   // encontros por zona / por flag
@@ -448,6 +501,7 @@ export function updateDirector(dt) {
     }
   }
   updateEvent(dt);
+  updateLockdown(dt);
   // terminais piscando
   for (const t of a.refs.terminals) t.glow.material.opacity = 0.45 + 0.25 * Math.sin(G.time * 3 + t.x);
   // tablets de registro: não lidos pulsam em ciano; lidos ficam apagados
@@ -466,7 +520,10 @@ export function updateDirector(dt) {
   if (F.escort && !F.heliCode && survivor.following) {
     if ((D.barkT -= dt) <= 0 && !story.speaking()) { D.barkT = rand(13, 19); story.sayOne('LIMA', story.BARKS[Math.floor(Math.random() * story.BARKS.length)]); }
     const down = survivor.downT > 0;
-    if (down && !D.wasDown && !story.speaking()) story.say(story.LINES.lima_down);
+    if (down && !D.wasDown) {
+      story.say(story.LINES.lima_down, null, true);
+      if (!F.limaTip) { F.limaTip = true; ui.announce(`${survivor.name} caiu! Chegue perto e aperte E para levantá-la`, '#ffb070'); }
+    }
     D.wasDown = down;
   }
   const [txt] = objective(); if (txt !== D.lastObj) { D.lastObj = txt; D.mapDirty = true; }
@@ -491,6 +548,9 @@ export function hudData() {
   for (const l of a.refs.logs || []) if (!story.S.logs.has(l.id)) points.push({ x: l.x, z: l.z, col: '#60e0ff' });
   let sub = '';
   if (F.power && !story.S.logs.has('log5') && !F.bossDead && !F.bossFight) sub = 'Opcional: sala da diretoria (laboratório, oeste)';
+  if (D.lockdown) sub = 'Trancado! A porta reabre em ' + Math.max(0, Math.ceil(D.lockdown.dur - D.lockdown.t)) + ' s — prepare-se';
+  if (survivor.visible && survivor.downT > 0) sub = `⚠ ${survivor.name} caída — chegue perto e aperte E`;
+  else if (a.id !== target && !D.trans) { const w = pathHint(a.id, target); if (w) sub = sub || w; }
   const E = D.event;
   const dirty = D.mapDirty; D.mapDirty = false;
   return {
@@ -500,6 +560,27 @@ export function hudData() {
   };
 }
 export const currentObjective = () => objective()[0];
+
+/** v5: dica de caminho — próxima porta rumo à área do objetivo (busca em largura no grafo de portas). */
+const SIDE_PT = { N: 'norte', S: 'sul', E: 'leste', W: 'oeste' };
+function pathHint(from, to) {
+  if (!AREA[to]) return '';
+  const prev = { [from]: null }, q = [from];
+  while (q.length) { const c = q.shift(); if (c === to) break; for (const d of AREA[c].doors) if (!(d.to in prev)) { prev[d.to] = { c, d }; q.push(d.to); } }
+  if (!(to in prev)) return '';
+  let n = to; while (prev[n] && prev[n].c !== from) n = prev[n].c;
+  const door = prev[n] && prev[n].d; if (!door) return '';
+  return `Caminho: portão ${SIDE_PT[door.side]} → ${AREA[door.to].name.toLowerCase()}`;
+}
+/** v5: estado sonoro da área atual (camadas de ambiente). */
+export function ambienceNow() {
+  const a = D.area; if (!a) return ['menu', {}];
+  return [a.id, {
+    power: !!F.power, generator: !!(D.event && D.event.kind === 'gen'), lockdown: !!D.lockdown,
+    boss: !!(F.bossFight && D.boss && !D.boss.dead), escort: !!(F.escort && !F.heliCode && a.id === 'patio'),
+    rescue: !!(D.event && D.event.kind === 'rescue'),
+  }];
+}
 
 /** Classificação final por tempo, precisão e quantidade de saves. */
 export function rank() {

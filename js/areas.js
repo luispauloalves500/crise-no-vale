@@ -144,6 +144,10 @@ export const AREAS = [
     encounters: [
       { id: 'lab-return', on: 'enter', flag: 'power', msg: 'Os alarmes atraíram uma matilha!',
         spawn: [{ type: 'raptor', from: 'W' }, { type: 'raptor', from: 'E', delay: 0.4 }, { type: 'raptor', from: 'N', delay: 1.2 }, { type: 'spitter', from: 'E', delay: 2 }, { type: 'raptor', from: 'W', delay: 3 }] },
+      // v5: "Protocolo da diretoria" — ao entrar na sala do Brandt, a porta blindada bate e o alarme chama a matilha
+      // (beat roteirizado em director.js → BEAT.lockdown; os spawns ficam esperando no corredor quando a porta reabre)
+      { id: 'lab-lockdown', on: 'zone', flag: 'power', zone: { x: -17, z: 14.4, r: 2 }, beat: 'lockdown',
+        spawn: [{ type: 'raptor', x: -15, z: 6, delay: 7.2 }, { type: 'raptor', x: -20, z: 7, delay: 7.6 }, { type: 'spitter', x: -12, z: 3, delay: 8.2 }] },
     ],
     build(ctx) {
       const b = this.bounds;
@@ -176,7 +180,7 @@ export const AREAS = [
       const lamps = [W.lamp(ctx, -8, 10, 0xffb050), W.lamp(ctx, 9, 2, 0xffa040), W.lamp(ctx, -18, 4, 0xffb050), W.lamp(ctx, 4, -11, 0xff2020, 'pulse', 28), W.lamp(ctx, -4, -11, 0xff2020, 'pulse', 28)];
       const roomLamp = W.lamp(ctx, -17, 14, 0xfff0d0, 'steady', 18, 3.4); roomLamp.on = false;
       return {
-        sideDoor: { mesh: slab, box: slabBox }, powerLamps: [roomLamp],
+        sideDoor: { mesh: slab, box: slabBox }, powerLamps: [roomLamp], roomLamp,
         doors: { S: W.doorway(ctx, 'S', 0, b), W: W.doorway(ctx, 'W', 6, b), N: W.doorway(ctx, 'N', 0, b) },
         terminals: [{ id: 'save-lab', kind: 'save', ...W.terminal(ctx, 6, 18, Math.PI), x: 6, z: 18 }],
         alarmLamps: lamps.slice(3),
@@ -199,7 +203,11 @@ export const AREAS = [
     ],
     ambient: [{ type: 'raptor', x: 0, z: 8 }, { type: 'raptor', x: -10, z: -10 }, { type: 'spitter', x: -16, z: 0 }, { type: 'spitter', x: 8, z: -8 }, { type: 'raptor', x: -18, z: 12 }],
     logs: [{ id: 'log4', x: -19.4, z: -2.6, yaw: -Math.PI / 2 }],
-    encounters: [],
+    encounters: [
+      // v5: "A lama ferve" — perto da poça central, dois raptores saem de dentro da lama (bolhas e ronco avisam antes)
+      { id: 'pantano-lama', on: 'zone', zone: { x: -2, z: -2, r: 6.5 }, beat: 'mud', msg: 'A lama está fervendo — tem algo embaixo!',
+        spawn: [{ type: 'raptor', x: -3.5, z: -5.5, delay: 1.6, fx: 'mud' }, { type: 'raptor', x: -0.5, z: 2, delay: 2.4, fx: 'mud' }] },
+    ],
     build(ctx) {
       const b = this.bounds, rng = ctx.rng;
       ctx.treeStyle = 'swamp';

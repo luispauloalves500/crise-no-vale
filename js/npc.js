@@ -7,9 +7,10 @@ import { sfx } from './audio.js';
 import { burst } from './fx.js';
 import * as ui from './ui.js';
 import { lerpAngle } from './utils.js';
+import { ESCORT } from './config.js';
 
 export const survivor = {
-  pos: new THREE.Vector3(), yaw: 0, following: false, downT: 0, visible: false, phase: 0, home: { x: 0, z: 0 }, goal: null, name: 'Dra. Lima',
+  pos: new THREE.Vector3(), yaw: 0, following: false, downT: 0, safeT: 0, grit: 2, gritT: 0, downs: 0, visible: false, phase: 0, home: { x: 0, z: 0 }, goal: null, name: 'Dra. Lima',
 };
 
 // ---------- malha (jaleco branco, cabelo preto, rádio) ----------
@@ -43,29 +44,52 @@ marker.scale.setScalar(0.7); marker.position.y = 2.45; g.add(marker);
 
 /** Coloca a sobrevivente esperando num ponto (cabine). */
 export function resetSurvivor(x, z, show) {
-  survivor.home = { x, z }; survivor.pos.set(x, 0, z); survivor.following = false; survivor.downT = 0; survivor.goal = null;
+  survivor.home = { x, z }; survivor.pos.set(x, 0, z); survivor.following = false; survivor.downT = 0; survivor.safeT = 0; survivor.grit = ESCORT.GRIT; survivor.gritT = 0; survivor.downs = 0; survivor.goal = null;
   survivor.visible = show; g.visible = show; body.rotation.set(0, 0, 0); survivor.yaw = 0.8;
 }
 export function hideSurvivor() { survivor.visible = false; survivor.following = false; g.visible = false; }
-/** Mordida: derruba por ~2 s (ela não morre, mas a escolta atrasa). */
+/**
+ * Mordida. v5: ela aguenta ESCORT.GRIT mordidas (cambaleia) antes de cair; caída, fica ESCORT.DOWN s no chão
+ * ou até o jogador apertar E perto dela. Depois de levantar tem ESCORT.SAFE s em que os inimigos a ignoram.
+ */
 export function hurtSurvivor(e) {
-  if (survivor.downT > 0) return;
-  survivor.downT = 2.2; sfx.hurt(); burst(survivor.pos.x, 1.2, survivor.pos.z, 'blood', 6, 2.5);
-  ui.feed(survivor.name + ' foi derrubada!', '#ff8060'); G.shake = Math.max(G.shake, 0.15);
+  if (survivor.downT > 0 || survivor.safeT > 0) return;
   const dx = survivor.pos.x - e.pos.x, dz = survivor.pos.z - e.pos.z, l = Math.hypot(dx, dz) || 1;
+  burst(survivor.pos.x, 1.2, survivor.pos.z, 'blood', 5, 2.5);
+  survivor.gritT = ESCORT.GRIT_REGEN;
+  if (survivor.grit > 1) {
+    survivor.grit--; survivor.safeT = 0.6; sfx.hurt();
+    ui.feed(survivor.name + ' foi mordida! Proteja-a', '#ffb070');
+    survivor.pos.x += dx / l * 0.5; survivor.pos.z += dz / l * 0.5; resolve(survivor.pos, 0.4);
+    return;
+  }
+  survivor.grit = 0; survivor.downT = ESCORT.DOWN; survivor.downs++; sfx.hurt();
+  ui.feed(survivor.name + ' caiu! Aperte E perto dela', '#ff8060'); G.shake = Math.max(G.shake, 0.15);
   survivor.pos.x += dx / l * 0.8; survivor.pos.z += dz / l * 0.8; resolve(survivor.pos, 0.4);
+}
+/** Levantar a Dra. Lima (tecla E perto dela). */
+export function reviveSurvivor(byPlayer = true) {
+  if (survivor.downT <= 0) return;
+  survivor.downT = 0; survivor.grit = ESCORT.GRIT; survivor.safeT = ESCORT.SAFE;
+  if (byPlayer) { sfx.revive(); burst(survivor.pos.x, 1.0, survivor.pos.z, 'spark', 10, 1.6); }
+  ui.feed(survivor.name + (byPlayer ? ' de pé — vamos!' : ' levantou sozinha'), '#a0ffb0');
 }
 
 export function updateSurvivor(dt) {
   if (!survivor.visible) return;
   marker.material.opacity = survivor.following ? 0.35 + 0.25 * Math.sin(G.time * 5) : 0.9;
-  marker.material.color.setHex(survivor.downT > 0 ? 0xff5040 : 0x60ff90);
+  marker.material.color.setHex(survivor.downT > 0 ? 0xff5040 : survivor.grit < ESCORT.GRIT ? 0xffc040 : 0x60ff90);
   if (survivor.downT > 0) {
+    // caída: marcador vermelho grande piscando (fácil de achar no meio da luta)
+    marker.material.opacity = 0.55 + 0.45 * Math.sin(G.time * 10); marker.scale.setScalar(1.1);
     survivor.downT -= dt;
     body.rotation.x = Math.max(body.rotation.x - dt * 6, -1.35); body.position.y = 0.15;
-    if (survivor.downT <= 0) { survivor.downT = 0; ui.feed(survivor.name + ' levantou', '#a0ffb0'); }
+    if (survivor.downT <= 0) { survivor.downT = 0.001; reviveSurvivor(false); }
     g.position.copy(survivor.pos); return;
   }
+  marker.scale.setScalar(0.7);
+  if (survivor.safeT > 0) survivor.safeT -= dt;
+  if (survivor.grit < ESCORT.GRIT && (survivor.gritT -= dt) <= 0) { survivor.grit++; survivor.gritT = ESCORT.GRIT_REGEN; }
   body.rotation.x += (0 - body.rotation.x) * Math.min(1, dt * 8); body.position.y = 0;
   let mvx = 0, mvz = 0, spd = 0;
   const tgt = survivor.goal || (survivor.following ? player.pos : null);

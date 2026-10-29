@@ -7,7 +7,7 @@ import { G } from './state.js';
 import { player, hurtPlayer } from './player.js';
 import { survivor, hurtSurvivor } from './npc.js';
 import { roar, sfx } from './audio.js';
-import { burst, decal, shockwave } from './fx.js';
+import { burst, decal, shockwave, telegraph, laneHandle, setLane, hideLane } from './fx.js';
 import { rand, lerpAngle, noiseTex } from './utils.js';
 
 export const enemies = [];
@@ -254,6 +254,7 @@ function updateSpits(dt) {
 function updateEnemy(e, dt) {
   const g = e.g, T = e.cfg, t = G.time;
   if (e.dead) {
+    if (e.lane) { hideLane(e.lane); e.lane = null; }
     e.deadT += dt; e.bar.visible = false;
     const k = Math.min(1, e.deadT * 3);
     g.rotation.z = k * Math.PI / 2 * e.fallDir;
@@ -265,9 +266,10 @@ function updateEnemy(e, dt) {
   }
   // alvo: jogador ou a sobrevivente escoltada, o que estiver mais perto
   let tgt = player, tx = player.pos.x, tz = player.pos.z;
-  if (survivor.following && !survivor.downT) {
+  // v5: ela só vira alvo se estiver bem mais perto que o jogador e não acabou de levantar
+  if (survivor.following && !survivor.downT && !(survivor.safeT > 0)) {
     const dp = Math.hypot(player.pos.x - e.pos.x, player.pos.z - e.pos.z), ds = Math.hypot(survivor.pos.x - e.pos.x, survivor.pos.z - e.pos.z);
-    if (ds < dp * 0.8 && T.shape !== 'spitter') { tgt = survivor; tx = survivor.pos.x; tz = survivor.pos.z; }
+    if (ds < dp * 0.6 && T.shape !== 'spitter') { tgt = survivor; tx = survivor.pos.x; tz = survivor.pos.z; }
   }
   const dx = tx - e.pos.x, dz = tz - e.pos.z, dist = Math.hypot(dx, dz) || 0.001, nx = dx / dist, nz = dz / dist;
   const hit = (dmg, knock) => (tgt === player ? hurtPlayer(dmg, e.pos.x, e.pos.z, knock) : hurtSurvivor(e));
@@ -325,11 +327,22 @@ function updateEnemy(e, dt) {
       if (Math.random() < 0.6) burst(e.pos.x, 0.2, e.pos.z, 'dust', 1, 1.5);
       if (dist < reach + 0.3) { hit(T.chargeDmg, 16); e.charge = 0; e.stun = 0.6; }
     } else if (e.windup > 0) {
-      e.windup -= dt; spd = 0; if (e.windup <= 0) { e.charge = 1.1; e.cdx = nx; e.cdz = nz; }
+      e.windup -= dt; spd = 0;
+      // v5: faixa no chão mostra a direção (e até onde vai) a investida
+      if (!e.lane) e.lane = laneHandle();
+      const len = Math.min((T.chargeSpeed || 14) * 1.1, castWorld(e.pos.x, e.pos.z, nx, nz, 40, 1.5));
+      setLane(e.lane, e.pos.x, e.pos.z, nx, nz, len, T.r * 1.6, 1 - Math.max(0, e.windup) / (e.windup0 || 1));
+      if (e.windup <= 0) { e.charge = 1.1; e.cdx = nx; e.cdz = nz; }
     } else {
       mvx = nx; mvz = nz;
-      if (boss && dist < T.stompR - 1 && e.stompCd <= 0) { e.stomp = 0.9; e.stompCd = rand(3.5, 5) / rage; roar(0.4, 0.4); }
-      else if (dist < (boss ? 20 : 13) && dist > 4 && e.special <= 0) { e.windup = boss ? 1.0 : 0.85; e.special = rand(5, 7) / rage; roar(0.5, 0.5); G.shake = Math.max(G.shake, 0.25); }
+      if (boss && dist < T.stompR - 1 && e.stompCd <= 0) {
+        // v5: pisão com aviso mais longo (anel vermelho que enche no chão + ronco grave)
+        e.stomp = e.stomp0 = T.stompWind || 0.9; e.stompCd = rand(3.8, 5.2) / rage; roar(0.4, 0.4);
+        telegraph(e.pos.x, e.pos.z, T.stompR, e.stomp); sfx.stompWarn();
+      }
+      else if (dist < (boss ? 20 : 13) && dist > 4 && e.special <= 0) {
+        e.windup = e.windup0 = T.windup || (boss ? 1.0 : 0.9); e.special = rand(5, 7) / rage; roar(0.5, 0.5); sfx.chargeWarn(); G.shake = Math.max(G.shake, 0.25);
+      }
       if (dist < reach + 0.2 && e.atkCd <= 0) { e.atkCd = 1.6; e.bite = 0.35; hit(T.dmg, 10); }
     }
   }
@@ -338,14 +351,23 @@ function updateEnemy(e, dt) {
   e.pos.x += (mvx * spd + e.kx) * dt; e.pos.z += (mvz * spd + e.kz) * dt;
   const k = Math.exp(-7 * dt); e.kx *= k; e.kz *= k;
   if (resolve(e.pos, T.r) && e.charge > 0) {
-    e.charge = 0; e.stun = T.boss ? 2.4 : 1.4; G.shake = Math.max(G.shake, 0.35); burst(e.pos.x, 1, e.pos.z, 'dust', 16, 3); sfx.crash();
+    e.charge = 0; e.stun = T.wallStun || (T.boss ? 2.4 : 1.4);
+    // v5: carência depois do atordoamento — ele não emenda pisão/investida assim que acorda
+    if (T.stunGrace) { e.stompCd = Math.max(e.stompCd, e.stun + T.stunGrace); e.special = Math.max(e.special, e.stun + T.stunGrace + 1); }
+    burst(e.pos.x, 2.4 * T.scale, e.pos.z, 'spark', 12, 2.5); G.shake = Math.max(G.shake, 0.35); burst(e.pos.x, 1, e.pos.z, 'dust', 16, 3); sfx.crash();
   }
   e.yaw = lerpAngle(e.yaw, face, Math.min(1, dt * (e.charge > 0 ? 2 : 8)));
   g.rotation.y = e.yaw; g.position.set(e.pos.x, 0, e.pos.z);
   const moved = Math.hypot(e.pos.x - ox, e.pos.z - oz) / Math.max(dt, 1e-4); e.phase += moved * dt * 2.4 / T.scale;
   const sw = Math.sin(e.phase) * Math.min(1, moved / 2) * 0.7; e.legs[0].rotation.x = sw; e.legs[1].rotation.x = -sw;
   e.body.position.y = Math.abs(Math.sin(e.phase)) * 0.06;
-  e.body.rotation.x = (e.windup > 0 ? -0.25 : 0) + (e.lunge > 0 ? 0.15 : 0) + (e.stomp > 0 ? -0.35 * Math.min(1, (0.9 - e.stomp) * 3) : 0);
+  if (e.lane && !(e.windup > 0)) { hideLane(e.lane); e.lane = null; }
+  // v5: passos pesados do Colosso/bruto (som que cai com a distância)
+  if (T.shape === 'brute' && moved > 0.6) {
+    const up = Math.sin(e.phase) > 0;
+    if (up !== e.stepUp) { e.stepUp = up; const pd = Math.hypot(player.pos.x - e.pos.x, player.pos.z - e.pos.z); sfx.thud(Math.min(1, (T.boss ? 16 : 9) / (pd + 6))); }
+  }
+  e.body.rotation.x = (e.windup > 0 ? -0.25 : 0) + (e.lunge > 0 ? 0.15 : 0) + (e.stomp > 0 ? -0.35 * Math.min(1, ((e.stomp0 || 0.9) - e.stomp) * 3) : 0);
   e.jaw.rotation.x = (e.bite > 0 || e.spitT > 0 || e.windup > 0 || e.stomp > 0) ? 0.65 : 0.06 + Math.sin(t * 2 + e.seed) * 0.04;
   e.tail.rotation.y = Math.sin(t * 2.5 + e.seed) * 0.25; e.tail2.rotation.y = Math.sin(t * 2.5 + e.seed + 1) * 0.35;
   if (e.frill) { const s = e.spitT > 0 ? 1 : 0.5; e.frill.scale.x += (s - e.frill.scale.x) * Math.min(1, dt * 12); e.frill.scale.z = e.frill.scale.x; }
