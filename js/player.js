@@ -179,7 +179,11 @@ export function updatePlayer(dt) {
   const k = Math.exp(-9 * dt); player.kx *= k; player.kz *= k;
   resolve(player.pos, player.r);
   pg.position.set(player.pos.x, 0, player.pos.z); pg.rotation.y = G.yaw;
-  if (ml > 0) player.phase += dt * (run ? 13 : 9);
+  if (ml > 0) {
+    const ph0 = player.phase; player.phase += dt * (run ? 13 : 9);
+    // v5: passos — um som por pisada (cruzamento de fase), com variação por terreno/corrida
+    if (Math.floor(ph0 / Math.PI) !== Math.floor(player.phase / Math.PI)) sfx.step(inWater(player.pos.x, player.pos.z) ? 'water' : run ? 'run' : 'walk', G.surface || '');
+  }
   const sw = ml > 0 ? Math.sin(player.phase) * 0.6 : 0;
   legL.rotation.x = sw; legR.rotation.x = -sw; torso.position.y = 1.25 + Math.abs(sw) * 0.04;
   armR.rotation.x = -G.pitch * 0.8 - (arms.cool > curWeapon().rate * 0.6 ? 0.25 : 0); armL.rotation.x = armR.rotation.x;

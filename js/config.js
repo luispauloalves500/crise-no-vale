@@ -40,13 +40,24 @@ export const WEAPONS = [
   { id: 'pistol',  name: 'PISTOLA',  size: 12, startRes: Infinity, dmg: 24, rate: 0.2,  spread: 0.018, aimSpread: 0.006,
     pellets: 1, reload: 1.1, knock: 3, kick: 0.035, range: 45, crit: 1.6 },
   { id: 'shotgun', name: 'ESCOPETA', size: 6,  startRes: 6,        dmg: 15, rate: 0.75, spread: 0.11,  aimSpread: 0.075,
-    pellets: 8, reload: 1.8, knock: 6, kick: 0.09,  range: 30, crit: 1.3 },
+    pellets: 8, reload: 1.8, knock: 6, kick: 0.09,  range: 30, crit: 1.3,
+    falloffStart: 5, falloffLen: 22, falloffMin: 0.5 },   // v5: um pouco mais forte de perto (antes 4 / 0,45)
 ];
+// v5: raio de "barulho" (acorda inimigos em patrulha). Antes: pistola 18, escopeta 26.
+export const NOISE = { PISTOL: 15, SHOTGUN: 22, GRENADE: 30 };
 export const SHOTGUN_RES_MAX = 36;
 
 export const GRENADE = {
   MAX: 5, START: 1, FUSE: 1.4, SPEED: 13, UP: 6.5, GRAV: 18,
-  RADIUS: 5.5, DMG: 150, STUN: 2.2, COOLDOWN: 0.8,
+  RADIUS: 6, DMG: 150, STUN: 2.2, COOLDOWN: 0.8,   // v5: raio 5,5 → 6 (mais confiável contra matilhas)
+};
+
+// v5: escolta da Dra. Lima — menos frágil, mas ainda exige atenção
+export const ESCORT = {
+  GRIT: 2,          // mordidas que ela aguenta antes de cair (a 1ª só a faz cambalear)
+  GRIT_REGEN: 7,    // s sem ser mordida para recuperar 1 ponto de fôlego
+  DOWN: 4,          // s caída se ninguém ajudar (E perto dela levanta na hora)
+  SAFE: 2.2,        // s ignorada pelos inimigos depois de levantar
 };
 
 export const INVENTORY = { MED_MAX: 4, MED_START: 1 };
@@ -64,7 +75,9 @@ export const ENEMY_TYPES = {
   // chefe: bruto alfa gigante com pisão (onda de choque) e chamado de matilha
   colossus:{ name: 'Colosso',  shape: 'brute', hp: 1600, speed: 3.1, dmg: 34, r: 2.6, scale: 3.2, score: 5000, aggro: 99, boss: true,
              color: 0x3c3a44, belly: 0x8a7a6a, stripe: 0x9a1a10, eye: 0xff8a10, horn: 0xf4e8b0, radar: '#ff00ff',
-             chargeDmg: 42, chargeSpeed: 17, mass: 30, stompR: 7.5, stompDmg: 26 },
+             chargeDmg: 42, chargeSpeed: 17, mass: 30, stompR: 7.5, stompDmg: 26,
+             // v5: avisos mais cedo e janelas de atordoamento mais justas
+             stompWind: 1.2, windup: 1.3, wallStun: 3.2, stunGrace: 1.4 },
 };
 
 export const PICKUPS = {

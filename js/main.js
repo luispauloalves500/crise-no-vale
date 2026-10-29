@@ -4,14 +4,14 @@ import * as THREE from 'three';
 import { renderer, scene, camera, boxes, updateWorld, atmo, bounds } from './world.js';
 import { G, saveBest } from './state.js';
 import { initInput, lockPointer, unlockPointer, clearInput, keys, mouse } from './input.js';
-import { initAudio, sfx, toggleMute } from './audio.js';
+import { initAudio, sfx, toggleMute, isMuted, setAmbience, setMuffle, ambienceState } from './audio.js';
 import { updateFx, clearFx } from './fx.js';
 import { player, bag, events, resetPlayer, updatePlayer, updateCamera, menuCamera, switchWeapon, startReload, arms, curWeapon, useMed } from './player.js';
 import { enemies, spawnEnemy, updateEnemies, clearEnemies, prewarmEnemies, poolStats } from './enemies.js';
 import { fire, throwGrenade, updateCombat, clearPickups, pickups, damageEnemy } from './combat.js';
 import { updateSurvivor, hideSurvivor, survivor } from './npc.js';
 import { AREAS, AREA, buildArea, builtCount, isBuilt } from './areas.js';
-import { D, startCampaign, updateDirector, updateHeli, hudData, interact, hasSave, setWinHandler, endStats, currentObjective, debugGoto, warmArea, streamStats } from './director.js';
+import { D, startCampaign, updateDirector, updateHeli, hudData, interact, hasSave, setWinHandler, endStats, currentObjective, debugGoto, warmArea, streamStats, ambienceNow } from './director.js';
 import { readSave } from './state.js';
 import { quality, setQualityMode, autoQualityTick, applyQualityNow, onQuality, MODE_LABEL, PRESETS } from './quality.js';
 import { nextFrame, idleBusy } from './idle.js';
@@ -131,6 +131,11 @@ function loop() {
   const raw = clock.getDelta(), dt = Math.min(raw, 0.05);
   if (G.state === 'play' && !D.trans && autoQualityTick(dt, raw)) ui.feed(ui.STR.qualityAuto(quality.p.label), '#fc8');
   if (G.state !== 'pause') update(dt);
+  // v5: áudio — ambiente por área com crossfade; abafa durante pausa e cartões de história
+  G.surface = D.area ? D.area.id : '';
+  const inGame = G.state !== 'menu' && G.state !== 'loading' && D.area;
+  if (inGame) { const [k, m] = ambienceNow(); setAmbience(k, m); } else setAmbience('menu');
+  setMuffle(G.state === 'pause' || G.state === 'story');
   if (G.state === 'menu' || story.cinematic()) menuCamera(dt); else if (G.state !== 'pause') updateCamera(dt);
   const h = D.area ? hudData() : EMPTY;
   ui.updateHUD(dt, {
@@ -206,6 +211,8 @@ window.__game = {
   get enemies() { return enemies.length; }, get objective() { return currentObjective(); },
   get flags() { return D.flags; }, D, list: enemies, damageEnemy, player, bag, survivor, G, startGame, fire, spawnEnemy, interact, throwGrenade,
   goto: (id) => debugGoto(id), story, post,
+  // v5: áudio
+  get ambience() { return ambienceState(); }, get muted() { return isMuted(); }, toggleMute,
   // v4: desempenho
   quality, setQuality: (m) => { setQualityMode(m); refreshQualityUI(); }, PRESETS, poolStats, streamStats, bounds, hudStats: ui.hudStats,
   areas: () => AREAS.map((a) => ({ id: a.id, built: isBuilt(a), builds: a.builds || 0, unloads: a.unloads || 0 })),
