@@ -38,14 +38,23 @@ export const CAMERA = {
 
 export const WEAPONS = [
   { id: 'pistol',  name: 'PISTOLA',  size: 12, startRes: Infinity, dmg: 24, rate: 0.2,  spread: 0.018, aimSpread: 0.006,
-    pellets: 1, reload: 1.1, knock: 3, kick: 0.035, range: 45, crit: 1.6 },
+    pellets: 1, reload: 1.1, knock: 3, kick: 0.035, range: 45, crit: 1.6,
+    noise: 15, shake: 0.09, xkick: 9, flash: 0.55 },
   { id: 'shotgun', name: 'ESCOPETA', size: 6,  startRes: 6,        dmg: 15, rate: 0.75, spread: 0.11,  aimSpread: 0.075,
     pellets: 8, reload: 1.8, knock: 6, kick: 0.09,  range: 30, crit: 1.3,
-    falloffStart: 5, falloffLen: 22, falloffMin: 0.5 },   // v5: um pouco mais forte de perto (antes 4 / 0,45)
+    falloffStart: 5, falloffLen: 22, falloffMin: 0.5,     // v5: um pouco mais forte de perto (antes 4 / 0,45)
+    noise: 22, shake: 0.24, xkick: 22, flash: 1, resMax: 36 },
+  // v6: terceira arma — submetralhadora automática (segure o botão). Dano baixo por tiro, cadência alta.
+  { id: 'smg',     name: 'SUBMETRALHADORA', size: 30, startRes: 0, dmg: 13, rate: 0.085, spread: 0.04, aimSpread: 0.014,
+    pellets: 1, reload: 1.5, knock: 1.4, kick: 0.022, range: 38, crit: 1.5,
+    noise: 17, shake: 0.06, xkick: 6, flash: 0.45, resMax: 120, auto: true },
 ];
 // v5: raio de "barulho" (acorda inimigos em patrulha). Antes: pistola 18, escopeta 26.
-export const NOISE = { PISTOL: 15, SHOTGUN: 22, GRENADE: 30 };
+export const NOISE = { PISTOL: 15, SHOTGUN: 22, SMG: 17, GRENADE: 30 };
 export const SHOTGUN_RES_MAX = 36;
+export const SMG_RES_MAX = 120;
+// v6: colete — absorve parte do dano até se esgotar
+export const ARMOR = { MAX: 50, VEST: 50, ABSORB: 0.6 };
 
 export const GRENADE = {
   MAX: 5, START: 1, FUSE: 1.4, SPEED: 13, UP: 6.5, GRAV: 18,
@@ -86,6 +95,9 @@ export const PICKUPS = {
   AMMO_SHELLS: 6,
   DROP_MED: 0.10,
   DROP_AMMO: 0.20,
+  AMMO_SMG: 30,          // v6: pente de submetralhadora
+  DROP_SMG: 0.03,        // v6: chance rara de um inimigo deixar a submetralhadora (se você ainda não tem)
+  DROP_VEST_BRUTE: 0.25, // v6: brutos às vezes deixam um colete
 };
 
 export const SCORE = { AREA_FIRST: 200, OBJECTIVE: 500, SAVE_PENALTY: 0 };
@@ -102,4 +114,5 @@ export const FX = {
 export const COLORS = {
   blood: 0x8a0d0d, spark: 0xffd060, spit: 0x9fff40, dust: 0x6a6a5a, fire: 0xff7a20,
   muzzle: 0xffd27a, tracer: 0xffe9a0, med: 0xff5050, ammo: 0xffd040, grenade: 0x70c0ff,
+  smg: 0x60ffb0, smgammo: 0xff9a30, vest: 0x5aa0ff, crate: 0xffffff,
 };
