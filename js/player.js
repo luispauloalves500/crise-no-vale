@@ -96,7 +96,7 @@ pg.add(torch); const torchT = new THREE.Object3D(); torchT.position.set(0.38, 0.
 // ---------- modelo GLB da Marina (Mixamo) ----------
 // Carrega assets/marina.min.glb (meshopt + webp). Se falhar ou demorar demais, a malha procedural continua.
 export const HERO = { url: 'assets/marina.min.glb', height: 1.82, timeout: 25000 };
-const hero = { ok: false, model: null, mixer: null, act: {}, spine: null, fireW: 0, fireT: -9, fireAct: null, relW: 0, relAct: null, aimW: 0, raiseW: 0, walkW: 0, runW: 0, walkTS: 1, runTS: 1, fires: [], reloads: [], err: '' };
+const hero = { ok: false, model: null, mixer: null, act: {}, spine: null, fireW: 0, fireT: -9, fireAct: null, relW: 0, relAct: null, aimW: 0, raiseW: 0, walkW: 0, runW: 0, walkTS: 1, runTS: 1, loco: 0, blend: 0, ph: 0, legYaw: 0, back: false, hips: null, spine0: null, fires: [], reloads: [], err: '' };
 // ossos da parte de cima (animados pelos clipes de arma) — retirados dos clipes de locomoção para as camadas não brigarem
 const UPPER = /Spine1|Spine2|Neck|Head|Shoulder|Arm|ForeArm|Hand/;
 const FIRE_CLIP = { pistol: ['Fire_Pistol_Controlled', 'Fire_Revolver'], shotgun: ['Fire_Shotgun_Heavy_REV4', 'Fire_Shotgun'], smg: ['Fire_SMG_Burst_REV4', 'Fire_SMG'] };
@@ -156,7 +156,7 @@ async function loadHeroInner() {
   const socket = model.getObjectByName('WeaponSocket_R') || model.getObjectByName('mixamorig:RightHand') || model.getObjectByName('mixamorigRightHand');
   if (!socket) throw new Error('osso da mão direita não encontrado');
   const bone = (n) => model.getObjectByName('mixamorig:' + n) || model.getObjectByName('mixamorig' + n);
-  hero.spine = bone('Spine2'); hero.armR = bone('RightArm'); hero.handR = bone('RightHand'); hero.socket = socket;
+  hero.spine = bone('Spine2'); hero.hips = bone('Hips'); hero.spine0 = bone('Spine'); hero.armR = bone('RightArm'); hero.handR = bone('RightHand'); hero.socket = socket;
   hero.mixer = new THREE.AnimationMixer(model);
   const clips = gltf.animations;
   const A = hero.act;
@@ -164,6 +164,8 @@ async function loadHeroInner() {
   A.run = heroAction(clips, ['Running', 'Walking'], { lower: true });
   A.walkUp = heroAction(clips, ['Walking_Woman', 'Walking'], { swing: true });
   A.runUp = heroAction(clips, ['Running', 'Walking'], { swing: true });
+  // v11: o tempo dos clipes de locomoção é dirigido pela fase compartilhada (updateHero), não pelo mixer
+  for (const a of [A.walk, A.run, A.walkUp, A.runUp]) if (a) a.timeScale = 0;
   A.idle = heroAction(clips, ['Weapon_Idle']);
   A.aim = heroAction(clips, ['Aim_Pistol']);
   for (const id in FIRE_CLIP) { A['fire_' + id] = heroAction(clips, FIRE_CLIP[id], { once: id !== 'smg' }); A['reload_' + id] = heroAction(clips, RELOAD_CLIP[id], { once: true }); }
@@ -183,7 +185,7 @@ export const heroReady = Promise.race([
   loadHeroInner(),
   new Promise((_, rej) => setTimeout(() => rej(new Error('tempo esgotado')), HERO.timeout)),
 ]).catch((e) => { hero.err = String(e && e.message || e); console.warn('modelo da Marina indisponível, usando malha antiga:', hero.err); return false; });
-export const heroInfo = () => ({ ok: hero.ok, err: hero.err, weights: { walk: hero.walkW, run: hero.runW, aim: hero.aimW, fire: hero.fireW, reload: hero.relW } });
+export const heroInfo = () => ({ ok: hero.ok, err: hero.err, weights: { walk: hero.walkW, run: hero.runW, loco: hero.loco, blend: hero.blend, legYaw: hero.legYaw, phase: hero.ph, aim: hero.aimW, fire: hero.fireW, reload: hero.relW } });
 function heroFire() {
   if (!hero.ok) return;
   const id = curWeapon().id, a = hero.act['fire_' + id]; if (!a) return;
@@ -198,7 +200,10 @@ function heroFire() {
   hero.fireAct = a;
 }
 const _q = new THREE.Quaternion(), _qp = new THREE.Quaternion(), _ax = new THREE.Vector3(), _qi = new THREE.Quaternion();
-const _a = new THREE.Vector3(), _b = new THREE.Vector3(), _t = new THREE.Vector3();
+const _a = new THREE.Vector3(), _b = new THREE.Vector3(), _t = new THREE.Vector3(), _up = new THREE.Vector3(0, 1, 0), _q2 = new THREE.Quaternion();
+// v11: referências da locomoção (medidas nos clipes do GLB): velocidade natural do andar/corrida (m/s),
+// faixa de velocidade da mistura andar→correr, fases (0..1) em que cada pé pisa e defasagem da corrida.
+const LOCO = { WALK_REF: 1.35, RUN_REF: 4.6, B0: 3.0, B1: 7.0, STEPS: [0.24, 0.72], RUN_OFS: -0.03 };
 // aplica uma rotação dada no espaço do mundo a um osso (convertida para o espaço do pai)
 function rotWorld(o, q) {
   o.parent.updateWorldMatrix(true, false); o.parent.getWorldQuaternion(_qp);
@@ -208,24 +213,36 @@ function rotWorld(o, q) {
 function updateHero(dt, mk) {
   if (!hero.ok) return;
   const A = hero.act, w = curWeapon();
-  // locomoção (pernas): parado = pose base, andar ou correr; velocidade do clipe acompanha a do jogador.
-  // Sobe rápido ao começar a andar/correr e desce devagar ao parar (os pés não "travam" de uma vez).
-  const speed = Math.hypot(player.vx, player.vz), back = player.moving && !player.running && (keys.KeyS || keys.ArrowDown) && !(keys.KeyW || keys.ArrowUp);
-  hero.runW = damp2(hero.runW, player.dead ? 0 : player.running ? 1 : 0, 9, 5, dt);
-  hero.walkW = damp2(hero.walkW, player.dead ? 0 : player.moving && !player.running ? 1 : 0, 10, 5, dt);
-  // na troca andar↔correr os dois somam mais de 1 por um instante: normaliza (o resto vai para a pose base)
-  const legSum = hero.walkW + hero.runW, legK = legSum > 1 ? 1 / legSum : 1;
-  const walkN = hero.walkW * legK, runN = hero.runW * legK;
-  // velocidade do clipe suavizada (sem saltos ao mudar de velocidade; de costas passa suave pelo zero)
-  hero.walkTS = damp(hero.walkTS, clamp(speed / PLAYER.WALK, 0.45, 1.5) * (back ? -1 : 1), 6, dt);
-  hero.runTS = damp(hero.runTS, clamp(speed / PLAYER.RUN, 0.55, 1.4), 6, dt);
-  if (A.walk) { A.walk.setEffectiveWeight(A.run === A.walk ? walkN + runN : walkN); A.walk.timeScale = A.run === A.walk && runN > walkN ? hero.runTS : hero.walkTS; } // sem Running: o andar cobre os dois
-  if (A.run && A.run !== A.walk) { A.run.setEffectiveWeight(runN); A.run.timeScale = hero.runTS; }
-  // fase dos pés: enquanto os dois clipes se misturam, o mais fraco segue a fase do mais forte (o passo não pula)
-  if (A.walk && A.run && A.walk !== A.run && walkN > 0.01 && runN > 0.01) {
-    const lead = runN > walkN ? A.run : A.walk, fol = lead === A.run ? A.walk : A.run;
-    fol.time = phase(lead) * fol.getClip().duration;
+  // v11: locomoção por fase compartilhada. Antes o andar (clipe ~1,3 m/s) tocava no máx. 1,5× para 5,2 m/s:
+  // pés deslizando, passo lento e corpo "engessado". Agora:
+  //  • peso das pernas (loco) responde rápido ao WASD; a mistura andar→correr segue a velocidade REAL (player.spd);
+  //  • os dois clipes andam numa única fase (pé esquerdo/direito sempre juntos), com cadência casada com a velocidade;
+  //  • de lado o quadril gira para a direção do passo (tronco compensa e continua mirando); de costas o andar inverte.
+  const spd = player.dead ? 0 : player.spd || 0, moving = !player.dead && player.moving && spd > 0.25;
+  const mvAng = wrapAngle(Math.atan2(player.vx, player.vz) - G.yaw);
+  if (moving) hero.back = hero.back ? Math.abs(mvAng) > 1.75 : Math.abs(mvAng) > 1.95; // histerese
+  hero.loco = damp2(hero.loco, moving ? 1 : 0, 14, 8, dt);
+  const L = ease(clamp(hero.loco, 0, 1));
+  if (spd > 0.3) hero.blend = damp(hero.blend, clamp((spd - LOCO.B0) / (LOCO.B1 - LOCO.B0), 0, 1) * (hero.back ? 0.3 : 1), 7, dt);
+  const b = hero.blend;
+  const dW = A.walk ? A.walk.getClip().duration : 1, dR = A.run ? A.run.getClip().duration : 1;
+  const period = (dW / clamp(spd / LOCO.WALK_REF, 0.8, 2.3)) * (1 - b) + (dR / clamp(spd / LOCO.RUN_REF, 0.8, 1.6)) * b;
+  const ph0 = hero.ph;
+  if (L > 0.02) hero.ph = ((hero.ph + dt / period * (hero.back ? -1 : 1)) % 1 + 1) % 1;
+  // passos sincronizados com os pés da animação
+  if (moving && L > 0.5) for (const st of LOCO.STEPS) {
+    const crossed = hero.back ? (ph0 >= st && hero.ph < st) || (ph0 < hero.ph && (ph0 >= st || hero.ph < st)) : (ph0 < st && hero.ph >= st) || (hero.ph < ph0 && (ph0 < st || hero.ph >= st));
+    if (crossed) sfx.step(inWater(player.pos.x, player.pos.z) ? 'water' : player.running ? 'run' : 'walk', G.surface || '');
   }
+  const setT = (a, off) => { if (a) a.time = (((hero.ph + off) % 1 + 1) % 1) * a.getClip().duration; };
+  setT(A.walk, 0); if (A.run !== A.walk) setT(A.run, LOCO.RUN_OFS);
+  hero.walkW = A.run === A.walk ? L : L * (1 - b); hero.runW = A.run === A.walk ? 0 : L * b;
+  if (A.walk) A.walk.setEffectiveWeight(hero.walkW);
+  if (A.run && A.run !== A.walk) A.run.setEffectiveWeight(hero.runW);
+  const walkN = hero.walkW, runN = hero.runW;
+  // giro do quadril (strafe): de lado as pernas apontam para onde ela anda
+  const legT = moving ? clamp(hero.back ? wrapAngle(mvAng - Math.PI) : mvAng, -0.85, 0.85) : 0;
+  hero.legYaw = damp(hero.legYaw, legT, 10, dt);
   // tronco/braços: camadas com pesos normalizados (recarga > tiro > mira/base, soma ~1)
   hero.fireT -= dt;
   let fireSum = 0;
@@ -259,13 +276,19 @@ function updateHero(dt, mk) {
   if (A.idle) A.idle.setEffectiveWeight(base);
   // balanço do tronco ao andar/correr por cima da pose base (só ossos do tronco e braço esquerdo).
   // Peso extra acima de 1 nesses ossos: o mixer normaliza, então a respiração do idle cede espaço ao passo.
+  // v11: balanço bem mais presente (antes ~25% depois da normalização) e um pouco dele também mirando
   const swingFor = (up, leg, k) => {
     if (!up || !leg) return;
-    up.setEffectiveWeight(base * k); up.timeScale = leg.timeScale; up.time = leg.time;
+    up.setEffectiveWeight((base + aim * 0.35) * k); up.time = leg.time;
   };
-  swingFor(A.walkUp, A.walk, walkN * 0.35);
-  if (A.runUp !== A.walkUp) swingFor(A.runUp, A.run, runN * 0.55);
+  swingFor(A.walkUp, A.walk, (A.runUp === A.walkUp ? walkN + runN : walkN) * 0.8);
+  if (A.runUp !== A.walkUp) swingFor(A.runUp, A.run, runN * 1.1);
   hero.mixer.update(player.dead ? 0 : dt);
+  if (!player.dead && Math.abs(hero.legYaw) > 0.003 && hero.hips && hero.spine0) {
+    const ly = hero.legYaw * L;
+    rotWorld(hero.hips, _q2.setFromAxisAngle(_up, ly));
+    rotWorld(hero.spine0, _q2.setFromAxisAngle(_up, -ly * 0.9)); // tronco volta para a mira
+  }
   // inclina o tronco com a mira (pitch da câmera) + coice do disparo
   if (hero.spine && !player.dead) {
     const ang = G.pitch * 0.85 + armKick * 0.25 * mk - armSwap * 0.5;
@@ -319,7 +342,7 @@ export function applyUpgrades() {
     }
     if (i === 2) {
       w.size += 10 * upLevel('smgMag');
-      const st = upLevel('smgStab'); w.spread *= 1 - 0.2 * st; w.aimSpread *= 1 - 0.2 * st; w.kick *= 1 - 0.25 * st; w.xkick *= 1 - 0.25 * st;
+      const st = upLevel('smgStab'); w.spread *= 1 - 0.2 * st; w.aimSpread *= 1 - 0.2 * st; w.kick *= 1 - 0.25 * st; w.xkick *= 1 - 0.25 * st; w.bloom *= 1 - 0.2 * st;
       w.resMax += 30 * upLevel('bag');
     }
     w.mag = Math.min(mag, w.size); w.res = res === Infinity ? Infinity : Math.min(res, w.resMax ?? Infinity);
@@ -441,14 +464,19 @@ export function updatePlayer(dt) {
   if (ml > 1) { mx /= ml; mz /= ml; } // analógico: meio curso = meia velocidade
   player.moving = ml > 0.05; player.running = run && ml > 0;
   player.vx = mx * sp; player.vz = mz * sp;
-  player.pos.x += (mx * sp + player.kx) * dt; player.pos.z += (mz * sp + player.kz) * dt;
+  const ox = player.pos.x, oz = player.pos.z;
+  player.pos.x += mx * sp * dt; player.pos.z += mz * sp * dt;
+  resolve(player.pos, player.r);
+  // v11: velocidade real andada (parede/encosto reduzem) — usada pela animação; o empurrão (kx/kz) não conta
+  if (dt > 0) player.spd = damp(player.spd || 0, Math.min(Math.hypot(player.pos.x - ox, player.pos.z - oz) / dt, sp * Math.min(ml, 1)), 14, dt);
+  player.pos.x += player.kx * dt; player.pos.z += player.kz * dt;
   const k = Math.exp(-9 * dt); player.kx *= k; player.kz *= k;
   resolve(player.pos, player.r);
   pg.position.set(player.pos.x, 0, player.pos.z); pg.rotation.y = G.yaw;
   if (ml > 0) {
     const ph0 = player.phase; player.phase += dt * (run ? 13 : 9);
     // v5: passos — um som por pisada (cruzamento de fase), com variação por terreno/corrida
-    if (Math.floor(ph0 / Math.PI) !== Math.floor(player.phase / Math.PI)) sfx.step(inWater(player.pos.x, player.pos.z) ? 'water' : run ? 'run' : 'walk', G.surface || '');
+    if (!hero.ok && Math.floor(ph0 / Math.PI) !== Math.floor(player.phase / Math.PI)) sfx.step(inWater(player.pos.x, player.pos.z) ? 'water' : run ? 'run' : 'walk', G.surface || '');
   }
   const sw = ml > 0 ? Math.sin(player.phase) * 0.6 : 0;
   legL.rotation.x = sw; legR.rotation.x = -sw; torso.position.y = 1.25 + Math.abs(sw) * 0.04;
@@ -512,8 +540,11 @@ export function updateCamera(dt) {
   }
   camera.lookAt(look);
   // zoom de mira
-  const fov = G.aiming ? CAMERA.AIM_FOV : CAMERA.FOV;
-  if (Math.abs(camera.fov - fov) > 0.05) { camera.fov = damp(camera.fov, fov, 12, dt); camera.updateProjectionMatrix(); }
+  // v11: "soco" de FOV no disparo (abre e volta rápido), escalado pelo movimento reduzido
+  G.fovKick = damp(G.fovKick || 0, 0, 18, dt);
+  hero.fovBase = damp(hero.fovBase || CAMERA.FOV, G.aiming ? CAMERA.AIM_FOV : CAMERA.FOV, 12, dt);
+  const fov = hero.fovBase + G.fovKick * mk;
+  if (Math.abs(camera.fov - fov) > 0.01) { camera.fov = fov; camera.updateProjectionMatrix(); }
   recoil = damp(recoil, 0, 14, dt);
   // lanterna acompanha a inclinação da câmera
   torchT.position.set(0.38, 1.45 + Math.sin(G.pitch) * 12, 12);

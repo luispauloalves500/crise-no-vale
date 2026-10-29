@@ -1,13 +1,14 @@
 // combat.js — disparo, granadas, detecção de acertos, dano/abates, combo e itens (do mapa e drops).
 import * as THREE from 'three';
 import { scene, camera, castWorld, rayCircle, resolve, GLOW } from './world.js';
-import { PICKUPS, COMBO, PLAYER, GRENADE, INVENTORY, ARMOR, NOISE, EP } from './config.js';
+import { PICKUPS, COMBO, PLAYER, GRENADE, INVENTORY, ARMOR, NOISE, EP, AIM } from './config.js';
+import { pad } from './gamepad.js';
 import { SETTINGS } from './settings.js';
 import { G, addEp } from './state.js';
 import { player, weapons, arms, bag, curWeapon, startReload, muzzleFlash, gunTip, heal, switchWeapon, hurtPlayer, medMax, grenadeMax, resMax } from './player.js';
 import { enemies, enemyEvents, makeNoise } from './enemies.js';
 import { sfx, roar } from './audio.js';
-import { burst, tracer, decal, explosion, flourish, bloodBurst } from './fx.js';
+import { burst, tracer, decal, explosion, flourish, bloodBurst, impactFx, muzzleFx } from './fx.js';
 import * as ui from './ui.js';
 
 const SHOT_H = 1.25; // altura do tiro: passa por cima de caixas e pedras baixas
@@ -25,17 +26,52 @@ export function castAll(ox, oz, dx, dz, max) {
   return { t: best, e: hitE };
 }
 
-/** Ponto para onde a retícula (centro da tela) aponta, no plano XZ. */
+/** Ponto para onde a retícula (centro da tela) aponta, no plano XZ.
+ * v11: a direção vem da própria câmera (já com tremor/recuo), então o tiro sai exatamente para onde a retícula está. */
+const camDir = new THREE.Vector3();
 function aimRay() {
-  const fx = Math.sin(G.yaw), fz = Math.cos(G.yaw);
+  camera.getWorldDirection(camDir);
+  const l = Math.hypot(camDir.x, camDir.z);
+  const fx = l > 1e-4 ? camDir.x / l : Math.sin(G.yaw), fz = l > 1e-4 ? camDir.z / l : Math.cos(G.yaw);
   const cx = camera.position.x, cz = camera.position.z;
   const start = Math.max(0, (player.pos.x - cx) * fx + (player.pos.z - cz) * fz);
   const hit = castAll(cx + fx * start, cz + fz * start, fx, fz, 45);
-  return { fx, fz, tx: cx + fx * (start + hit.t), tz: cz + fz * (start + hit.t), e: hit.e };
+  return { fx, fz, tx: cx + fx * (start + hit.t), tz: cz + fz * (start + hit.t), e: hit.e, t: start + hit.t };
 }
 
+/**
+ * v11: assistência leve de mira — só mirando. Procura o inimigo vivo mais próximo do raio da retícula
+ * (folga lateral pequena além do corpo, cone estreito, com linha de visão) e devolve o ângulo até o centro dele.
+ */
+function assistTarget(base, range) {
+  if (!G.aiming) return null;
+  const slack = pad.connected && pad.aim ? AIM.ASSIST_R_PAD : AIM.ASSIST_R;
+  let best = null, bestMiss = Infinity;
+  for (const e of enemies) {
+    if (e.dead) continue;
+    const dx = e.pos.x - player.pos.x, dz = e.pos.z - player.pos.z, d = Math.hypot(dx, dz);
+    if (d < 1.2 || d > range) continue;
+    const ang = wrapA(Math.atan2(dx, dz) - base);
+    if (Math.abs(ang) > AIM.ASSIST_ANG + Math.atan(e.cfg.r / d)) continue;
+    const miss = d * Math.sin(Math.abs(ang)) - e.cfg.r * 0.8; // distância lateral do raio até a borda do corpo
+    if (miss > slack || miss >= bestMiss) continue;
+    if (castWorld(player.pos.x, player.pos.z, dx / d, dz / d, d, SHOT_H) < d - e.cfg.r) continue; // atrás de parede
+    best = { e, ang, d }; bestMiss = miss;
+  }
+  return best;
+}
+const wrapA = (a) => Math.atan2(Math.sin(a), Math.cos(a));
+/** Distribuição triangular em [-1, 1]: a maioria dos tiros cai perto do centro, a borda continua possível. */
+const tri = () => Math.random() + Math.random() - 1;
+
 const v1 = new THREE.Vector3(), v2 = new THREE.Vector3();
-let autoReloadT = 0;
+let autoReloadT = 0, bloom = 0;
+/** Dispersão atual (rad) da arma na mão — usada no tiro e no tamanho da retícula. */
+export function currentSpread() {
+  const w = curWeapon();
+  const move = player.running ? AIM.RUN : player.moving ? (G.aiming ? AIM.MOVE_AIM : AIM.MOVE_HIP) : 1;
+  return (G.aiming ? w.aimSpread : w.spread) * move + bloom * (G.aiming ? 0.7 : 1);
+}
 
 export function fire() {
   const w = curWeapon();
@@ -49,22 +85,28 @@ export function fire() {
   const aim = aimRay();
   let bx = aim.tx - player.pos.x, bz = aim.tz - player.pos.z; const bl = Math.hypot(bx, bz) || 1; bx /= bl; bz /= bl;
   if (bl < 1.5) { bx = aim.fx; bz = aim.fz; }
-  const base = Math.atan2(bx, bz);
+  let base = Math.atan2(bx, bz);
+  const spread = currentSpread();
+  // assistência: com a retícula no alvo, puxa para o centro; perto da borda, encosta o tiro no corpo
+  const as = assistTarget(base, w.range);
+  if (as) base += as.ang * (aim.e === as.e ? AIM.ASSIST_PULL * 0.6 : AIM.ASSIST_PULL);
+  bloom = Math.min(w.bloomMax || 0, bloom + (w.bloom || 0));
   gunTip.getWorldPosition(v1);
-  const spread = (G.aiming ? w.aimSpread : w.spread) * (player.moving && !G.aiming ? 1.5 : 1);
   const dmgBy = new Map();
   for (let p = 0; p < w.pellets; p++) {
-    const a = base + (Math.random() - 0.5) * 2 * spread, dx = Math.sin(a), dz = Math.cos(a);
+    // escopeta: leque estratificado (cada chumbo na sua fatia + variação) — padrão consistente, sem buracos grandes
+    const off = w.pellets > 1 ? ((p + 0.5 + (Math.random() - 0.5) * 0.9) / w.pellets - 0.5) * 2 : tri();
+    const a = base + off * spread, dx = Math.sin(a), dz = Math.cos(a);
     const h = castAll(player.pos.x, player.pos.z, dx, dz, w.range);
-    v2.set(player.pos.x + dx * h.t, v1.y, player.pos.z + dz * h.t);
-    if (p < 3 || Math.random() < 0.4) tracer(v1, v2);
+    v2.set(player.pos.x + dx * h.t, h.e ? 1.1 * h.e.cfg.scale : v1.y, player.pos.z + dz * h.t);
+    if (w.pellets === 1 || p % 2 === 0 || Math.random() < 0.3) tracer(v1, v2, w.tracer, w.pellets > 1 ? 0.7 : 1);
     if (h.e) {
       // escopeta: mais dano de perto
       const falloff = w.pellets > 1 ? Math.max(w.falloffMin || 0.45, 1 - Math.max(0, h.t - (w.falloffStart || 4)) / (w.falloffLen || 22)) : 1;
-      const prev = dmgBy.get(h.e) || { d: 0, dx: 0, dz: 0 };
-      prev.d += w.dmg * falloff; prev.dx += dx; prev.dz += dz; dmgBy.set(h.e, prev);
-      burst(v2.x, 1.1 * h.e.cfg.scale, v2.z, 'blood', 4, 3, dx, dz);
-    } else if (h.t < w.range) burst(v2.x, v1.y, v2.z, 'spark', 4, 2.5, -dx * 0.5, -dz * 0.5);
+      const prev = dmgBy.get(h.e) || { d: 0, dx: 0, dz: 0, x: 0, y: 0, z: 0, n: 0 };
+      prev.d += w.dmg * falloff; prev.dx += dx; prev.dz += dz; prev.x += v2.x; prev.y += v2.y; prev.z += v2.z; prev.n++; dmgBy.set(h.e, prev);
+      impactFx(v2.x, v2.y, v2.z, dx, dz, 'flesh', w.pellets > 1 ? 0.6 : 1);
+    } else if (h.t < w.range) impactFx(v2.x, v2.y, v2.z, dx, dz, 'world', w.pellets > 1 ? 0.55 : 1);
   }
   let anyKill = false, anyCrit = false;
   for (const [e, info] of dmgBy) {
@@ -76,18 +118,23 @@ export function fire() {
     const l = Math.hypot(info.dx, info.dz) || 1;
     if (damageEnemy(e, dmg, info.dx / l, info.dz / l, w.knock)) anyKill = true;
     anyCrit = anyCrit || crit;
-    ui.floater(crit || weak ? dmg + '!' : String(dmg), e.pos.x, 1.9 * e.cfg.scale, e.pos.z, (crit ? 'crit' : '') + (weak ? ' weak' : '') + (dmg >= 60 ? ' big' : ''));
+    // v11: número sai do ponto médio onde os tiros acertaram (alinhado com o impacto visível)
+    const hx = info.x / info.n, hz = info.z / info.n;
+    ui.floater(crit || weak ? dmg + '!' : String(dmg), hx, 1.9 * e.cfg.scale, hz, (crit ? 'crit' : '') + (weak ? ' weak' : '') + (dmg >= 60 ? ' big' : ''));
+    info.hx = hx; info.hy = info.y / info.n; info.hz = hz;
   }
   if (dmgBy.size) {
     G.hits++; ui.hitMarker(anyKill, anyCrit); anyKill ? sfx.kill() : anyCrit ? sfx.crit() : sfx.hit();
     if (anyKill || anyCrit) {
-      const [e0] = dmgBy.keys(); flourish(e0.pos.x, 1.3 * e0.cfg.scale, e0.pos.z, anyKill);
+      const [i0] = dmgBy.values(); flourish(i0.hx, i0.hy, i0.hz, anyKill);
       hitstop(anyKill ? 0.055 : 0.04);
     }
   }
   // v6: cada arma define clarão, coice, tremor, som, abertura da retícula e barulho
   muzzleFlash(w.flash, w.kick);
+  muzzleFx(v1, bx, bz, w.id);
   G.shake = Math.max(G.shake, w.shake);
+  G.fovKick = Math.max(G.fovKick || 0, w.fov || 0);
   (sfx[w.id] || sfx.pistol)();
   ui.kickCrosshair(w.xkick);
   makeNoise(player.pos.x, player.pos.z, w.noise); // tiros atraem quem está patrulhando
@@ -300,8 +347,16 @@ function updatePickups(dt) {
 export function updateCombat(dt) {
   if (autoReloadT > 0) { autoReloadT -= dt; if (autoReloadT <= 0 && G.state === 'play') startReload(); }
   if (G.comboT > 0) { G.comboT -= dt; if (G.comboT <= 0) G.combo = 0; }
-  ui.setCrossEnemy(G.state === 'play' && !!aimRay().e);
+  // v11: dispersão volta sozinha; retícula fica vermelha também quando a assistência pegaria o alvo
+  bloom *= Math.exp(-(curWeapon().bloomRec || 5) * dt);
+  if (G.state === 'play') {
+    const ar = aimRay(); let on = !!ar.e;
+    if (!on && G.aiming) on = !!assistTarget(Math.atan2(ar.tx - player.pos.x, ar.tz - player.pos.z), curWeapon().range);
+    ui.setCrossEnemy(on);
+    // retícula do tamanho real da dispersão (px na tela = ângulo / tan(meio FOV) × meia altura)
+    ui.setCrossGap(currentSpread() / Math.tan(camera.fov * Math.PI / 360) * innerHeight * 0.5);
+  } else ui.setCrossEnemy(false);
   updateGrenades(dt);
   updatePickups(dt);
 }
-export function resetCombat() { autoReloadT = 0; grenCool = 0; G.combo = 0; G.comboT = 0; clearGrenades(); }
+export function resetCombat() { autoReloadT = 0; bloom = 0; grenCool = 0; G.combo = 0; G.comboT = 0; clearGrenades(); }
