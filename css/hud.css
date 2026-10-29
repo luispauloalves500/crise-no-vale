@@ -71,6 +71,11 @@
 /* inventário */
 #inv{font-size:13px;margin-top:6px;color:#cdd}
 #inv b{color:#fff}
+#inv .w{margin-right:6px;white-space:nowrap;color:#9aa}
+#inv .w.cur{color:#f0d68a}
+#inv .w.cur b{color:#ffe9a0}
+#inv .w.off{color:#566}
+#inv .arm{color:#8fb8ff}
 #inv .key{color:#f0d68a;font-size:11px;border:1px solid #675;border-radius:3px;padding:0 3px;margin-left:2px}
 
 /* prompt de interação */

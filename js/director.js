@@ -93,7 +93,7 @@ function objective() {
 function spawnAreaContents(a) {
   const s = D.st[a.id];
   a.ambient.forEach((m, i) => { if (!s.dead.includes(i)) spawnEnemy(m.type, m.x, m.z, { alert: false, ambientIdx: i }); });
-  a.pickups.forEach((p) => { if (!s.taken.includes(p.id)) spawnPickup(p.kind, p.x, p.z, { id: p.id, y: p.kind === 'shotgun' ? 1.15 : 0.6 }); });
+  a.pickups.forEach((p) => { if (!s.taken.includes(p.id)) spawnPickup(p.kind, p.x, p.z, { id: p.id, y: p.kind === 'shotgun' ? 1.15 : p.kind === 'crate' ? 0.32 : 0.6 }); });
 }
 function setupSurvivor(a) {
   if (a.id !== 'patio') { hideSurvivor(); return; }
@@ -327,6 +327,11 @@ function interactables() {
   if (a.id === 'patio' && survivor.visible && !survivor.following && !F.heliCode) out.push({ kind: 'survivor', x: survivor.pos.x, z: survivor.pos.z });
   if (a.id === 'patio' && survivor.visible && F.heliCode && !D.event) out.push({ kind: 'talk', x: survivor.pos.x, z: survivor.pos.z });
   for (const l of a.refs.logs || []) out.push({ kind: 'log', x: l.x, z: l.z, l });
+  // v6: segredo — depois de ler o rádio da Tellus-2 (log9), dá para transmitir as provas no canal aberto
+  if (a.id === 'heliponto' && story.S.logs.has('log9') && !F.broadcast) {
+    const l = (a.refs.logs || []).find((x) => x.id === 'log9');
+    if (l) out.push({ kind: 'broadcast', x: l.x - 1.2, z: l.z - 0.9 });
+  }
   return out;
 }
 function nearestInteract() {
@@ -352,6 +357,9 @@ function promptFor(it) {
     case 'survivor': return { text: `Falar com ${survivor.name}` };
     case 'talk': return { text: `Conversar com ${survivor.name}` };
     case 'log': return { text: `Ler registro: ${story.LOGS[it.l.id].title}${story.S.logs.has(it.l.id) ? ' (lido)' : ''}` };
+    case 'broadcast':
+      if (!F.bossDead) return { text: '📻 Rádio de campo — o Colosso está perto demais para transmitir', locked: true };
+      return { text: '📻 Transmitir provas no canal aberto' };
   }
   return null;
 }
@@ -370,6 +378,14 @@ export function interact() {
   } else if (it.kind === 'talk') {
     story.clearSpeech(); story.sayOne('LIMA', story.POST_CODE[D.talkI++ % story.POST_CODE.length]);
   } else if (it.kind === 'log') readLog(it.l.id);
+  else if (it.kind === 'broadcast' && F.bossDead) broadcast();
+}
+/** v6: segredo — transmite as provas; muda o epílogo do final alternativo. */
+function broadcast() {
+  F.broadcast = true; G.score += 500; D.mapDirty = true;
+  sfx.objective(); ui.banner('CANAL ABERTO', 'Provas transmitidas para a costa inteira', 3);
+  ui.floater('+500 SEGREDO', player.pos.x, 2.6, player.pos.z, 'kill');
+  story.clearSpeech(); story.say(story.LINES.broadcast, 'broadcast', true);
 }
 const REVIVE_LINES = ['Obrigada... continua!', 'Estou bem, estou bem — vamos!', 'Essa foi perto. Não para!'];
 function readLog(id) {
@@ -391,7 +407,7 @@ function saveGame(term) {
   const off = 1.6, yaw = term.group.rotation.y;
   const at = { x: term.x + Math.sin(yaw) * off, z: term.z + Math.cos(yaw) * off, yaw: yaw + Math.PI };
   const data = {
-    v: 1, area: a.id, at, flags: { ...F, escort: false, bossFight: false }, st: D.st, enc: [...D.enc].filter((x) => !x.startsWith('escort')),
+    v: 2, area: a.id, at, // v6: v2 = 3 armas + colete (saves v1 são migrados em restoreBag) flags: { ...F, escort: false, bossFight: false }, st: D.st, enc: [...D.enc].filter((x) => !x.startsWith('escort')),
     bag: snapshotBag(), objectives: D.objectives, story: story.storySave(),
     stats: { score: G.score, kills: G.kills, shots: G.shots, hits: G.hits, elapsed: G.elapsed, saves: G.saves },
   };
@@ -594,7 +610,7 @@ export function endStats() {
   return {
     elapsed: G.elapsed, area: D.area ? D.area.name : '', score: G.score, visited: D.visited.size, total: AREAS.length,
     objectives: D.objectives, kills: G.kills, saves: G.saves, acc: G.shots ? Math.round(G.hits / G.shots * 100) : 0, rank: rank(),
-    logs: story.S.logs.size, logsTotal: story.TOTAL_LOGS,
+    logs: story.S.logs.size, logsTotal: story.TOTAL_LOGS, ending: story.ending(),
   };
 }
 /** Helicóptero de resgate: chega durante o evento e pousa na vitória (roda também no estado 'win'). */

@@ -74,8 +74,25 @@ export const LOGS = {
       '[impacto] [alarme do rotor] [estática]\n\nAs três caixas de amostras não estão nos destroços. Marcas enormes de garras levam até a borda do penhasco.',
     ],
   },
+  // ---------- v6: dois registros fora da estação — o que aconteceu com as caixas ----------
+  log8: {
+    area: 'pantano', title: 'CAIXA RAIZ-3 — MARGEM DO RIO', who: 'Etiqueta de transporte e anotação a caneta',
+    pages: [
+      'Etiqueta: "LOTE RAIZ-3 — MANTER REFRIGERADO — NÃO ABRIR SEM AUTORIZAÇÃO DO DIRETOR".\nA tampa foi arrancada de dentro para fora. O isopor está rasgado em tiras, e há pegadas pequenas, de três dedos, descendo para a água.',
+      'Anotação a caneta no verso, letra tremida: "Caiu do helicóptero na curva do rio. Fui buscar. Não era só amostra. Eram ovos.\nOs rastreadores das caixas 1 e 2 ainda dão sinal — descendo o rio, uns três quilômetros por dia. Na direção de Porto Anil."',
+    ],
+  },
+  log9: {
+    area: 'heliponto', title: 'RÁDIO DE CAMPO — TELLUS-2', who: 'Equipe de recuperação da Fundação Tellus',
+    pages: [
+      '[gravação automática] Tellus-2 para a base. Chegamos ao penhasco antes do resgate. O helicóptero do Brandt já era.\nRecuperamos o gravador de voo? Negativo. Prioridade continua sendo as caixas 1 e 2. A estação será lacrada como "acidente natural".',
+      '[gravação automática] Base para Tellus-2: as caixas seguem o rio até a captação de água de Porto Anil. Recuperem antes que alguém da cidade abra.\nSobre a agente do resgate e a doutora: não são problema nosso. Ainda.\n\n(O rádio ainda tem bateria. O canal aberto alcança a costa inteira.)',
+    ],
+  },
 };
 export const LOG_IDS = Object.keys(LOGS);
+/** v6: os 7 registros originais da estação (o caminho de 7 continua valendo para o epílogo "Rio abaixo"). */
+export const STATION_LOGS = ['log1', 'log2', 'log3', 'log4', 'log5', 'log6', 'log7'];
 export const TOTAL_LOGS = LOG_IDS.length;
 
 // estado da história (vai no save)
@@ -115,6 +132,12 @@ export const LINES = {
     ['LIMA', 'Rocha, a sirene da diretoria está tocando no laboratório inteiro! Eles vão esperar você na porta!', R]],
   lockdown_open: [['ROCHA', 'Lá vêm eles. Bem-vindos.']],
   mud: [['LIMA', 'Eles fazem ninho no lodo quente do pântano. Evite o meio das poças!', R]],
+  // v6
+  log8: [['ROCHA', 'Ovos... e duas caixas descendo o rio. Isso não acabou no vale.']],
+  log9: [['ROCHA', 'A Tellus vai enterrar tudo. A não ser que alguém ouça isto antes.']],
+  broadcast: [['ROCHA', 'A todos na frequência aberta: aqui é a agente Marina Rocha, do Grupo de Resgate Ambiental. Vou ler as provas.', R],
+    ['RADIO', '...chiado... Capitania de Porto Anil, recebido. Repita a parte das caixas no rio...', R],
+    ['LIMA', 'Agora é público. A Tellus não consegue mais apagar isso.', R]],
   intercept: [['RADIO', '...chiado... Tellus-2 para a base: achamos uma caixa RAIZ na margem do rio. Vazia. Arranhada por dentro.', R],
     ['RADIO', '...As outras duas seguiram correnteza abaixo. Ordem do conselho: o nome do Brandt não entra no relatório.', R],
     ['ROCHA', 'Doutora, ouviu isso? A Tellus já está no vale.'],
@@ -224,9 +247,23 @@ export function epilogue() {
   else if (S.logs.has('log5')) pages.push({ kicker: 'UMA SEMANA DEPOIS', title: 'MEIA VERDADE', text: 'A gravação de Brandt vira manchete, mas a Tellus diz que ele agiu sozinho e que a queda de energia foi acidente.\nSem a ordem de serviço do fusível, ninguém mais responde. O Projeto RAIZ "é encerrado" — no papel.' });
   else pages.push({ kicker: 'UMA SEMANA DEPOIS', title: 'VERSÃO OFICIAL', text: 'Sem provas, o relatório da Tellus fala em "acidente natural causado pela tempestade". O diretor Otávio Brandt é dado como desaparecido.\nO Projeto RAIZ muda de nome e de endereço.\n(As provas estavam pelo caminho: procure os registros do diretor e da manutenção.)' });
   if (S.said.has('intercept')) pages.push({ kicker: 'RÁDIO INTERCEPTADO', title: 'TELLUS-2', who: 'Gravação da Dra. Lima', radio: true, text: '"...achamos uma caixa RAIZ na margem do rio. Vazia. Arranhada por dentro... o nome do Brandt não entra no relatório."\nA gravação da Dra. Lima vai junto com o resto das provas. A Fundação Tellus nega que tivesse uma equipe no vale.' });
-  if (n === TOTAL_LOGS) pages.push({ kicker: 'ARQUIVO COMPLETO • 7/7', title: 'RIO ABAIXO', text: 'Com os sete registros, Lima monta o quebra-cabeça inteiro: as três caixas de amostras não estavam nos destroços. As marcas de garra levavam ao penhasco... e de lá, ao rio.\nEm algum lugar, rio abaixo, alguma coisa ainda está crescendo.' });
-  else pages.push({ kicker: 'FIM', title: `REGISTROS: ${n}/${TOTAL_LOGS}`, text: 'Ainda há partes da história escondidas na estação. Jogue de novo e leia todos os registros para descobrir o que aconteceu com as amostras do Projeto RAIZ.' });
+  const station = STATION_LOGS.every((id) => S.logs.has(id));
+  if (n === TOTAL_LOGS) {
+    // v6: final alternativo — com os 9 registros, o Garça-1 não volta para a costa: segue o rio
+    pages.push({ kicker: `ARQUIVO COMPLETO • ${n}/${TOTAL_LOGS}`, title: 'A FUGA DO VALE', text: 'Lima espalha os registros no colo: o manifesto, o diário, a ordem do fusível, a gravação do Brandt, a etiqueta da caixa RAIZ-3, o rádio da Tellus-2.\n"Eles não estão fugindo do vale, Rocha. Eles estão descendo o rio."' });
+    pages.push({ kicker: 'GARÇA-1 — DESVIO DE ROTA', title: 'CORRENTEZA', who: 'Agente Marina Rocha', text: 'O piloto protesta, mas vira o nariz para o leste. Sob a chuva, o rio é uma fita prateada cortando a selva.\nNa curva perto da cachoeira, a lanterna do helicóptero pega duas caixas abertas, encalhadas nas pedras — e pegadas de três dedos subindo o barranco.' });
+    if (S.said.has('broadcast')) pages.push({ kicker: 'CANAL ABERTO', title: 'A COSTA INTEIRA OUVIU', text: 'A transmissão do penhasco foi gravada por radioamadores de três cidades. Quando a Tellus tenta chamar a queda de energia de "acidente natural", as provas já estão nos jornais.\nPorto Anil fecha a captação de água ao amanhecer. Ninguém abre as caixas.' });
+    else pages.push({ kicker: 'PORTO ANIL — 06h10', title: 'SEM AVISO', text: 'Ninguém em Porto Anil foi avisado. A captação de água funciona normalmente ao amanhecer.\n(Havia um jeito de alertar a costa: o rádio de campo da Tellus-2, no heliponto, depois que o Colosso cai.)' });
+    pages.push({ kicker: 'FIM ALTERNATIVO', title: 'RIO ABAIXO — AMEAÇA VIVA', text: 'O vale ficou para trás, mas o Projeto RAIZ não ficou no vale.\nEm algum lugar rio abaixo, sem medo de nada e atraído por qualquer barulho, alguma coisa está crescendo — e agora Rocha sabe exatamente para onde ela vai.' });
+  } else if (station) {
+    pages.push({ kicker: `REGISTROS DA ESTAÇÃO • ${STATION_LOGS.length}/${STATION_LOGS.length}`, title: 'RIO ABAIXO', text: 'Com os sete registros da estação, Lima monta quase todo o quebra-cabeça: as três caixas de amostras não estavam nos destroços. As marcas de garra levavam ao penhasco... e de lá, ao rio.\nEm algum lugar, rio abaixo, alguma coisa ainda está crescendo.\n(Faltam ' + (TOTAL_LOGS - n) + ' registro(s) fora da estação — na margem do rio e no penhasco — para outro final.)' });
+  } else pages.push({ kicker: 'FIM', title: `REGISTROS: ${n}/${TOTAL_LOGS}`, text: 'Ainda há partes da história escondidas na estação. Jogue de novo e leia todos os registros para descobrir o que aconteceu com as amostras do Projeto RAIZ — e para outro final.' });
   return pages;
+}
+/** v6: qual final o jogador viu (título da tela de fim + linha de resumo). */
+export function ending() {
+  if (S.logs.size === TOTAL_LOGS) return { id: 'rio', title: 'RIO ABAIXO — AMEAÇA VIVA', line: 'O Garça-1 não voltou para a costa: seguiu o rio atrás das caixas do Projeto RAIZ.' + (S.said.has('broadcast') ? ' A costa inteira ouviu as provas.' : '') };
+  return { id: 'fuga', title: 'A FUGA DO VALE', line: 'A agente Rocha e a Dra. Lima deixaram o Vale Verde a bordo do Garça-1.' };
 }
 export function logPages(id) {
   const L = LOGS[id];

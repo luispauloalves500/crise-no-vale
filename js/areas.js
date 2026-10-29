@@ -137,6 +137,9 @@ export const AREAS = [
       { id: 'p3med', kind: 'med', x: 18, z: 14 },
       { id: 'p3ammo', kind: 'ammo', x: -18, z: -12 },
       { id: 'p3gren', kind: 'grenade', x: -14, z: 15.2 }, // dentro da sala da diretoria
+      // v6: submetralhadora caída junto ao anexo leste (atrás do caminhão de suprimentos) e um pente extra
+      { id: 'p3smg', kind: 'smg', x: 20, z: -6 },
+      { id: 'p3smgammo', kind: 'smgammo', x: 4, z: 8 },
     ],
     ambient: [{ type: 'spitter', x: 12, z: -10 }, { type: 'spitter', x: -12, z: -6 }, { type: 'raptor', x: 16, z: 2 }, { type: 'brute', x: -4, z: -12 }],
     logs: [{ id: 'log3', x: 21.5, z: 17, yaw: -Math.PI / 2 }, { id: 'log5', x: -20.4, z: 15.4, yaw: Math.PI / 2 }],
@@ -200,9 +203,10 @@ export const AREAS = [
       { id: 'p4ammo2', kind: 'ammo', x: -14, z: 12 },
       { id: 'p4med', kind: 'med', x: -6, z: -6 },
       { id: 'p4gren', kind: 'grenade', x: 12, z: 12 },
+      { id: 'p4crate', kind: 'crate', x: 20, z: 10 }, // v6: caixa de suprimentos brilhante
     ],
     ambient: [{ type: 'raptor', x: 0, z: 8 }, { type: 'raptor', x: -10, z: -10 }, { type: 'spitter', x: -16, z: 0 }, { type: 'spitter', x: 8, z: -8 }, { type: 'raptor', x: -18, z: 12 }],
-    logs: [{ id: 'log4', x: -19.4, z: -2.6, yaw: -Math.PI / 2 }],
+    logs: [{ id: 'log4', x: -19.4, z: -2.6, yaw: -Math.PI / 2 }, { id: 'log8', x: 21, z: -15.5, yaw: -Math.PI / 2 }], // v6: log8 na margem leste
     encounters: [
       // v5: "A lama ferve" — perto da poça central, dois raptores saem de dentro da lama (bolhas e ronco avisam antes)
       { id: 'pantano-lama', on: 'zone', zone: { x: -2, z: -2, r: 6.5 }, beat: 'mud', msg: 'A lama está fervendo — tem algo embaixo!',
@@ -235,6 +239,9 @@ export const AREAS = [
       // lâmpadas apagadas até restaurar a energia
       const lamps = [W.lamp(ctx, -20, -4.5, 0x90ffb0, 'steady', 26), W.lamp(ctx, -8, -12, 0xc0ffa0), W.lamp(ctx, 6, 6, 0xc0ffa0), W.lamp(ctx, 18, -4, 0xc0ffa0)];
       lamps.forEach((L) => { L.on = false; });
+      // v6: caixa RAIZ arrebentada na margem leste, junto ao registro 8 (só visual, sem colisão)
+      const raiz = W.boxMesh(MATS.rust, 1.3, 0.7, 0.9); raiz.position.set(22.6, 0.3, -16.6); raiz.rotation.set(0.25, 0.7, 0.15); ctx.group.add(raiz);
+      const lid = W.boxMesh(MATS.metal, 1.3, 0.08, 0.9); lid.position.set(23.4, 0.05, -14.6); lid.rotation.y = -0.4; ctx.group.add(lid);
       const term = W.terminal(ctx, -20.5, 3, -Math.PI / 2, 0xffb040);
       return { doors: { E: W.doorway(ctx, 'E', 0, b) }, terminals: [{ id: 'generator', kind: 'generator', ...term, x: -20.5, z: 3 }], powerLamps: lamps, exhaust };
     },
@@ -253,6 +260,10 @@ export const AREAS = [
       { id: 'p5med', kind: 'med', x: 18, z: 16 },
       { id: 'p5gren', kind: 'grenade', x: -4, z: -18 },
       { id: 'p5ammo2', kind: 'ammo', x: 10, z: 4 },
+      // v6: colete no canto do galpão oeste, pente de submetralhadora e caixa de suprimentos
+      { id: 'p5vest', kind: 'vest', x: -14, z: -4 },
+      { id: 'p5smgammo', kind: 'smgammo', x: -2, z: 15 },
+      { id: 'p5crate', kind: 'crate', x: 12, z: -14 },
     ],
     ambient: [{ type: 'raptor', x: 10, z: -10 }, { type: 'raptor', x: -10, z: -4 }, { type: 'spitter', x: 16, z: -18 }, { type: 'raptor', x: 0, z: -14 }],
     survivor: { x: -18, z: 16, name: 'Dra. Lima' },
@@ -308,9 +319,10 @@ export const AREAS = [
     pickups: [
       { id: 'p6ammo', kind: 'ammo', x: -18, z: 14 }, { id: 'p6ammo2', kind: 'ammo', x: 18, z: 14 },
       { id: 'p6med', kind: 'med', x: -20, z: 0 }, { id: 'p6gren', kind: 'grenade', x: 20, z: 0 },
+      { id: 'p6crate', kind: 'crate', x: -12, z: 15 }, // v6
     ],
     ambient: [],
-    logs: [{ id: 'log7', x: 6.6, z: -19.2, yaw: 0.3 }],
+    logs: [{ id: 'log7', x: 6.6, z: -19.2, yaw: 0.3 }, { id: 'log9', x: -19.5, z: -12, yaw: Math.PI / 2 }], // v6: log9 = rádio de campo da Tellus-2
     helipad: { x: 0, z: -15, r: 4 },
     encounters: [
       { id: 'boss', on: 'enter', first: true, delay: 1.5, boss: true, msg: 'O COLOSSO bloqueia o heliponto!', spawn: [{ type: 'colossus', x: 0, z: -8 }] },
@@ -338,6 +350,9 @@ export const AREAS = [
       const heli = W.helicopter(false); heli.group.visible = false; ctx.group.add(heli.group);
       W.lamp(ctx, -12, -15, 0xff3020, 'pulse', 30, 3); W.lamp(ctx, 12, -15, 0xff3020, 'pulse', 30, 3); W.lamp(ctx, -16, 10, 0xffa060); W.lamp(ctx, 16, 10, 0xffa060);
       W.lamp(ctx, 0, -20, 0xfff0c0, 'steady', 18, 3);
+      // v6: rádio de campo da equipe Tellus-2 (antena fina + caixa), ao lado do registro 9
+      const rbox = W.boxMesh(MATS.dark, 0.7, 0.45, 0.5); rbox.position.set(-21, 0.23, -13.2); ctx.group.add(rbox);
+      const ant = W.boxMesh(MATS.metal, 0.04, 1.8, 0.04); ant.position.set(-21.2, 1.3, -13.3); ctx.group.add(ant);
       return { doors: { W: W.doorway(ctx, 'W', -10, b) }, terminals: [], heli, wreck };
     },
   },
