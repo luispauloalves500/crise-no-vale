@@ -9,6 +9,7 @@ import { survivor, hurtSurvivor } from './npc.js';
 import { roar, sfx } from './audio.js';
 import { burst, decal, shockwave, telegraph, laneHandle, setLane, hideLane } from './fx.js';
 import { rand, lerpAngle, noiseTex } from './utils.js';
+import { lodLevel } from './lod.js';
 
 export const enemies = [];
 export const spits = [];
@@ -134,7 +135,10 @@ function buildDino(type) {
 
   g.scale.setScalar(T.scale);
   const em0 = mats.map((m) => (m.emissive ? m.emissive.getHex() : 0));
-  return { type, g, body, head, jaw, tail, tail2, legs, frill, mats, em0, eyeM, eyeGlow, bar, barFg: fg };
+  // v9: listas do LOD — meshes que projetam sombra e detalhes finos (dentes/garras) que somem de longe
+  const shadowMeshes = [], fine = [];
+  g.traverse((o) => { if (!o.isMesh) return; if (o.castShadow) shadowMeshes.push(o); if (o.material === toothM) fine.push(o); });
+  return { type, g, body, head, jaw, tail, tail2, legs, frill, mats, em0, eyeM, eyeGlow, bar, barFg: fg, shadowMeshes, fine };
 }
 
 // ---------- pool de inimigos (raptor / cuspidor / bruto). O Colosso é único e não entra no pool ----------
@@ -383,18 +387,45 @@ function updateEnemy(e, dt) {
   if (e.frill) { const s = e.spitT > 0 ? 1 : 0.5; e.frill.scale.x += (s - e.frill.scale.x) * Math.min(1, dt * 12); e.frill.scale.z = e.frill.scale.x; }
   const fl = e.flashT > 0 ? 0xaa2020 : ((e.windup > 0 || e.stomp > 0) && Math.floor(t * 16) % 2 ? 0x663300 : (T.boss && e.stun > 0 ? 0x223355 : 0));
   e.mats.forEach((m) => m.emissive && m.emissive.setHex(fl));
-  // barra de vida
-  if (e.hp < e.maxHp && !T.boss) {
+  // barra de vida (v9: some de longe — LOD nível ≥ 2)
+  if (e.hp < e.maxHp && !T.boss && !(e.lodLv >= 2)) {
     e.bar.visible = true; e.bar.position.set(e.pos.x, 2.6 * T.scale + (e.type === 'spitter' ? 0.3 : 0), e.pos.z);
     e.bar.quaternion.copy(camera.quaternion);
     const f = Math.max(0, e.hp / e.maxHp); e.barFg.scale.x = 0.96 * f; e.barFg.position.x = -0.48 * (1 - f);
     e.barFg.material.color.setHex(f > 0.5 ? 0xffb030 : 0xff3020);
     e.bar.scale.setScalar(T.shape === 'brute' ? 1.6 : 1);
-  }
+  } else if (e.bar.visible && e.lodLv >= 2) e.bar.visible = false;
+}
+
+// ---------- v9: LOD dos inimigos ----------
+// nível 0: completo com sombra · 1: sem sombra · 2: sem dentes/garras e sem barra · 3: sem brilho dos olhos.
+// O chefe nunca perde detalhe. A IA de quem ainda NÃO percebeu o jogador e está longe roda a cada 2 (nível 2)
+// ou 4 (nível 3) quadros com o dt acumulado — quem está alerta sempre roda todo quadro.
+export const enemyLodStats = { full: 0, reduced: 0, skipped: 0 };
+function applyEnemyLod(e, lv) {
+  e.lodLv = lv;
+  const sh = lv === 0;
+  for (const m of e.shadowMeshes) m.castShadow = sh;
+  const fine = lv < 2; for (const m of e.fine) m.visible = fine;
+  const eyes = lv < 3; for (const s of e.eyeGlow) s.visible = eyes;
 }
 
 export function updateEnemies(dt) {
-  for (const e of enemies) updateEnemy(e, dt);
+  enemyLodStats.full = enemyLodStats.reduced = enemyLodStats.skipped = 0;
+  for (const e of enemies) {
+    const lv = e.cfg.boss ? 0 : lodLevel(e.pos.x, e.pos.z, e.lodLv ?? -1);
+    if (lv !== e.lodLv) applyEnemyLod(e, lv);
+    if (lv >= 2 && !e.alert && !e.dead) {
+      const every = lv === 3 ? 4 : 2;
+      e.lodAcc = (e.lodAcc || 0) + dt;
+      e.lodSkip = (e.lodSkip || 0) + 1;
+      if (e.lodSkip < every) { enemyLodStats.skipped++; continue; }
+      const adt = Math.min(e.lodAcc, 0.12); e.lodSkip = 0; e.lodAcc = 0;
+      updateEnemy(e, adt); enemyLodStats.reduced++; continue;
+    }
+    e.lodAcc = 0; e.lodSkip = 0;
+    updateEnemy(e, dt); enemyLodStats.full++;
+  }
   for (let i = enemies.length - 1; i >= 0; i--) if (enemies[i].remove) enemies.splice(i, 1);
   // separação entre inimigos
   for (let i = 0; i < enemies.length; i++) for (let j = i + 1; j < enemies.length; j++) {

@@ -18,6 +18,7 @@ import { D, startCampaign, updateDirector, updateHeli, hudData, interact, hasSav
 import { readSave } from './state.js';
 import { quality, setQualityMode, autoQualityTick, applyQualityNow, onQuality, MODE_LABEL, PRESETS } from './quality.js';
 import { nextFrame, idleBusy } from './idle.js';
+import { updateLod, lodStats, forceLod } from './lod.js';
 import * as story from './story.js';
 import { initPost, render, toggleBloom, post } from './post.js';
 import * as ui from './ui.js';
@@ -76,6 +77,9 @@ loadSettings(); setVolumes(SETTINGS);
 const padLabel = () => (pad.connected ? '— conectado' : SETTINGS.gamepad ? '— conecte e aperte um botão' : '');
 const refreshSettingsUI = () => ui.updateSettingsUI(SETTINGS, padLabel());
 onSettings(() => { setVolumes(SETTINGS); refreshSettingsUI(); });
+// v9: o ajuste "Movimento reduzido" também desliga as animações CSS do menu/pausa (body.rm).
+const syncRm = () => document.body.classList.toggle('rm', !!SETTINGS.reducedMotion);
+syncRm(); onSettings(syncRm);
 ui.bindSettings((k, v) => setSetting(k, v), () => { resetSettings(); ui.feed('Ajustes restaurados', '#cde'); });
 refreshSettingsUI();
 addEventListener('gamepadconnected', () => { setTimeout(refreshSettingsUI, 50); if (SETTINGS.gamepad) ui.feed('Controle conectado', '#cde'); });
@@ -164,6 +168,8 @@ function loop() {
   if (inGame) { const [k, m] = ambienceNow(); setAmbience(k, m); } else setAmbience('menu');
   setMuffle(G.state === 'pause' || G.state === 'story');
   if (G.state === 'menu' || story.cinematic()) menuCamera(dt); else if (G.state !== 'pause') updateCamera(dt);
+  // v9: LOD por distância da câmera (cenário a ~6 Hz; inimigos leem o nível em updateEnemies)
+  updateLod(dt, D.area ? D.area.ctx : null);
   const h = D.area ? hudData() : EMPTY;
   ui.updateHUD(dt, {
     camera, player, weapon: curWeapon(), weapons, cur: arms.cur, reloading: arms.reloading, reloadTotal: arms.reloadTotal, moving: player.moving,
@@ -248,6 +254,8 @@ window.__game = {
   hero: heroInfo, // v8: modelo GLB da Marina
   // v4: desempenho
   quality, setQuality: (m) => { setQualityMode(m); refreshQualityUI(); }, PRESETS, poolStats, streamStats, bounds, hudStats: ui.hudStats,
+  // v9: LOD
+  lodStats, forceLod,
   areas: () => AREAS.map((a) => ({ id: a.id, built: isBuilt(a), builds: a.builds || 0, unloads: a.unloads || 0 })),
   renderInfo: () => ({ calls: renderer.info.render.calls, triangles: renderer.info.render.triangles, programs: renderer.info.programs.length, geometries: renderer.info.memory.geometries, textures: renderer.info.memory.textures, pixelRatio: renderer.getPixelRatio(), shadowMap: renderer.shadowMap.type }),
 };

@@ -481,7 +481,10 @@ export function updateCamera(dt) {
   G.shake *= Math.exp(-6 * dt);
 }
 /** Câmera do menu: órbita lenta ao redor do centro. */
+// v9: no menu a Marina respira no idle, mas o mixer roda a ~15 Hz (economiza o esqueleto inteiro a cada quadro)
+let menuAnimT = 0;
 export function menuCamera(dt) {
   G.yaw += dt * 0.15; G.pitch = -0.12;
+  if (G.state === 'menu' && hero.ok && !player.dead) { menuAnimT += dt; if (menuAnimT >= 1 / 15) { hero.mixer.update(Math.min(menuAnimT, 0.2)); menuAnimT = 0; } }
   updateCamera(dt);
 }

@@ -5,6 +5,7 @@ import * as THREE from 'three';
 import * as W from './world.js';
 import { mulberry32, labelTex } from './utils.js';
 import { WORLD } from './config.js';
+import { collectLod } from './lod.js';
 
 const { MATS } = W;
 
@@ -606,6 +607,7 @@ export function buildArea(a) {
   // placas com o destino em cada portão
   a.doors.forEach((d) => { const ref = a.refs.doors[d.id]; if (ref) W.doorSign(ref, '→ ' + AREA[d.to].name, DIR[d.side]); });
   W.applyShadowTiers(a.ctx.group);
+  collectLod(a.ctx);   // v9: LOD por distância (js/lod.js)
   a.builds = (a.builds || 0) + 1;
   for (const fn of builtHooks) fn(a);
   return performance.now() - t0;
