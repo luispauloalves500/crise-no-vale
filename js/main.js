@@ -12,8 +12,9 @@ import { player, bag, events, resetPlayer, updatePlayer, updateCamera, menuCamer
 import { enemies, spawnEnemy, updateEnemies, clearEnemies, prewarmEnemies, poolStats } from './enemies.js';
 import { fire, throwGrenade, updateCombat, clearPickups, pickups, damageEnemy } from './combat.js';
 import { updateSurvivor, hideSurvivor, survivor } from './npc.js';
+import { updateBrandt, hideBrandt, brandt } from './brandt.js';
 import { AREAS, AREA, buildArea, builtCount, isBuilt } from './areas.js';
-import { D, startCampaign, updateDirector, updateHeli, hudData, interact, hasSave, setWinHandler, endStats, currentObjective, debugGoto, warmArea, streamStats, ambienceNow } from './director.js';
+import { D, startCampaign, updateDirector, updateHeli, hudData, interact, hasSave, setWinHandler, endStats, currentObjective, debugGoto, debugFlags, warmArea, streamStats, ambienceNow } from './director.js';
 import { readSave } from './state.js';
 import { quality, setQualityMode, autoQualityTick, applyQualityNow, onQuality, MODE_LABEL, PRESETS } from './quality.js';
 import { nextFrame, idleBusy } from './idle.js';
@@ -42,11 +43,11 @@ function startGame(fromSave) {
 function endGame(win) {
   if (G.state !== 'play') return;
   setState(win ? 'win' : 'over'); endT = win ? 2.4 : 2.2; clearInput(); ui.toggleMap(false);
-  if (win) { ui.banner('RESGATE!', 'O helicóptero pousa no penhasco', 3); sfx.win(); }
+  if (win) { ui.banner('RESGATE!', D.area && D.area.id === 'ninho' ? 'O Garça-1 pousa na clareira do ninho' : 'O helicóptero pousa no penhasco', 3); sfx.win(); }
 }
 function showEnd() {
   // vitória: epílogo (muda conforme os registros encontrados) antes da tela de pontos
-  if (G.state === 'win' && !story.cardOpen()) { story.clearSpeech(); story.showCard(story.epilogue(), finishEnd, { full: true }); return; }
+  if (G.state === 'win' && !story.cardOpen()) { story.clearSpeech(); story.showCard(story.epilogue(D.flags), finishEnd, { full: true }); return; }
   finishEnd();
 }
 function finishEnd() {
@@ -64,7 +65,7 @@ function setPause(p) {
   }
 }
 function toMenu() {
-  setState('menu'); story.clearSpeech(); clearEnemies(); clearPickups(); clearFx(); ui.clearFloaters(); ui.clearMessages(); hideSurvivor(); resetPlayer(); ui.setFade(0);
+  setState('menu'); story.clearSpeech(); clearEnemies(); clearPickups(); clearFx(); ui.clearFloaters(); ui.clearMessages(); hideSurvivor(); hideBrandt(); resetPlayer(); ui.setFade(0);
   ui.setHasSave(hasSave()); ui.showScreen('menu'); unlockPointer();
 }
 events.onDeath = () => endGame(false);
@@ -138,6 +139,7 @@ function update(dt) {
     if (G.state === 'play' && (mouse.down || keys.Space || pad.fire) && !D.trans) fire();
     updateEnemies(dt);
     updateSurvivor(dt);
+    updateBrandt(dt);
     updateCombat(dt);
     updateHeli(dt);
     if (G.state === 'play') updateDirector(dt);
@@ -235,7 +237,7 @@ window.__game = {
   get state() { return G.state; }, get hp() { return player.hp; }, get area() { return D.area && D.area.id; },
   get enemies() { return enemies.length; }, get objective() { return currentObjective(); },
   get flags() { return D.flags; }, D, list: enemies, damageEnemy, player, bag, survivor, G, startGame, fire, spawnEnemy, interact, throwGrenade,
-  goto: (id) => debugGoto(id), story, post,
+  goto: (id) => debugGoto(id), setFlags: debugFlags, brandt, story, post,
   // v5: áudio
   get ambience() { return ambienceState(); }, get muted() { return isMuted(); }, toggleMute,
   // v6: ajustes, controle e armas

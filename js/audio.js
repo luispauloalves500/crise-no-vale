@@ -110,9 +110,13 @@ const AMB = {
   pantano:   { rain: 0.55, wind: 0.3, insects: 1.0, sea: 0,   hum: 0,    alarm: 0,   tension: 0.1 },
   patio:     { rain: 0.7, wind: 0.6, insects: 0.25, sea: 0,   hum: 0.35, alarm: 0,   tension: 0.1 },
   heliponto: { rain: 0.9, wind: 1.0, insects: 0,    sea: 0.25, hum: 0,   alarm: 0,   tension: 0.6 },
+  // v7 — Ato 2 (+ rio: correnteza; respiração: pulso grave do ninho)
+  margem:      { rain: 0.6, wind: 0.5, insects: 0.8, sea: 0.3, hum: 0,   alarm: 0,   tension: 0.15, river: 1.0, breath: 0 },
+  acampamento: { rain: 0.7, wind: 0.4, insects: 0.4, sea: 0,   hum: 0.8, alarm: 0.2, tension: 0.25, river: 0.35, breath: 0 },
+  ninho:       { rain: 0.3, wind: 0.3, insects: 0.2, sea: 0,   hum: 0,   alarm: 0,   tension: 0.7, river: 0.5, breath: 1.0 },
   menu:      { rain: 0.7, wind: 0.6, insects: 0.1,  sea: 0.5, hum: 0,    alarm: 0,   tension: 0 },
 };
-const BASE = { rain: 0.06, wind: 0.09, insects: 0.018, sea: 0.08, hum: 0.035, alarm: 0.022, tension: 0.07 };
+const BASE = { rain: 0.06, wind: 0.09, insects: 0.018, sea: 0.08, hum: 0.035, alarm: 0.022, tension: 0.07, river: 0.07, breath: 0.06 };
 let ambKey = 'menu', ambMods = {}, ambLast = '';
 function loopSrc(buf) { const s = actx.createBufferSource(); s.buffer = buf; s.loop = true; s.start(0, Math.random() * 1.5); return s; }
 function lfo(freq, depth, target) { const o = actx.createOscillator(); o.frequency.value = freq; const g = actx.createGain(); g.gain.value = depth; o.connect(g).connect(target); o.start(); return o; }
@@ -149,6 +153,14 @@ function buildAmbience() {
   { [55, 55.8, 82.4].forEach((fq, i) => { const o = actx.createOscillator(); o.type = 'sawtooth'; o.frequency.value = fq; const f = actx.createBiquadFilter(); f.type = 'lowpass'; f.frequency.value = 240;
       const g = actx.createGain(); g.gain.value = i === 2 ? 0.25 : 0.5; o.connect(f).connect(g).connect(L.tension); o.start(); });
     const a = actx.createGain(); a.gain.value = 0.75; L.tension.disconnect(); L.tension.connect(a).connect(ambBus); lfo(0.5, 0.25, a.gain); }
+  // v7: rio — ruído rosado/marrom contínuo com banda média que oscila (correnteza)
+  L.river = mk();
+  { const s = loopSrc(brownB), f = actx.createBiquadFilter(); f.type = 'bandpass'; f.frequency.value = 900; f.Q.value = 0.6; s.connect(f).connect(L.river); lfo(0.23, 260, f.frequency);
+    const s2 = loopSrc(noiseB), f2 = actx.createBiquadFilter(); f2.type = 'highpass'; f2.frequency.value = 3800; const g2 = actx.createGain(); g2.gain.value = 0.25; s2.connect(f2).connect(g2).connect(L.river); }
+  // v7: respiração do ninho — ruído grave que sobe e desce devagar
+  L.breath = mk();
+  { const s = loopSrc(brownB), f = actx.createBiquadFilter(); f.type = 'lowpass'; f.frequency.value = 260; f.Q.value = 3; s.connect(f);
+    const a = actx.createGain(); a.gain.value = 0.5; f.connect(a).connect(L.breath); lfo(0.18, 0.5, a.gain); lfo(0.18, 120, f.frequency); }
 }
 function applyAmbience(instant) {
   if (!actx || !L.rain) return;
@@ -160,6 +172,8 @@ function applyAmbience(instant) {
   if (m.lockdown) { target.alarm = 1.6; target.tension = Math.max(target.tension, 0.8); }
   if (m.boss) { target.tension = 1.4; target.wind = Math.max(target.wind, 0.8); }
   if (m.escort) target.tension = Math.max(target.tension, 0.45);
+  if (m.hack) { target.alarm = Math.max(target.alarm, 1.4); target.hum = Math.max(target.hum, 1.0); target.tension = Math.max(target.tension, 0.6); }
+  if (m.boss && ambKey === 'ninho') { target.breath = 1.6; target.tension = 1.5; }
   if (m.rescue) target.tension = Math.max(target.tension, 0.9);
   for (const k in L) {
     const v = (target[k] || 0) * BASE[k];
@@ -255,9 +269,9 @@ export const sfx = {
     const r = 0.85 + Math.random() * 0.3, v = kind === 'run' ? 0.1 : 0.06;
     if (kind === 'water') {
       noise(0.22, 1600 * r, 300, v * 1.6, 'bandpass'); noise(0.12, 600 * r, 200, v, 'lowpass', 0.03, false, brownB);
-    } else if (surface === 'pantano') {
+    } else if (surface === 'pantano' || surface === 'margem') {
       noise(0.16, 700 * r, 150, v * 1.2, 'lowpass', 0, false, brownB); noise(0.08, 2200 * r, 900, v * 0.4, 'bandpass', 0.02);
-    } else if (surface === 'ruinas') {
+    } else if (surface === 'ruinas' || surface === 'ninho') {
       noise(0.07, 2600 * r, 700, v * 1.1, 'bandpass'); tone(180 * r, 120, 0.05, 'triangle', v * 0.3);
     } else if (surface === 'porto') {
       noise(0.09, 1300 * r, 250, v * 1.1, 'bandpass'); tone(110 * r, 70, 0.07, 'sine', v * 0.6); // tábuas/areia molhada
