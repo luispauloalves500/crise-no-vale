@@ -15,11 +15,12 @@ const KEY = 'crise-no-vale-quality';
  * shadowSmall     entulho e pequenos objetos projetam sombra
  * shadowMid       postes, equipamentos de telhado, terminais e pilares projetam sombra
  * stream          descarrega áreas que não são a atual nem vizinhas
+ * fx              v6: multiplicador de partículas; fxRich liga os floreios pesados (anéis de crítico, fumaça extra)
  */
 export const PRESETS = {
-  baixo: { id: 'baixo', label: 'Baixo', shadowSize: 512, softShadows: false, pixelRatio: 1.0, rain: 250, fireflies: 40, bloom: false, groundTex: 256, lamps: 4, spots: 1, lampDist: 0.75, shadowFar: false, shadowSmall: false, shadowMid: false, stream: true },
-  medio: { id: 'medio', label: 'Médio', shadowSize: 1024, softShadows: true, pixelRatio: 1.25, rain: 500, fireflies: 80, bloom: true, groundTex: 512, lamps: 6, spots: 2, lampDist: 1, shadowFar: false, shadowSmall: false, shadowMid: true, stream: true },
-  alto: { id: 'alto', label: 'Alto', shadowSize: 2048, softShadows: true, pixelRatio: 1.75, rain: 900, fireflies: 140, bloom: true, groundTex: 512, lamps: 6, spots: 2, lampDist: 1, shadowFar: true, shadowSmall: true, shadowMid: true, stream: false },
+  baixo: { id: 'baixo', label: 'Baixo', shadowSize: 512, softShadows: false, pixelRatio: 1.0, rain: 250, fireflies: 40, bloom: false, groundTex: 256, lamps: 4, spots: 1, lampDist: 0.75, shadowFar: false, shadowSmall: false, shadowMid: false, stream: true, fx: 0.55, fxRich: false },
+  medio: { id: 'medio', label: 'Médio', shadowSize: 1024, softShadows: true, pixelRatio: 1.25, rain: 500, fireflies: 80, bloom: true, groundTex: 512, lamps: 6, spots: 2, lampDist: 1, shadowFar: false, shadowSmall: false, shadowMid: true, stream: true, fx: 0.85, fxRich: true },
+  alto: { id: 'alto', label: 'Alto', shadowSize: 2048, softShadows: true, pixelRatio: 1.75, rain: 900, fireflies: 140, bloom: true, groundTex: 512, lamps: 6, spots: 2, lampDist: 1, shadowFar: true, shadowSmall: true, shadowMid: true, stream: false, fx: 1, fxRich: true },
 };
 export const MODES = ['auto', 'baixo', 'medio', 'alto'];
 export const MODE_LABEL = { auto: 'Auto', baixo: 'Baixo', medio: 'Médio', alto: 'Alto' };

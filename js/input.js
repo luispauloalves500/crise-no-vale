@@ -2,6 +2,7 @@
 import { G } from './state.js';
 import { CAMERA } from './config.js';
 import { clamp } from './utils.js';
+import { SETTINGS } from './settings.js';
 
 export const keys = {};
 export const mouse = { down: false, right: false, locked: false };
@@ -45,14 +46,17 @@ export function initInput(cvs, h) {
   addEventListener('mousemove', (e) => {
     if (G.state !== 'play') return;
     // com pointer lock usa movementX/Y; sem lock ainda funciona enquanto o cursor se move na janela
-    const s = G.aiming ? CAMERA.AIM_SENS : CAMERA.SENS;
+    // v6: sensibilidade do jogador e inverter Y (ajustes)
+    const s = (G.aiming ? CAMERA.AIM_SENS : CAMERA.SENS) * SETTINGS.sens, iy = SETTINGS.invertY ? -1 : 1;
     G.yaw -= (e.movementX || 0) * s;
-    G.pitch = clamp(G.pitch - (e.movementY || 0) * s, CAMERA.PITCH_MIN, CAMERA.PITCH_MAX);
+    G.pitch = clamp(G.pitch - (e.movementY || 0) * s * iy, CAMERA.PITCH_MIN, CAMERA.PITCH_MAX);
   });
   document.addEventListener('pointerlockchange', () => {
     mouse.locked = !!document.pointerLockElement;
     if (!mouse.locked && handlers.onLockLost) handlers.onLockLost();
   });
+  // v6: roda do mouse troca de arma
+  canvas.addEventListener('wheel', (e) => { if (G.state === 'play' && handlers.onWheel) { e.preventDefault(); handlers.onWheel(Math.sign(e.deltaY)); } }, { passive: false });
   canvas.addEventListener('contextmenu', (e) => e.preventDefault());
   addEventListener('blur', () => { clearInput(); if (handlers.onBlur) handlers.onBlur(); });
   document.addEventListener('visibilitychange', () => { if (document.hidden) { clearInput(); if (handlers.onBlur) handlers.onBlur(); } });

@@ -3,6 +3,13 @@ import * as THREE from 'three';
 import { scene, GLOW, flashAt } from './world.js';
 import { FX, COLORS } from './config.js';
 import { rand, RingPool, softSplatTex } from './utils.js';
+import { quality } from './quality.js';
+import { SETTINGS } from './settings.js';
+
+/** v6: quantidade de partículas conforme a qualidade (Baixo corta) e o modo "movimento reduzido". */
+export const fxK = () => (quality.p.fx || 1) * (SETTINGS.reducedMotion ? 0.5 : 1);
+/** Floreios pesados só em Médio/Alto e sem movimento reduzido. */
+export const fxRich = () => !!quality.p.fxRich && !SETTINGS.reducedMotion;
 
 const pGeo = new THREE.BoxGeometry(0.09, 0.09, 0.09);
 const pMats = {
@@ -20,6 +27,7 @@ const particles = new RingPool(FX.MAX_PARTICLES, () => {
 });
 /** Explosão de partículas. kind: blood | spark | spit | dust | fire */
 export function burst(x, y, z, kind, n, sp, dirX = 0, dirZ = 0) {
+  n = Math.max(1, Math.round(n * fxK()));
   for (let i = 0; i < n; i++) {
     const p = particles.next();
     p.m.material = pMats[kind]; p.m.position.set(x, y, z); p.m.visible = true;
@@ -109,7 +117,23 @@ export function explosion(x, z, r) {
   const f = flashes.next(); f.s.visible = true; f.life = 0.35; f.s.position.set(x, 1.2, z); f.s.scale.setScalar(r * 2.6);
   flashAt(x, 1.4, z, 0xffa040, 220); smoke(x, 0.8, z, 8, r * 0.9);
   burst(x, 0.6, z, 'fire', 34, 6); burst(x, 0.4, z, 'spark', 18, 8); shockwave(x, z, r, 0xffa050);
+  // v6: poeira levantada em anel e faíscas longas; no Médio/Alto, segunda coluna de fumaça e anel de poeira extra
+  burst(x, 0.2, z, 'dust', 16, 4.5); burst(x, 0.9, z, 'spark', 10, 12);
+  if (fxRich()) { smoke(x, 1.6, z, 5, r * 0.6); shockwave(x, z, r * 1.35, 0x8a7a60); burst(x, 0.15, z, 'dust', 14, 7); }
   decal(x, z, r * 0.8, 0x111111);
+}
+
+/** v6: floreio de crítico/abate — faíscas e um anel rápido no ponto do golpe (leve no Baixo). */
+export function flourish(x, y, z, kill) {
+  burst(x, y, z, 'spark', kill ? 10 : 6, kill ? 5 : 3.5);
+  if (!fxRich()) return;
+  if (kill) { shockwave(x, z, 1.8, 0xff5040); flashAt(x, y, z, 0xff6040, 30); }
+  else flashAt(x, y, z, 0xffd060, 18);
+}
+/** v6: jorro de sangue de abate — mais forte, com um spray para cima no Médio/Alto. */
+export function bloodBurst(x, y, z, heavy, dx = 0, dz = 0) {
+  burst(x, y, z, 'blood', heavy ? 34 : 20, heavy ? 5 : 4.5, dx, dz);
+  if (fxRich()) { burst(x, y + 0.3, z, 'blood', heavy ? 16 : 10, 6.5, dx * 0.4, dz * 0.4); decal(x + dx * 1.2, z + dz * 1.2, heavy ? 1.6 : 1.1); }
 }
 
 export function updateFx(dt) {

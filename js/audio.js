@@ -2,8 +2,11 @@
 // v5: barramentos (efeitos / ambiente) → filtro "abafar" → compressor → volume mestre;
 // camadas de ambiente por área com crossfade, stingers, passos variados e limite de vozes simultâneas.
 let actx = null, noiseB = null, brownB = null, master = null, muted = false;
-let sfxBus = null, ambBus = null, muffle = null, comp = null;
+let sfxBus = null, ambBus = null, muffle = null, comp = null, sfxVol = null, ambVol = null;
 const VOL = 0.5;                 // volume mestre (M liga/desliga)
+// v6: volumes do jogador (0..1) — mestre, efeitos e ambiente; multiplicam a mixagem base
+const userVol = { master: 1, sfx: 1, amb: 1 };
+const masterLevel = () => (muted ? 0 : VOL * userVol.master);
 const MAX_VOICES = 40;           // proteção contra "spam" de som (escopeta + muitos acertos)
 let voices = 0;
 
@@ -13,11 +16,12 @@ export function initAudio() {
     const C = window.AudioContext || window.webkitAudioContext;
     if (!C) return null;
     actx = new C();
-    master = actx.createGain(); master.gain.value = muted ? 0 : VOL;
+    master = actx.createGain(); master.gain.value = masterLevel();
     comp = actx.createDynamicsCompressor(); comp.threshold.value = -14; comp.knee.value = 12; comp.ratio.value = 5; comp.attack.value = 0.004; comp.release.value = 0.2;
     muffle = actx.createBiquadFilter(); muffle.type = 'lowpass'; muffle.frequency.value = 20000; muffle.Q.value = 0.5;
     sfxBus = actx.createGain(); ambBus = actx.createGain(); ambBus.gain.value = 1;
-    sfxBus.connect(muffle); ambBus.connect(muffle); muffle.connect(comp).connect(master).connect(actx.destination);
+    sfxVol = actx.createGain(); ambVol = actx.createGain(); sfxVol.gain.value = userVol.sfx; ambVol.gain.value = userVol.amb;
+    sfxBus.connect(sfxVol).connect(muffle); ambBus.connect(ambVol).connect(muffle); muffle.connect(comp).connect(master).connect(actx.destination);
     const n = actx.sampleRate * 2;
     noiseB = actx.createBuffer(1, n, actx.sampleRate);
     const d = noiseB.getChannelData(0); for (let i = 0; i < n; i++) d[i] = Math.random() * 2 - 1;
@@ -37,9 +41,18 @@ export const audioReady = () => ok();
 
 export function toggleMute() {
   muted = !muted;
-  if (master) { const t = actx.currentTime; master.gain.cancelScheduledValues(t); master.gain.setTargetAtTime(muted ? 0 : VOL, t, 0.03); }
+  if (master) { const t = actx.currentTime; master.gain.cancelScheduledValues(t); master.gain.setTargetAtTime(masterLevel(), t, 0.03); }
   return muted;
 }
+/** v6: volumes do jogador (mestre / efeitos / ambiente, 0..1). M continua mutando tudo. */
+export function setVolumes(v) {
+  for (const k of ['master', 'sfx', 'amb']) if (typeof v[k] === 'number') userVol[k] = Math.max(0, Math.min(1, v[k]));
+  if (!actx) return;
+  const t = actx.currentTime;
+  master.gain.setTargetAtTime(masterLevel(), t, 0.05);
+  sfxVol.gain.setTargetAtTime(userVol.sfx, t, 0.05); ambVol.gain.setTargetAtTime(userVol.amb, t, 0.05);
+}
+export const getVolumes = () => ({ ...userVol });
 export const isMuted = () => muted;
 
 // ---------- vozes ----------
@@ -183,6 +196,7 @@ export const isMuffled = () => muffled;
 export const sfx = {
   pistol()  { noise(0.18, 3500, 150, 0.55, 'lowpass', 0, true); tone(180, 60, 0.08, 'square', 0.12, 0, true); },
   shotgun() { noise(0.45, 2200, 120, 0.9, 'lowpass', 0, true); tone(110, 40, 0.18, 'sawtooth', 0.25, 0, true); },
+  smg()     { noise(0.09, 4200, 300, 0.38, 'lowpass', 0, true); tone(240 + Math.random() * 30, 90, 0.05, 'square', 0.08, 0, true); }, // v6: rajada curta e seca
   dry()     { tone(900, 800, 0.04, 'square', 0.08); },
   hit()     { if (gate('hit', 0.045)) tone(160 + Math.random() * 30, 90, 0.08, 'square', 0.12); },
   crit()    { if (gate('crit', 0.06)) { tone(1200, 700, 0.07, 'triangle', 0.14); tone(2400, 1800, 0.05, 'sine', 0.05, 0.01); } },
