@@ -1,5 +1,18 @@
 # Melhorias
 
+## v8: Marina em 3D (modelo GLB)
+
+### Personagem
+- A personagem jogável agora é o modelo GLB da Marina (Mixamo), carregado com `GLTFLoader` + `MeshoptDecoder` (`js/player.js`). Altura ~1,82 m, pés no chão, sombras ligadas.
+- O boneco procedural fica escondido, mas continua como reserva: erro de carregamento, tempo esgotado (25 s) ou `?heroi=0`.
+- `AnimationMixer` com camadas: pernas (Walking_Woman/Running, velocidade do clipe segue a do jogador, andar de costas invertido) e tronco (Weapon_Idle, Aim_Pistol, Fire_* por arma, Reload_* por arma, com tempo ajustado à recarga).
+- As armas, a ponta do cano e o clarão do tiro vão para o osso da mão direita (`WeaponSocket_R`). O braço levanta a arma em direção à mira ao mirar ou atirar. A lanterna continua no corpo.
+- Tela de carregamento ganhou a etapa "personagem (Marina)".
+
+### Asset
+- Original de 14,5 MB → 1,3 MB: danças/gestos e clipes vazios removidos, canais de animação malformados do arquivo original corrigidos (eles travavam o mixer), texturas em webp 1024 px e compressão meshopt.
+- Versionado como base64 (`assets/marina.min.glb.b64`); o workflow do Pages gera `assets/marina.min.glb`.
+
 ## v7: Ato 2 — Rio Abaixo (mais áreas, história maior)
 
 ### Campanha em dois atos

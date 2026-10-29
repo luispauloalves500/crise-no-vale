@@ -141,7 +141,12 @@ Depois do Colosso você escolhe: chamar o resgate e terminar o **Ato 1** como an
 
 ## Gráficos
 
-Tudo é procedural, sem arquivos de imagem ou modelo:
+Quase tudo é procedural. A exceção é a personagem jogável (v8):
+- **Marina (modelo GLB)**: `assets/marina.min.glb` (~1,3 MB, meshopt + texturas webp; o original tinha 14 MB) com esqueleto Mixamo, ~1,82 m de altura e sombras. Animações com transições suaves: parada com arma, andar, correr, mirar, disparo de cada arma e recarga. O braço direito levanta a arma para a mira, e o tronco acompanha a inclinação da câmera.
+  - Se o modelo não carregar em até 25 s (ou der erro), o jogo segue com o boneco procedural antigo. Para forçar o boneco antigo: `?heroi=0` na URL.
+  - No repositório o modelo fica em base64 (`assets/marina.min.glb.b64`); o workflow do Pages decodifica para o `.glb` servido.
+
+O resto não usa arquivos de imagem ou modelo:
 - **Texturas** em canvas com ruído, manchas, escorridos e relevo (*bump*): concreto, paralelepípedo, lama, ferrugem, chapa corrugada, escamas dos dinossauros. Superfícies molhadas têm brilho, e as poças recebem ondulações de chuva.
 - **Cenário**: contêineres corrugados, caixas com cintas, portões com placas de destino, árvores por bioma (palmeira, pântano), barco afundado, destroços de helicóptero em chamas, torres de holofote e janelas que acendem quando a energia volta.
 - **Personagens**:
