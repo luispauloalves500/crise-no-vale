@@ -576,6 +576,11 @@ for (let s = 0; s < 2; s++) {
 }
 
 const RN = FX.RAIN; let rainN = RN;
+// Orçamento de chuva por área (mood.rainBudget[preset]) + rampa curta ao entrar: evita o pico de
+// custo no 1º frame jogável do Cais do Porto (chuva densa + sombras + shaders recém-compilados).
+let rainBudget = 1, rainRamp = 1;
+const RAIN_RAMP_S = 1;
+function rainTarget() { return Math.floor(Math.min(RN, quality.p.rain) * rainBudget); }
 const rainPos = new Float32Array(RN * 6);
 const rainGeo = new THREE.BufferGeometry(); rainGeo.setAttribute('position', new THREE.BufferAttribute(rainPos, 3));
 const rainVel = new Float32Array(RN);
@@ -636,6 +641,8 @@ export function activateArea(area, prev) {
   moon.color.setHex(M.moonCol); MOON_BASE = moon.intensity = M.moon;
   if (M.moonPos) moon.position.set(...M.moonPos); else moon.position.set(-20, 40, -12);
   renderer.toneMappingExposure = M.exposure ?? 1.15;
+  rainBudget = (M.rainBudget && M.rainBudget[quality.id]) ?? 1; rainRamp = 0;
+  rainN = Math.floor(rainTarget() * 0.25); rainGeo.setDrawRange(0, rainN * 2);
   rain.visible = splash.visible = M.rain > 0; rainMat.opacity = 0.34 * (M.rain || 0);
   // brilho molhado: chuva deixa as superfícies menos ásperas (reflexo especular das lâmpadas)
   const wet = Math.min(1, M.rain || 0);
@@ -689,7 +696,8 @@ export function applyQuality(p = quality.p) {
   }
   lampLights.forEach((l, i) => { const v = i < p.lamps; if (l.visible !== v) { l.visible = v; recompile = true; } });
   spots.forEach((S, i) => { const v = i < p.spots; if (S.l.visible !== v) { S.l.visible = v; recompile = true; } if (!v) { S.beam.visible = S.head.visible = false; } });
-  rainN = Math.min(RN, p.rain); rainGeo.setDrawRange(0, rainN * 2);
+  if (atmo.mood) rainBudget = (atmo.mood.rainBudget && atmo.mood.rainBudget[p.id]) ?? 1;
+  rainN = Math.floor(rainTarget() * (0.25 + 0.75 * rainRamp)); rainGeo.setDrawRange(0, rainN * 2);
   const ffPer = Math.floor(Math.min(FF, p.fireflies) / 2);
   ffSets.forEach((f) => { f.n = Math.min(f.max, ffPer); f.geo.setDrawRange(0, f.n); });
   applyShadowTiers(scene);
@@ -772,6 +780,10 @@ export function updateWorld(dt) {
     for (let i = 0; i < f.n; i++) { fp[i * 3 + 1] += Math.sin(t * 1.3 + f.seed[i]) * dt * 0.3; fp[i * 3] += Math.cos(t * 0.7 + f.seed[i]) * dt * 0.2; }
     f.geo.attributes.position.needsUpdate = true;
     f.pts.material.opacity = Math.max(0, 0.5 + 0.5 * Math.sin(t * 2.3 + f.phase));
+  }
+  if (rain.visible && rainRamp < 1) {
+    rainRamp = Math.min(1, rainRamp + dt / RAIN_RAMP_S);
+    rainN = Math.floor(rainTarget() * (0.25 + 0.75 * rainRamp)); rainGeo.setDrawRange(0, rainN * 2);
   }
   if (rain.visible) {
     const cx = camera.position.x, cz = camera.position.z;

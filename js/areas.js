@@ -31,7 +31,9 @@ export const AREAS = [
     id: 'porto', save: true, name: 'CAIS DO PORTO', sub: 'Borda da selva — o barco não volta mais',
     map: { x: 2, y: 4 }, bounds: { minX: -22, maxX: 22, minZ: -18, maxZ: 16 },
     mood: { fog: 0x0b1620, density: 0.026, sky: 0x7a8faa, groundCol: 0x0a0f10, hemi: 1.2, moonCol: 0xa8c0f0, moon: 1.35,
-      rain: 1, lightning: true, fireflies: false, exposure: 1.15 },
+      rain: 1, lightning: true, fireflies: false, exposure: 1.15,
+      // perf: o cais é a 1ª área (shaders frios + modelos carregando) — menos gotas em Baixo/Médio
+      rainBudget: { baixo: 0.6, medio: 0.75 } },
     start: { x: 0, z: 12, yaw: Math.PI },
     doors: [{ id: 'N', side: 'N', at: 0, to: 'ruinas', toDoor: 'S' }],
     pickups: [
@@ -754,7 +756,12 @@ export function buildArea(a) {
   a.refs.logs = (a.logs || []).map((l) => ({ ...l, ...W.datapad(a.ctx, l.x, l.z, l.yaw || 0) }));
   // placas com o destino em cada portão
   a.doors.forEach((d) => { const ref = a.refs.doors[d.id]; if (ref) W.doorSign(ref, '→ ' + AREA[d.to].name, DIR[d.side]); });
-  if (a.id === 'porto') a.ctx.treeBatchStats = batchBackgroundTrees(THREE, a.ctx.group);
+  if (a.id === 'porto') {
+    a.ctx.treeBatchStats = batchBackgroundTrees(THREE, a.ctx.group);
+    // perf: lotes de árvores e instâncias (grama/poças/manchas) nunca se movem — congela a matriz
+    // para o renderer não recalcular a cada quadro. (só objetos instanciados; portas/lâmpadas seguem livres)
+    for (const o of a.ctx.group.children) if (o.isInstancedMesh) { o.updateMatrix(); o.matrixAutoUpdate = false; }
+  }
   buildContactShadows(a.ctx);
   W.applyShadowTiers(a.ctx.group);
   collectLod(a.ctx);   // v9: LOD por distância (js/lod.js)
