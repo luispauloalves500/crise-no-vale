@@ -19,6 +19,16 @@ Você é a agente **Marina Rocha**, enviada depois de três dias de silêncio do
   - **Rio abaixo — ameaça viva** é o final alternativo: leia os 9 registros, incluindo a caixa RAIZ-3 na margem do pântano e o rádio da Tellus-2 no heliponto.
   - **Segredo:** depois do Colosso, use o rádio da Tellus-2 para transmitir as provas e mudar o desfecho.
 
+## Ato 3 — Porto Anil (v11)
+
+Depois do resgate no ninho (fim do Ato 2), o Garça-1 pousa e oferece duas saídas:
+- **E na marca H**: voltar para casa (final do Ato 2).
+- **E na marca ao lado**: seguir para **Porto Anil**.
+
+Lá você atravessa o cais evacuado e chega à **captação de água**. Feche as comportas antes que o relógio de contaminação zere, desça até a **sede secreta da Tellus** e enfrente o **Primórdio**. No fim, decida: **transmitir as atas do Conselho** ou **destruir o laboratório**. São 4 finais e 4 registros novos (17 no total). Depois de terminar o Ato 2 uma vez, o menu mostra **CONTINUAR ATO 3 — PORTO ANIL**.
+
+Testes: `node --test tests/*.test.mjs`.
+
 ## Jogar online
 
 **https://jogoiarexx-blip.github.io/Crisis-no-vale/**

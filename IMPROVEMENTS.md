@@ -1,5 +1,16 @@
 # Melhorias
 
+## v11: Ato 3 — Porto Anil
+- **Continuação da história**: depois do Ato 2, o Garça-1 oferece voltar para casa ou descer até **Porto Anil**. São 3 áreas novas (`portoanil`, `captacao`, `sede`), adicionadas no fim de `AREAS` para não mudar as sementes das antigas.
+- **Relógio de contaminação** (240 s) ao chegar na captação. O evento "fechar comportas" é uma defesa de 20 s em ondas, e a escotilha da sede trava até ele terminar (`valveLock`).
+- **Chefe Primórdio** (`ENEMY_TYPES.primordio`): rig de brute com **cuspe ácido em leque**, investida e pisão. Fase 1 chama a matilha, fase 2 choca ovos do núcleo. A porta fica trancada durante a luta (`primLock`).
+- **Escolha final**: expor o Conselho (uplink de 14 s) ou destruir o laboratório (cargas de 10 s). São **4 epílogos** (Maré limpa, Verdade turva, Silêncio na captação, Escombros e lama).
+- **Registros 14–17**, vozes CONSELHO e PREFEITA, presets de áudio das 3 áreas, cenas de passagem `portoanil>captacao` e `captacao>sede`.
+- **Menu**: botão "CONTINUAR ATO 3 — PORTO ANIL" (checkpoint `crise-no-vale-act3`). O save passa para v6 e migra saves antigos.
+- **Correção**: o final do Ato 2 conta só os 13 registros dos Atos 1–2 (antes usava o total global).
+- **Testes**: `tests/act3.test.mjs` (grafo, travas, registros, chefe, 4 finais). Contagens de áreas, registros e passagens atualizadas. 71/71 passam.
+- `assets/originais/LEIA-ME.md` documenta os GLB-fonte não usados (nada movido nem apagado). A análise completa está em `ANALISE-ATO3.md`.
+
 ## v10.1: polimento de combate e movimento
 
 ### Precisão dos tiros (`js/combat.js`, `WEAPONS`/`AIM` em `js/config.js`)
