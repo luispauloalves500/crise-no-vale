@@ -596,20 +596,22 @@ const splGeo = new THREE.BufferGeometry(); splGeo.setAttribute('position', new T
 const splash = new THREE.Points(splGeo, new THREE.PointsMaterial({ color: 0xc8dcea, size: 0.1, transparent: true, opacity: 0.6, depthWrite: false }));
 splash.frustumCulled = false; scene.add(splash);
 
-// raio visível no horizonte (fita em zigue-zague, sem neblina)
-function boltGeo() {
-  const segs = []; let x = 0, y = 60;
-  while (y > 0) {
-    const ny = y - rand(3, 7), nx = x + rand(-3, 3); segs.push([x, y, nx, ny, 1]); x = nx; y = ny;
-    if (Math.random() < 0.3) { let bx = x, by = y; const dir = Math.random() < 0.5 ? -1 : 1; for (let k = 0; k < 3; k++) { const nbx = bx + dir * rand(1, 4), nby = by - rand(2, 5); segs.push([bx, by, nbx, nby, 0.5]); bx = nbx; by = nby; } }
-  }
-  const pos = [];
-  for (const [x0, y0, x1, y1, wm] of segs) { const w = 0.45 * wm; pos.push(x0 - w, y0, 0, x0 + w, y0, 0, x1 + w, y1, 0, x0 - w, y0, 0, x1 + w, y1, 0, x1 - w, y1, 0); }
-  const g = new THREE.BufferGeometry(); g.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3)); return g;
+// raio visível no horizonte: um único sprite billboard com textura procedural 64x128 (gerada no boot)
+function boltTex() {
+  const c = document.createElement('canvas'); c.width = 64; c.height = 128;
+  const g = c.getContext('2d'); g.lineCap = 'round'; g.lineJoin = 'round';
+  const path = []; let x = 32, y = 0;
+  while (y < 128) { path.push([x, y]); y += rand(8, 16); x = Math.max(8, Math.min(56, x + rand(-10, 10))); }
+  path.push([x, 128]);
+  const stroke = (w, col) => { g.strokeStyle = col; g.lineWidth = w; g.beginPath(); path.forEach(([px, py], i) => (i ? g.lineTo(px, py) : g.moveTo(px, py))); g.stroke(); };
+  stroke(9, 'rgba(150,180,255,0.25)'); stroke(4, 'rgba(200,220,255,0.7)'); stroke(1.6, '#ffffff');
+  const [bx, by] = path[Math.floor(path.length / 2)]; g.lineWidth = 1.2; g.strokeStyle = 'rgba(220,235,255,0.8)';
+  g.beginPath(); g.moveTo(bx, by); g.lineTo(bx + rand(-14, 14), by + rand(14, 26)); g.stroke();
+  const t = new THREE.CanvasTexture(c); t.colorSpace = THREE.SRGBColorSpace; return t;
 }
-const boltMat = new THREE.MeshBasicMaterial({ color: 0xe0eaff, transparent: true, opacity: 1, blending: THREE.AdditiveBlending, depthWrite: false, fog: false, side: THREE.DoubleSide });
-const bolts = [0, 1, 2].map(() => { const m = new THREE.Mesh(boltGeo(), boltMat); m.visible = false; m.frustumCulled = false; scene.add(m); return m; });
-let curBolt = null;
+const boltMat = new THREE.SpriteMaterial({ map: boltTex(), color: 0xe0eaff, transparent: true, opacity: 0, blending: THREE.AdditiveBlending, depthWrite: false, fog: false });
+const bolt = new THREE.Sprite(boltMat);
+bolt.center.set(0.5, 0); bolt.scale.set(30, 62, 1); bolt.visible = false; bolt.frustumCulled = false; scene.add(bolt);
 
 // ---------- clima / área atual ----------
 export const atmo = { lightning: 0, nextBolt: rand(8, 16), onThunder: null, mood: null, haze: 0, powerFlash: 0 };
@@ -810,14 +812,13 @@ export function updateWorld(dt) {
     atmo.nextBolt -= dt;
     if (atmo.nextBolt <= 0) {
       atmo.nextBolt = rand(12, 26); atmo.lightning = 1; if (atmo.onThunder) atmo.onThunder(rand(0.4, 1.6));
-      curBolt = bolts[Math.floor(Math.random() * bolts.length)];
       const a = Math.random() * Math.PI * 2, d = rand(60, 85);
-      curBolt.position.set(camera.position.x + Math.cos(a) * d, -2, camera.position.z + Math.sin(a) * d);
-      curBolt.rotation.y = Math.atan2(camera.position.x - curBolt.position.x, camera.position.z - curBolt.position.z);
+      bolt.position.set(camera.position.x + Math.cos(a) * d, -2, camera.position.z + Math.sin(a) * d);
+      bolt.material.rotation = 0; bolt.scale.x = (Math.random() < 0.5 ? -1 : 1) * 30; // espelha p/ variar sem nova textura
     }
   }
   if (atmo.lightning > 0) atmo.lightning = Math.max(0, atmo.lightning - dt * 3.2);
-  bolts.forEach((b) => { b.visible = b === curBolt && atmo.lightning > 0.25; });
+  bolt.visible = atmo.lightning > 0.25;
   boltMat.opacity = Math.min(1, atmo.lightning * 1.4);
   const flick = atmo.lightning > 0 ? atmo.lightning * (0.6 + 0.4 * Math.sin(atmo.lightning * 40)) : 0;
   if (atmo.powerFlash > 0) atmo.powerFlash = Math.max(0, atmo.powerFlash - dt * 1.2);

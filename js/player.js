@@ -133,7 +133,7 @@ function lowerOnly(clip) {
   return c;
 }
 // só tronco/braços/cabeça (sem Hips/pernas): recarga e tiro não disputam quadril e pernas com a caminhada
-const UPPER_BODY = /Spine|Neck|Head|Shoulder|Arm|Hand/, LEGS = /Hips|UpLeg|Leg|Foot|Toe/;
+const UPPER_BODY = /Spine1|Spine2|Neck|Head|Shoulder|Arm|ForeArm|Hand/, LEGS = /Hips|UpLeg|Leg|Foot|Toe/;
 function upperOnly(clip) {
   const c = clip.clone(); c.name = clip.name + '_tronco';
   c.tracks = c.tracks.filter((t) => { const bone = t.name.split('.')[0]; return bone.startsWith('mixamorig') && UPPER_BODY.test(bone) && !LEGS.test(bone); });
@@ -360,19 +360,20 @@ function updateHero(dt, mk) {
   // v11: balanço bem mais presente (antes ~25% depois da normalização) e um pouco dele também mirando
   const swingFor = (up, leg, k) => {
     if (!up || !leg) return;
-    up.setEffectiveWeight((base + aim * 0.35) * k * (1 - ease(clamp(hero.relW, 0, 1)))); // sem balanço do braço esquerdo enquanto troca o pente up.time = leg.time;
+    up.setEffectiveWeight((base + aim * 0.35) * k * (1 - ease(clamp(hero.relW, 0, 1))) * (1 - 0.5 * ease(clamp(hero.raiseW, 0, 1)))); // sem balanço do braço esquerdo enquanto troca o pente
+    up.time = leg.time;
   };
   swingFor(A.walkUp, A.walk, (A.runUp === A.walkUp ? walkN + runN : walkN) * 0.8);
   if (A.runUp !== A.walkUp) swingFor(A.runUp, A.run, runN * 1.1);
   hero.mixer.update(player.dead ? 0 : dt);
   if (!player.dead && Math.abs(hero.legYaw) > 0.003 && hero.hips && hero.spine0) {
-    const ly = hero.legYaw * L;
+    const ly = hero.legYaw * L * (1 - ease(clamp(hero.relW, 0, 1))); // recarga manda no tronco
     rotWorld(hero.hips, _q2.setFromAxisAngle(_up, ly));
     rotWorld(hero.spine0, _q2.setFromAxisAngle(_up, -ly * 0.9)); // tronco volta para a mira
   }
   // inclina o tronco com a mira (pitch da câmera) + coice do disparo
   if (hero.spine && !player.dead) {
-    const ang = G.pitch * 0.85 + armKick * 0.25 * mk - armSwap * 0.5;
+    const ang = (G.pitch * 0.85 + armKick * 0.25 * mk - armSwap * 0.5) * (1 - hero.relW);
     hero.spine.parent.updateWorldMatrix(true, false); hero.spine.parent.getWorldQuaternion(_qp);
     _ax.set(-Math.cos(G.yaw), 0, Math.sin(G.yaw)); // eixo "direita" do jogador no mundo
     _q.setFromAxisAngle(_ax, ang); // rotação no mundo → espaço do pai do osso
@@ -382,7 +383,7 @@ function updateHero(dt, mk) {
   // braço direito levanta a arma para a mira (os clipes de arma do GLB mantêm o braço baixo):
   // ombro→mão e cano (+Y do soquete) giram em direção ao centro da mira, com peso suave
   // entrada rápida, saída mais lenta; a curva smoothstep tira o tranco no começo e no fim do movimento
-  const want = !player.dead && (G.aiming || hero.fireT > -0.7) ? 1 : 0;
+  const want = player.dead || hero.relW > 0.2 ? 0 : (G.aiming || hero.fireT > -0.7) ? 1 : 0.55; // 0.55 = pose pronta (arma à frente)
   hero.raiseW = damp2(hero.raiseW, want, 16, 5, dt);
   const r = ease(clamp(hero.raiseW, 0, 1)) * (1 - hero.relW);
   if (r > 0.01 && hero.armR && hero.handR) {
