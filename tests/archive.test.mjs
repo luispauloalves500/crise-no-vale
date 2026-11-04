@@ -9,10 +9,10 @@ const areas=vm.runInNewContext(areaText,{Math});
 const story=readFileSync(new URL('../js/story.js',import.meta.url),'utf8');
 const recordsText=story.slice(story.indexOf('export const LOGS = {')+'export const LOGS = '.length,story.indexOf('\nexport const LOG_IDS ='));
 const records=vm.runInNewContext('('+recordsText.trim().replace(/;$/, '')+')'), ids=Object.keys(records);
-test('os 13 IDs estão em uma única área correspondente à história',()=>{
+test('os 17 IDs estão em uma única área correspondente à história',()=>{
   const items=areas.flatMap(a=>a.logs.map(l=>({...l,area:a.id})));
-  assert.equal(ids.length,13); assert.equal(items.length,13);
-  assert.equal(new Set(items.map(l=>l.id)).size,13);
+  assert.equal(ids.length,17); assert.equal(items.length,17);
+  assert.equal(new Set(items.map(l=>l.id)).size,17);
   for(const l of items) { assert.ok(records[l.id]); assert.equal(records[l.id].area,l.area); assert.ok(records[l.id].pages.length); }
 });
 test('arquivo mostra somente IDs descobertos e mantém ordem após serialização',()=>{

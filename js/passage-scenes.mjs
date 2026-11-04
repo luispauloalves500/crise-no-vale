@@ -8,6 +8,9 @@ export const PASSAGES = {
   'heliponto>margem': { title:'RIO ABAIXO', text:'Além da pista, uma trilha acompanha a correnteza. Marcas de carga apontam para a margem.', hint:'Investigue o barco e siga os vestígios da Tellus-2.' },
   'margem>acampamento': { title:'ACAMPAMENTO TELLUS-2', text:'Pelo rio chegam ruídos de metal. A trilha termina nas cercas de uma operação abandonada.', hint:'Vasculhe o posto e encontre o controle do portão.' },
   'acampamento>ninho': { title:'A CRATERA', text:'Atrás da contenção, o calor sobe do chão. As marcas de transporte seguem para dentro da cratera.', hint:'Avance com cuidado e procure uma rota de saída.' },
+  // v11 — Ato 3
+  'portoanil>captacao': { title:'A CAPTAÇÃO ANIL', text:'A rua do cais sobe até a casa de bombas. Mangueiras da Tellus saem do canal e somem sob o asfalto.', hint:'Feche as comportas antes que o relógio de contaminação zere.' },
+  'captacao>sede': { title:'A ESCOTILHA', text:'A escada de aço desce abaixo do canal. O ar fica quente, úmido e cheira a ovo podre.', hint:'Guarde munição para o que espera no núcleo.' },
 };
 export function passageFor(from, to, alreadyVisited, seen) {
   const id = `${from}>${to}`, scene = PASSAGES[id], key = `passage:${id}`;
