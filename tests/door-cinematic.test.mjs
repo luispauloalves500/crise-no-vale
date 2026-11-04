@@ -6,7 +6,7 @@ import {doorPose, doorVectors, DOOR_TIMING, gateVisible} from '../js/door-cinema
 import {GUN_ASSETS} from '../js/gun-layout.mjs';
 
 test('porta abre, personagem atravessa, porta fecha e só troca quando destino estiver pronto',()=>{
-  assert.equal(gateVisible(false),false);assert.equal(gateVisible(true),true);assert.equal(gateVisible(false,true),true);
+  assert.equal(gateVisible(false),true);assert.equal(gateVisible(true),true);assert.equal(gateVisible(false,true),true);
   assert.deepEqual(doorPose(0,false),{gate:0,travel:0,moving:false,fade:0,switchArea:false});
   assert.equal(doorPose(DOOR_TIMING.open,false).gate,1);
   const middle=doorPose(1.7,false);assert.ok(middle.moving && middle.travel>0 && middle.travel<1);
@@ -51,7 +51,7 @@ test('compilação lenta não impede passagem após limite de espera',()=>{
 });
 test('destino inacessível cancela, fecha portão e restaura personagem',()=>{
   const h=harness({fail:true});h.c.startTransition(h.door);h.c.updateTransition(.2);h.runJobs();h.c.updateTransition(.05);
-  assert.equal(h.D.trans,null);assert.equal(h.ref.gate.position.y,0);assert.equal(h.ref.gate.visible,false);assert.equal(h.c.pg.position.z,-16);assert.equal(h.enters,0);assert.ok(h.feed.length);
+  assert.equal(h.D.trans,null);assert.equal(h.ref.gate.position.y,0);assert.equal(h.ref.gate.visible,true);assert.equal(h.c.pg.position.z,-16);assert.equal(h.enters,0);assert.ok(h.feed.length);
 });
 test('Glock usa cano negativo X e empunhadura próxima do soquete',()=>{
   const s=GUN_ASSETS[0], centerX=(-.950776994+.948599994)/2,centerY=(-.72637397+.724687994)/2,scale=s.length/(.948599994+.950776994);

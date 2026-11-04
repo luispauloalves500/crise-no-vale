@@ -17,4 +17,5 @@ export function doorVectors(side) {
 }
 
 // A folha só ocupa a visão fora da cena quando existe bloqueio narrativo.
-export const gateVisible = (locked, transitioning = false) => !!locked || !!transitioning;
+// folha do portão sempre visível no cenário (fechada em y=0 quando destrancada; sobe só na travessia)
+export const gateVisible = (_locked, _transitioning = false) => true;

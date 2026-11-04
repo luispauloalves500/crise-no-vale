@@ -132,6 +132,13 @@ function lowerOnly(clip) {
   c.tracks = c.tracks.filter((t) => { const bone = t.name.split('.')[0]; return !(bone.startsWith('mixamorig') && UPPER.test(bone)); });
   return c;
 }
+// só tronco/braços/cabeça (sem Hips/pernas): recarga e tiro não disputam quadril e pernas com a caminhada
+const UPPER_BODY = /Spine|Neck|Head|Shoulder|Arm|Hand/, LEGS = /Hips|UpLeg|Leg|Foot|Toe/;
+function upperOnly(clip) {
+  const c = clip.clone(); c.name = clip.name + '_tronco';
+  c.tracks = c.tracks.filter((t) => { const bone = t.name.split('.')[0]; return bone.startsWith('mixamorig') && UPPER_BODY.test(bone) && !LEGS.test(bone); });
+  return c;
+}
 // balanço do tronco/braço esquerdo tirado do próprio clipe de locomoção (o braço direito fica com a arma)
 const SWING = /Spine1|Spine2|Neck|Head|LeftShoulder|LeftArm|LeftForeArm|LeftHand/;
 function swingOnly(clip) {
@@ -149,10 +156,10 @@ function sane(clip) {
   clip.tracks = clip.tracks.filter((t) => { const st = STRIDE[t.ValueTypeName]; return t.times.length > 0 && (!st || t.values.length === t.times.length * st); });
   return clip;
 }
-function heroAction(clips, names, { lower = false, swing = false, once = false } = {}) {
+function heroAction(clips, names, { lower = false, swing = false, upper = false, once = false } = {}) {
   for (const n of names) {
     let clip = clips.find((c) => c.name === n); if (!clip) continue; clip = sane(clip);
-    const a = hero.mixer.clipAction(lower ? lowerOnly(clip) : swing ? swingOnly(clip) : clip);
+    const a = hero.mixer.clipAction(lower ? lowerOnly(clip) : swing ? swingOnly(clip) : upper ? upperOnly(clip) : clip);
     if (once) { a.setLoop(THREE.LoopOnce, 1); a.clampWhenFinished = true; }
     a.enabled = true; a.setEffectiveWeight(0); a.play(); a.paused = once; a.w8 = 0; return a;
   }
@@ -229,7 +236,7 @@ async function loadHeroInner(choice = 'marina') {
   for (const a of [A.walk, A.run, A.walkUp, A.runUp]) if (a) a.timeScale = 0;
   A.idle = heroAction(clips, ['Weapon_Idle']);
   A.aim = heroAction(clips, ['Aim_Pistol']);
-  for (const id in FIRE_CLIP) { A['fire_' + id] = heroAction(clips, FIRE_CLIP[id], { once: id !== 'smg' }); A['reload_' + id] = heroAction(clips, RELOAD_CLIP[id], { once: true }); }
+  for (const id in FIRE_CLIP) { A['fire_' + id] = heroAction(clips, FIRE_CLIP[id], { upper: true, once: id !== 'smg' }); A['reload_' + id] = heroAction(clips, RELOAD_CLIP[id], { upper: true, once: true }); }
   hero.fires = Object.keys(FIRE_CLIP).map((id) => A['fire_' + id]).filter(Boolean).filter((a, i, l) => l.indexOf(a) === i);
   hero.reloads = Object.keys(RELOAD_CLIP).map((id) => A['reload_' + id]).filter(Boolean).filter((a, i, l) => l.indexOf(a) === i);
   if (A.idle) { A.idle.setEffectiveWeight(1); A.idle.timeScale = 0.9; } // respiração um pouco mais lenta e estável
@@ -336,7 +343,7 @@ function updateHero(dt, mk) {
   for (const a of hero.reloads) {
     // começa a sumir nos últimos 12% da recarga: a volta para a mira/base se mistura com o fim do clipe
     const on = a === hero.relAct && arms.reloading > arms.reloadTotal * 0.12;
-    a.w8 = damp(a.w8, on ? 1 : 0, on ? 8 : 5, dt); if (a.w8 < 0.002) a.w8 = 0;
+    a.w8 = damp2(a.w8, on ? 1 : 0, 10, 6, dt); if (a.w8 < 0.002) a.w8 = 0;
     relSum += a.w8;
   }
   hero.relW = Math.min(1, relSum); hero.fireW = Math.min(1, fireSum);
@@ -353,7 +360,7 @@ function updateHero(dt, mk) {
   // v11: balanço bem mais presente (antes ~25% depois da normalização) e um pouco dele também mirando
   const swingFor = (up, leg, k) => {
     if (!up || !leg) return;
-    up.setEffectiveWeight((base + aim * 0.35) * k); up.time = leg.time;
+    up.setEffectiveWeight((base + aim * 0.35) * k * (1 - ease(clamp(hero.relW, 0, 1)))); // sem balanço do braço esquerdo enquanto troca o pente up.time = leg.time;
   };
   swingFor(A.walkUp, A.walk, (A.runUp === A.walkUp ? walkN + runN : walkN) * 0.8);
   if (A.runUp !== A.walkUp) swingFor(A.runUp, A.run, runN * 1.1);
