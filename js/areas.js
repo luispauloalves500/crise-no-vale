@@ -583,6 +583,150 @@ export const AREAS = [
       return { doors: { N: W.doorway(ctx, 'N', 0, b) }, terminals: [], heli, eggs, eggMat, eggLight, boat };
     },
   },
+  // ================= v11 — ATO 3: PORTO ANIL =================
+  // Áreas novas sempre no FIM da lista: a semente de cada área é SEED + índice*101, então as nove
+  // áreas antigas mantêm exatamente o mesmo layout. Entrada do Ato 3 é narrativa (o Garça-1 leva
+  // o jogador do ninho até o cais de Porto Anil), por isso a cadeia só tem portas entre si.
+  {
+    id: 'portoanil', save: true, name: 'PORTO ANIL', sub: 'Cidade costeira sob chuva — sirenes de evacuação ecoando no cais',
+    map: { x: 5, y: 3 }, bounds: { minX: -24, maxX: 24, minZ: -24, maxZ: 20 },
+    start: { x: 0, z: 14.5, yaw: Math.PI },
+    mood: { fog: 0x0c1218, density: 0.034, sky: 0x40505e, groundCol: 0x06080a, hemi: 0.9, moonCol: 0x9ab0c8, moon: 0.7,
+      rain: 1, lightning: true, fireflies: false, exposure: 1.2, moonPos: [-14, 38, 18] },
+    doors: [{ id: 'N', side: 'N', at: 0, to: 'captacao', toDoor: 'S' }],
+    pickups: [
+      { id: 'p10ammo', kind: 'ammo', x: -19, z: 10 },
+      { id: 'p10med', kind: 'med', x: 18, z: -6 },
+      { id: 'p10smg', kind: 'smgammo', x: -8, z: -18 },
+      { id: 'p10crate', kind: 'crate', x: 19, z: 12 },
+    ],
+    ambient: [{ type: 'raptor', x: -12, z: -6 }, { type: 'raptor', x: 12, z: -12 }, { type: 'spitter', x: 2, z: -16 }],
+    logs: [{ id: 'log14', x: -15.5, z: 5, yaw: Math.PI / 2 }],
+    encounters: [
+      { id: 'pa-evac', on: 'zone', zone: { x: 0, z: -2, r: 6 }, msg: 'Algo se move entre os ônibus de evacuação!',
+        spawn: [{ type: 'raptor', from: 'W' }, { type: 'raptor', from: 'E', delay: 0.8 }, { type: 'spitter', from: 'N', delay: 2 }] },
+      { id: 'pa-brute', on: 'zone', zone: { x: 0, z: -15, r: 6 }, msg: 'Um bruto derrubou a barreira da Defesa Civil!',
+        spawn: [{ type: 'brute', from: 'N' }, { type: 'raptor', from: 'E', delay: 2.5 }] },
+    ],
+    build(ctx) {
+      const b = this.bounds, rng = ctx.rng;
+      W.ground(ctx, b, W.groundTex.paving, 10, { patchCol: 0x101418, puddles: 10 });
+      W.perimeter(ctx, b, 4.5, MATS.concrete, [{ side: 'N', at: 0, half: 2.4 }], 1.2);
+      // cais ao sul: mar escuro e píer onde o Garça-1 deixou o jogador
+      const sea = new THREE.Mesh(new THREE.PlaneGeometry(90, 40), MATS.water); sea.rotation.x = -Math.PI / 2; sea.position.set(0, 0.02, b.maxZ + 20); ctx.group.add(sea);
+      W.solid(ctx, 0, 18.5, 8, 3, 0.3, MATS.plank, 0, false);
+      // prédios da orla (fachadas) e ônibus/contêineres da evacuação
+      W.building(ctx, -17, -15, 10, 8, 9, MATS.concrete, 0.25);
+      W.building(ctx, 17, -17, 9, 7, 11, MATS.concrete, 0.2);
+      W.building(ctx, -19, 14, 6, 6, 6, MATS.concrete, 0.4);
+      W.container(ctx, -6, 4, 7, 2.6, 2.8, 0x2a4a7a);
+      W.container(ctx, 7, 1, 2.6, 7, 2.8, 0x8a8a8a);
+      W.container(ctx, 10, -9, 7, 2.6, 2.8, 0x7a2a2a);
+      [[-9, -7, 1.2], [4, -6, 1], [14, 9, 1.1], [-3, 12, 0.9]].forEach((c) => W.crate(ctx, ...c));
+      // barreira da Defesa Civil (listrada) junto ao portão norte
+      [[-4, -19], [4, -19]].forEach(([x, z]) => W.solid(ctx, x, z, 3.5, 0.6, 1.1, MATS.hazard));
+      W.lamp(ctx, -10, 10, 0xffc080, 'flicker', 20, 3.2);
+      W.lamp(ctx, 10, 4, 0xffc080, 'steady', 18, 3.2);
+      W.lamp(ctx, -4, -20, 0xff3020, 'pulse', 24, 3);
+      W.lamp(ctx, 4, -20, 0x3060ff, 'pulse', 24, 3);
+      W.lamp(ctx, 0, 16, 0xfff0d0, 'steady', 16, 3);
+      for (let i = 0; i < 10; i++) W.rock(ctx, -22 + rng() * 44, 19 + rng() * 2, 1 + rng() * 1.4, false);
+      return { doors: { N: W.doorway(ctx, 'N', 0, b) },
+        terminals: [{ id: 'save-portoanil', kind: 'save', ...W.terminal(ctx, 6, 14, Math.PI), x: 6, z: 14 }] };
+    },
+  },
+  {
+    id: 'captacao', save: true, name: 'CAPTAÇÃO ANIL', sub: 'Estação de água da cidade — tanques, tubulações e névoa química',
+    map: { x: 5, y: 2 }, bounds: { minX: -24, maxX: 24, minZ: -22, maxZ: 22 },
+    mood: { fog: 0x0e160a, density: 0.042, sky: 0x4a5a3a, groundCol: 0x060804, hemi: 0.85, moonCol: 0xb0d090, moon: 0.65,
+      rain: 0.5, lightning: false, fireflies: false, exposure: 1.25, moonPos: [10, 40, -12] },
+    doors: [{ id: 'S', side: 'S', at: 0, to: 'portoanil', toDoor: 'N' }, { id: 'N', side: 'N', at: 0, to: 'sede', toDoor: 'S', lock: 'valveLock' }],
+    pickups: [
+      { id: 'p11ammo', kind: 'ammo', x: 19, z: 16 },
+      { id: 'p11gren', kind: 'grenade', x: -19, z: -14 },
+      { id: 'p11med', kind: 'med', x: 12, z: -16 },
+      { id: 'p11crate', kind: 'crate', x: -20, z: 16 },
+    ],
+    ambient: [{ type: 'spitter', x: -12, z: -8 }, { type: 'raptor', x: 14, z: 2 }],
+    logs: [{ id: 'log15', x: 16.5, z: -8, yaw: -Math.PI / 2 }, { id: 'log17', x: -16, z: 6.5, yaw: Math.PI / 2 }],
+    floodZone: { x: 0, z: -10, r: 9 },
+    encounters: [
+      { id: 'cap-enter', on: 'enter', first: true, delay: 3, msg: 'A névoa química esconde a matilha!',
+        spawn: [{ type: 'raptor', from: 'E' }, { type: 'raptor', from: 'W', delay: 1.2 }] },
+    ],
+    build(ctx) {
+      const b = this.bounds, rng = ctx.rng;
+      W.ground(ctx, b, W.groundTex.stone, 10, { patchCol: 0x10180a, puddles: 8 });
+      W.perimeter(ctx, b, 5, MATS.metal, [{ side: 'N', at: 0, half: 2.4 }, { side: 'S', at: 0, half: 2.4 }], 1);
+      // tanques de decantação (cilindros com colisão)
+      const tankMat = MATS.rust, tankGeo = new THREE.CylinderGeometry(3.4, 3.4, 5, 20);
+      [[-14, -2], [14, 8], [-12, 12]].forEach(([x, z]) => {
+        const t = new THREE.Mesh(tankGeo, tankMat); t.position.set(x, 2.5, z); t.castShadow = t.receiveShadow = true; ctx.group.add(t);
+        const ring = W.boxMesh(MATS.stripe, 7, 0.25, 7); ring.position.set(x, 4.6, z); ctx.group.add(ring);
+        ctx.circles.push({ x, z, r: 3.4, h: 5 });
+      });
+      // tubulações longas (decorativas) e canal de água contaminada
+      const pipeGeo = new THREE.CylinderGeometry(0.45, 0.45, 30, 10);
+      [[-6, 3.6], [6, 3.6]].forEach(([x, y]) => { const pp = new THREE.Mesh(pipeGeo, MATS.metal); pp.rotation.x = Math.PI / 2; pp.position.set(x, y, 2); ctx.group.add(pp); });
+      W.pool(ctx, 0, 6, 6, 18, MATS.mud);
+      // comportas (painel de controle ao norte do canal)
+      W.solid(ctx, -5, -10, 3, 1.2, 2.4, MATS.metal); W.solid(ctx, 5, -10, 3, 1.2, 2.4, MATS.metal);
+      const gate = W.boxMesh(MATS.hazard, 7, 2.6, 0.4); gate.position.set(0, 1.3, -12); ctx.group.add(gate);
+      [[18, 0, 1.1], [-19, -6, 1], [9, 17, 1.2]].forEach((c) => W.crate(ctx, ...c));
+      W.lamp(ctx, -8, -16, 0xc0ff80, 'flicker', 20, 3.4);
+      W.lamp(ctx, 8, 14, 0xc0ff80, 'flicker', 18, 3.4);
+      const alarm = W.lamp(ctx, 0, -15, 0xff3020, 'pulse', 26, 3.2);
+      for (let i = 0; i < 6; i++) { const L = W.fireLight(ctx, -18 + rng() * 36, -18 + rng() * 36, 0.2, 6); L.color = 0x90ff60; L.mode = 'flicker'; L.halo.material.color.setHex(0x90ff60); }
+      return { doors: { S: W.doorway(ctx, 'S', 0, b), N: W.doorway(ctx, 'N', 0, b) }, floodGate: gate, alarm,
+        terminals: [
+          { id: 'save-captacao', kind: 'save', ...W.terminal(ctx, 20.5, 18, -Math.PI / 2), x: 20.5, z: 18 },
+          { id: 'valves', kind: 'valves', ...W.terminal(ctx, 0, -8.6, Math.PI, 0xffb040), x: 0, z: -8.6 },
+        ] };
+    },
+  },
+  {
+    id: 'sede', name: 'SEDE TELLUS', sub: 'O bunker sob a captação — onde o Conselho guardava o Primórdio',
+    map: { x: 5, y: 1 }, bounds: { minX: -22, maxX: 22, minZ: -22, maxZ: 20 },
+    mood: { fog: 0x100a0a, density: 0.03, sky: 0x5a4a4a, groundCol: 0x060404, hemi: 0.8, moonCol: 0xffd0b0, moon: 0.55,
+      rain: 0, lightning: false, fireflies: false, exposure: 1.3, moonPos: [0, 40, 0] },
+    doors: [{ id: 'S', side: 'S', at: 0, to: 'captacao', toDoor: 'N', lock: 'primLock' }],
+    pickups: [
+      { id: 'p12ammo', kind: 'ammo', x: -18, z: 14 },
+      { id: 'p12ammo2', kind: 'ammo', x: 18, z: 14 },
+      { id: 'p12med', kind: 'med', x: -18, z: -16 },
+      { id: 'p12smg', kind: 'smgammo', x: 18, z: -16 },
+      { id: 'p12crate', kind: 'crate', x: 16, z: 4 },
+    ],
+    ambient: [],
+    logs: [{ id: 'log16', x: -19.5, z: 2, yaw: Math.PI / 2 }],
+    core: { x: 0, z: -15 }, uplink: { x: 14, z: -18.6 },
+    encounters: [
+      { id: 'prim-awaken', on: 'zone', zone: { x: 0, z: 4, r: 7 }, boss: true, delay: 2, beat: 'primAwaken', msg: 'O PRIMÓRDIO rompe a contenção!',
+        spawn: [{ type: 'primordio', x: 0, z: -12 }, { type: 'raptor', x: -6, z: -14, delay: 3, fx: 'egg' }] },
+    ],
+    build(ctx) {
+      const b = this.bounds;
+      W.ground(ctx, b, W.groundTex.paving, 8, { patchCol: 0x140c0a, puddles: 3 });
+      W.perimeter(ctx, b, 6, MATS.concrete, [{ side: 'S', at: 0, half: 2.4 }], 1.4);
+      // pilares de concreto (bater o Primórdio neles atordoa)
+      [[-9, -4], [9, -4], [-9, 8], [9, 8], [0, 12]].forEach(([x, z]) => W.solid(ctx, x, z, 2.2, 2.2, 6, MATS.concrete));
+      // câmara de contenção quebrada (núcleo do laboratório) ao norte
+      W.solid(ctx, -6, -18, 5, 1, 4, MATS.metal); W.solid(ctx, 6, -18, 5, 1, 4, MATS.metal);
+      const glass = W.boxMesh(MATS.glass, 7, 3.6, 0.2); glass.position.set(0, 1.8, -19.4); ctx.group.add(glass);
+      const eggMat = new THREE.MeshStandardMaterial({ color: 0xb8c890, emissive: 0xa0ff30, emissiveIntensity: 0.5, roughness: 0.4 });
+      const eggGeo = new THREE.SphereGeometry(0.3, 10, 8), eggs = new THREE.Group();
+      for (let i = 0; i < 10; i++) { const e = new THREE.Mesh(eggGeo, eggMat); e.scale.set(1, 1.35, 1); e.position.set(-4 + (i % 5) * 2, 0.4, -15.5 - Math.floor(i / 5) * 1.2); eggs.add(e); }
+      ctx.group.add(eggs);
+      const core = W.fireLight(ctx, 0, -15, 1, 24); core.color = 0xa0ff40; core.mode = 'pulse'; core.halo.material.color.setHex(0xa0ff40);
+      // mesas e arquivos do Conselho
+      [[-16, 10, 1], [15, -8, 1.1], [-15, -10, 0.9]].forEach((c) => W.crate(ctx, ...c, MATS.metal));
+      W.lamp(ctx, -14, 0, 0xffe0c0, 'flicker', 20, 3.6);
+      W.lamp(ctx, 14, 0, 0xffe0c0, 'flicker', 20, 3.6);
+      W.lamp(ctx, 0, 16, 0xff3020, 'pulse', 22, 3.4);
+      return { doors: { S: W.doorway(ctx, 'S', 0, b) }, eggs, eggMat, coreLight: core,
+        terminals: [{ id: 'uplink', kind: 'uplink', ...W.terminal(ctx, 14, -18.6, 0, 0x40c0ff), x: 14, z: -18.6 }] };
+    },
+  },
 ];
 
 export const AREA = Object.fromEntries(AREAS.map((a) => [a.id, a]));

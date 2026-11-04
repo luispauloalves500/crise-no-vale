@@ -22,6 +22,9 @@ export const SPEAKERS = {
   PILOTO: { name: 'Garça-1', col: '#ffd27a' },
   BRANDT: { name: 'Brandt', col: '#ff8a70' },
   RADIO: { name: 'Rádio', col: '#b8c4c0' },
+  // v11 — Ato 3
+  CONSELHO: { name: 'Conselho Tellus', col: '#d0a0ff' },
+  PREFEITA: { name: 'Prefeita Sá', col: '#ffc0a0' },
 };
 
 export const LOGS = {
@@ -118,11 +121,42 @@ export const LOGS = {
       '[contagem automática] Cerca de quarenta ovos no monte central, todos quentes.\nA captação de água de Porto Anil fica 12 km rio abaixo. A cratera transborda a cada cheia.',
     ],
   },
+  // ---------- v11: Ato 3 — Porto Anil ----------
+  log14: {
+    area: 'portoanil', title: 'BOLETIM DA DEFESA CIVIL', who: 'Prefeitura de Porto Anil — aviso nº 7',
+    pages: [
+      'Evacuação preventiva dos bairros Baixo Anil e Cais Velho. Motivo oficial: "risco de cheia".\nA Fundação Tellus cedeu ônibus e geradores e pediu que a captação de água ficasse sob responsabilidade da sua equipe técnica.',
+      'Nota manuscrita na margem, assinada R. Sá: "Ninguém da prefeitura entra na captação desde terça. Os técnicos da Tellus não usam uniforme da companhia de água. Perguntei o que tem no subsolo. Mandaram eu cuidar dos ônibus."',
+    ],
+  },
+  log15: {
+    area: 'captacao', title: 'PLANILHA DE DOSAGEM', who: 'Operador noturno da captação',
+    pages: [
+      'Turbidez do rio triplicou depois da última cheia. Filtros entupidos com uma gosma verde que brilha no escuro.\nOrdem da Tellus: manter as comportas ABERTAS e "diluir" o que vier do ninho na rede da cidade.',
+      'Se as comportas fecharem, o subsolo inunda — e o subsolo é deles. Deixei o painel destravado e fui embora com a minha família.\nSe alguém ler isto: feche as comportas. A cidade aguenta uns dias sem água. Não aguenta o que está nela.',
+    ],
+  },
+  log16: {
+    area: 'sede', title: 'ATA DO CONSELHO — SESSÃO RESERVADA', who: 'Conselho da Fundação Tellus',
+    pages: [
+      'Pauta única: Espécime P ("Primórdio"), primeiro animal clonado do âmbar do Sítio 3, mantido sob a captação desde antes da estação Vale Verde existir.\nO Vale Verde era o teste. Porto Anil é o mercado: água, terreno e silêncio.',
+      'Deliberação: caso o ninho RAIZ seja exposto, culpar o diretor Brandt, destruir os registros do Vale Verde e preservar o Espécime P a qualquer custo.\nVotos a favor: unanimidade. Assinaturas digitais anexadas.',
+    ],
+  },
+  log17: {
+    area: 'captacao', title: 'BILHETE DA DRA. LIMA', who: 'Dra. Helena Lima — antiga orientadora do projeto',
+    pages: [
+      'Eu assinei o primeiro protocolo do Espécime P, Rocha. Eu tinha vinte e seis anos e achei que era ciência.\nQuando entendi para que serviria, pedi transferência para o Vale Verde e jurei que nunca mais desceria aqui.',
+      'Deixei este bilhete na escrivaninha do operador na última vez que vim — e nunca tive coragem de entregar.\nO Primórdio responde ao cheiro dos próprios ovos. Use os pilares. E não deixe o Conselho levá-lo para outro lugar.',
+    ],
+  },
 };
 export const LOG_IDS = Object.keys(LOGS);
 /** v7: o Ato 1 (vale) tem 9 registros; o Ato 2 (rio abaixo) mais 4. */
 export const ACT1_LOGS = ['log1', 'log2', 'log3', 'log4', 'log5', 'log6', 'log7', 'log8', 'log9'];
 export const ACT2_LOGS = ['log10', 'log11', 'log12', 'log13'];
+/** v11: o Ato 3 (Porto Anil) acrescenta 4 registros. */
+export const ACT3_LOGS = ['log14', 'log15', 'log16', 'log17'];
 /** v6: os 7 registros originais da estação (o caminho de 7 continua valendo para o epílogo "Rio abaixo"). */
 export const STATION_LOGS = ['log1', 'log2', 'log3', 'log4', 'log5', 'log6', 'log7'];
 export const TOTAL_LOGS = LOG_IDS.length;
@@ -135,6 +169,33 @@ export const storySave = () => ({ logs: [...S.logs], said: [...S.said] });
 // ---------- falas ----------
 const R = true; // marca de rádio
 export const LINES = {
+  // ---------- v11: Ato 3 ----------
+  act3_offer: [['PILOTO', 'Garça-1 no chão! A doutora já está a bordo. Pra casa, agente?', R],
+    ['LIMA', 'Rocha... a câmera da cratera falava da captação de Porto Anil. Se o rio leva isso pra cidade, ninguém lá sabe.', R]],
+  enter_portoanil: [['RADIO', '...Defesa Civil de Porto Anil: evacuação dos bairros baixos. Dirijam-se aos ônibus no cais...', R],
+    ['ROCHA', 'Sirenes, ônibus vazios... e pegadas de três dedos no asfalto molhado.'],
+    ['LIMA', 'A captação fica ao norte do cais. Se a Tellus está escondendo algo, é lá.', R]],
+  enter_captacao: [['ROCHA', 'Que cheiro... a névoa arde nos olhos.'],
+    ['LIMA', 'As comportas estão abertas! Tudo o que desce da cratera vai direto pra rede da cidade. Feche o painel laranja!', R]],
+  enter_sede: [['ROCHA', 'Um bunker inteiro embaixo da estação de água. O Vale Verde era só a vitrine.'],
+    ['CONSELHO', 'Agente Rocha. A Fundação agradece por ter limpado a bagunça do Brandt. Pode se retirar.', R]],
+  flood_start: [['LIMA', 'Comportas fechando! O barulho das bombas vai chamar tudo o que estiver nas tubulações!', R]],
+  valves_done: [['PREFEITA', 'Aqui é a prefeita Sá. A pressão da rede caiu — quem fechou a captação?', R], ['ROCHA', 'Fui eu, prefeita. Não bebam a água. Explico depois.']],
+  prim_start: [['LIMA', 'É o Espécime P... o primeiro. Rocha, ele cospe ácido — não fique parada na linha de visão!', R]],
+  prim_phase1: [['ROCHA', 'Ele está chamando a matilha!']],
+  prim_phase2: [['LIMA', 'Os ovos do núcleo! Ele está chocando as crias para defendê-lo!', R]],
+  prim_dead: [['CONSELHO', 'Isso foi um investimento de trinta anos, agente.', R],
+    ['ROCHA', 'Agora é prova.'], ['LIMA', 'O terminal azul transmite os arquivos do Conselho. Ou as cargas no núcleo acabam com tudo aqui embaixo. A escolha é sua.', R]],
+  uplink_start: [['ROCHA', 'Atas, assinaturas, a planilha das comportas. Tudo para todas as rádios da costa.']],
+  uplink_done: [['PREFEITA', 'Recebemos tudo. A Polícia Federal está a caminho. Saia daí, agente!', R]],
+  core_start: [['ROCHA', 'Cargas no núcleo. Ninguém vai clonar mais nada aqui.']],
+  core_done: [['LIMA', 'Saia daí, Rocha! O bunker inteiro vai desabar!', R]],
+  contam_warn: [['LIMA', 'Rocha, a água do ninho está quase nos bairros! Um minuto, no máximo!', R]],
+  contam_lost: [['PREFEITA', '...relatos de água verde nas torneiras do Baixo Anil...', R], ['ROCHA', 'Tarde demais para os bairros baixos. Ainda dá para fechar o resto.']],
+  log14: [['ROCHA', 'A Tellus cuidou dos ônibus e da água da cidade. Muito conveniente.']],
+  log15: [['ROCHA', '"Diluir" na rede da cidade... Eles iam dar isso de beber para as pessoas.']],
+  log16: [['ROCHA', 'O Conselho inteiro assinou. O Brandt era só o bode expiatório.']],
+  log17: [['ROCHA', 'Doutora... a senhora sabia disso o tempo todo.'], ['LIMA', 'Sabia. Por isso estou aqui com você.', R]],
   enter_porto: [['RADIO', '...chiado... Garça-1 em espera na base costeira. Sem condições de voo até a tempestade passar...', R], ['ROCHA', 'Ótimo. Sem barco, sem helicóptero. Só eu e o vale.']],
   enter_ruinas: [['ROCHA', 'Essas pedras foram escavadas há pouco tempo. Alguém mexeu no altar.']],
   enter_lab: [['LIMA', 'Alguém aí? Vi a sua lanterna da cabine do pátio!', R], ['ROCHA', 'Dra. Lima? Agente Rocha, do resgate. Onde a senhora está?'],
@@ -293,6 +354,9 @@ export const INTRO = [
   { kicker: 'OBJETIVO', title: 'ENTRE NA ESTAÇÃO', text: 'Atravesse as ruínas até o laboratório.\nTerminais verdes salvam o jogo. Tablets com tela azul guardam registros da equipe — aperte E para ler.\nCuidado: barulho atrai a matilha.' },
 ];
 export const BEATS = {
+  // v11
+  valves: [{ kicker: 'CAPTAÇÃO ANIL', title: 'AS COMPORTAS', text: 'As comportas descem com um rangido longo e a água verde para de correr para a cidade. Embaixo do canal, uma escotilha de aço com o logotipo da Tellus destrava sozinha.\nUma escada desce para o escuro. Lá embaixo, alguma coisa bate contra vidro.' }],
+  prim: [{ kicker: 'SEDE TELLUS', title: 'ESPÉCIME P', text: 'O vidro da contenção estoura. O animal que sai dali é mais velho que o Colosso, mais pálido que a Matriarca, coberto de glândulas que pingam ácido no concreto.\nO Primórdio — o primeiro de todos. O Conselho chamava isso de patrimônio.' }],
   power: [{ kicker: 'GERADOR RESERVA', title: 'AS LUZES DO VALE', text: 'O gerador ruge e, um a um, os postes da estação voltam a acender. As janelas do laboratório se iluminam pela primeira vez em três dias.\nNo rádio, a Dra. Lima solta o ar: "Você conseguiu! O portão norte do laboratório destravou... e a porta da diretoria também. Se passar por lá, olhe a sala do Brandt. Eu sempre quis saber o que ele escondia."' }],
   code: [{ kicker: 'TERMINAL DE CONTROLE', title: 'A PORTA DOS FUNDOS', who: 'Dra. Helena Lima', text: 'Lima digita rápido, sem olhar para o teclado. "O Brandt trocou todas as senhas do heliponto... mas fui eu que escrevi este sistema. Ele nunca soube da porta dos fundos."\nO portão leste destrava com um estalo. "Vá na frente, eu seguro o portão daqui. E, Rocha... o Colosso está lá em cima. Não deixe ele te encurralar no meio da pista."' }],
   // v7
@@ -305,6 +369,23 @@ export const ACT2_INTRO = [
   { kicker: 'ATO 2', title: 'RIO ABAIXO', text: 'O portão leste dá para uma trilha escorregadia que desce o penhasco até o rio. A Dra. Lima continua na cabine do pátio, guiando você pelo rádio. O Garça-1 pode recolhê-la mais abaixo, numa clareira longe do penhasco.\nNo barro da margem, pegadas de sapato social. O Brandt está vivo — e tem pressa.' },
   { kicker: 'OBJETIVO', title: 'ALCANCE O BRANDT', text: 'Siga o rio para o sul: a margem, o acampamento da equipe Tellus-2 e, depois dele, a cratera que eles chamavam de ninho.\nLeia os registros do caminho — há quatro novos — e decida o que fazer com o que restou do Projeto RAIZ.' },
 ];
+/** v11: cartão de abertura do Ato 3 (o Garça-1 leva a Marina até Porto Anil). */
+export const ACT3_INTRO = [
+  { kicker: 'ATO 3', title: 'PORTO ANIL', text: 'O Garça-1 desce o rio com a Dra. Lima a bordo. Doze quilômetros abaixo, a chuva cai sobre uma cidade costeira com sirenes ligadas e ruas vazias.\nO piloto deixa você no cais velho. "Combustível para uma volta, agente. Chame quando terminar."' },
+  { kicker: 'OBJETIVO', title: 'A CAPTAÇÃO', text: 'Atravesse o cais até a captação de água, feche as comportas antes que a água do ninho chegue aos bairros e descubra o que a Tellus esconde embaixo dela.\nHá quatro registros novos. Terminais verdes continuam salvando o jogo.' },
+];
+/** v11: finais do Ato 3 — escolha (expor x destruir) × contaminação (comportas a tempo ou não). */
+function epilogueAct3(F) {
+  const expose = F.act3Choice === 'expose', dirty = !!F.contaminated;
+  const pages = [{ kicker: 'GARÇA-1 — CAIS VELHO', title: 'PORTO ANIL FICA PARA TRÁS', text: 'Rocha sobe pela escotilha com os pulmões ardendo. O Garça-1 já está pairando sobre o cais, e a Dra. Lima estende a mão pela porta lateral.\n' + (expose ? 'Em todas as rádios da costa, a mesma voz lê as atas do Conselho.' : 'Atrás delas, o chão da captação afunda numa nuvem de poeira e fogo.') }];
+  if (expose) pages.push({ kicker: 'UMA SEMANA DEPOIS', title: 'O CONSELHO RESPONDE', text: 'As assinaturas digitais batem. Os conselheiros da Fundação Tellus são presos um a um, e a prefeita Sá depõe com o boletim nº 7 na mão.' + (S.logs.has('log16') ? '\nA ata da sessão reservada vira a peça central do processo.' : '\n(Sem a ata do Conselho, os advogados da Tellus ganham tempo.)') + '\nO bunker é lacrado pela Polícia Federal — com o que restou do Primórdio lá dentro, como prova.' });
+  else pages.push({ kicker: 'UMA SEMANA DEPOIS', title: 'NADA A DECLARAR', text: 'Não sobrou nada do laboratório para clonar — nem para apresentar num tribunal. A Tellus fala em "explosão acidental numa instalação de terceiros".\nO Conselho troca de nome. Mas o Espécime P não existe mais, e nenhum ovo saiu daquele bunker.' });
+  if (dirty) pages.push({ kicker: 'PORTO ANIL — MARÇO', title: 'ÁGUA TURVA', text: 'Parte da água do ninho chegou aos bairros baixos antes das comportas fecharem. Durante semanas, ninguém pesca no Baixo Anil, e os cães não chegam perto dos bueiros.\n(As comportas podiam ter fechado a tempo — o relógio de contaminação começa ao chegar na captação.)' });
+  else pages.push({ kicker: 'PORTO ANIL — AMANHECER', title: 'A CIDADE ACORDA', text: 'Os ônibus de evacuação voltam ao cais. A captação reabre dias depois, com técnicos da companhia de água — de uniforme.\nA cidade nunca soube o quanto chegou perto.' });
+  const e = ending(F);
+  pages.push({ kicker: `FINAL DO ATO 3 • REGISTROS ${S.logs.size}/${TOTAL_LOGS}`, title: e.title, text: e.line + (S.logs.size < TOTAL_LOGS ? '\n(Ainda há registros pelo caminho para completar a história.)' : `\nArquivo completo: todos os ${TOTAL_LOGS} registros.`) });
+  return pages;
+}
 /** v7: finais do Ato 2 (resgate na clareira do ninho). */
 function epilogueAct2(F) {
   const caught = F.brandt === 'caught', burnt = !!F.nestDestroyed;
@@ -315,10 +396,13 @@ function epilogueAct2(F) {
   else pages.push({ kicker: 'PORTO ANIL — MARÇO', title: 'A CHEIA', text: 'A cheia de março transborda a cratera. Doze quilômetros rio abaixo, a captação de Porto Anil entope com algo que ninguém sabe explicar.\n(Os ovos podiam ter sido destruídos: as cargas da Tellus-2 estavam no ninho.)' });
   const T = caught && burnt ? 'FIM DO PROJETO RAIZ' : caught ? 'JUSTIÇA RIO ABAIXO' : burnt ? 'CINZAS DO NINHO' : 'O RIO GUARDA SEGREDOS';
   const tail = { 'FIM DO PROJETO RAIZ': 'O diretor preso, o ninho em cinzas. Pela primeira vez, a Fundação Tellus não tem mais nada para esconder — nem onde esconder.', 'JUSTIÇA RIO ABAIXO': 'O culpado responde pelo que fez. Mas, na cratera, alguma coisa ainda está quente.', 'CINZAS DO NINHO': 'O ninho acabou. O homem que o vendeu, não.', 'O RIO GUARDA SEGREDOS': 'Rocha saiu viva do vale. O resto, o rio levou.' }[T];
-  pages.push({ kicker: `FINAL DO ATO 2 • REGISTROS ${S.logs.size}/${TOTAL_LOGS}`, title: T, text: tail + (S.logs.size < TOTAL_LOGS ? '\n(Ainda há registros pelo caminho para completar a história.)' : '\nArquivo completo: todos os 13 registros.') });
+  // v11: o Ato 2 conta só os 13 registros do vale e do rio (o Ato 3 tem os seus)
+  const n2 = [...ACT1_LOGS, ...ACT2_LOGS].filter((id) => S.logs.has(id)).length, t2 = ACT1_LOGS.length + ACT2_LOGS.length;
+  pages.push({ kicker: `FINAL DO ATO 2 • REGISTROS ${n2}/${t2}`, title: T, text: tail + (n2 < t2 ? '\n(Ainda há registros pelo caminho para completar a história.)' : `\nArquivo completo: todos os ${t2} registros.`) + '\n(Porto Anil continua lá: o Ato 3 fica disponível no menu.)' });
   return pages;
 }
 export function epilogue(F = {}) {
+  if (F.act3Win) return epilogueAct3(F);
   if (F.act2Win) return epilogueAct2(F);
   // v7: os finais do Ato 1 contam só os 9 registros do vale
   const n = ACT1_LOGS.filter((id) => S.logs.has(id)).length, proof = S.logs.has('log5') && S.logs.has('log4');
@@ -342,6 +426,13 @@ export function epilogue(F = {}) {
 }
 /** v6: qual final o jogador viu (título da tela de fim + linha de resumo). */
 export function ending(F = {}) {
+  if (F.act3Win) {
+    const x = F.act3Choice === 'expose', d = !!F.contaminated;
+    if (x && !d) return { id: 'mare', title: 'MARÉ LIMPA', line: 'Comportas fechadas a tempo e o Conselho exposto em todas as rádios da costa.' };
+    if (!x && !d) return { id: 'silencio', title: 'SILÊNCIO NA CAPTAÇÃO', line: 'Porto Anil está a salvo e o Primórdio virou entulho, mas as provas foram junto.' };
+    if (x) return { id: 'turva', title: 'VERDADE TURVA', line: 'O Conselho caiu, mas parte da água do ninho chegou aos bairros baixos.' };
+    return { id: 'escombros', title: 'ESCOMBROS E LAMA', line: 'O laboratório desabou e a cidade bebeu parte da cheia. Ninguém vai responder por isso.' };
+  }
   if (F.act2Win) {
     const c = F.brandt === 'caught', b = !!F.nestDestroyed;
     if (c && b) return { id: 'raiz', title: 'FIM DO PROJETO RAIZ', line: 'Brandt preso e o ninho destruído: o Projeto RAIZ acabou de verdade.' };

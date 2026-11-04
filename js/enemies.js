@@ -409,6 +409,19 @@ function updateEnemy(e, dt) {
         e.windup = e.windup0 = T.windup || (boss ? 1.0 : 0.9); e.special = rand(5, 7) / rage; roar(0.5, 0.5); sfx.chargeWarn(); G.shake = Math.max(G.shake, 0.25);
       }
       if (sees && dist < reach + 0.2 && e.atkCd <= 0) { e.atkCd = 1.6; e.bite = 0.35; hit(T.dmg, 10); }
+      // v11: Primórdio — leque de cuspe ácido a média distância (reaproveita os sprites do cuspidor)
+      if (T.acid) {
+        if (e.acidCd === undefined) e.acidCd = 3;
+        e.acidCd -= dt;
+        if (sees && dist > 6 && dist < 22 && e.acidCd <= 0 && castWorld(e.pos.x, e.pos.z, nx, nz, dist, 1.5) >= dist - 0.5) {
+          e.acidCd = T.acid.cd / rage; e.bite = 0.4;
+          for (let k = 0; k < T.acid.n; k++) {
+            spit(e, nx, nz, dist);
+            const s = spits[spits.length - 1], a = (k - (T.acid.n - 1) / 2) * T.acid.spread, c = Math.cos(a), sn = Math.sin(a);
+            const vx = s.vx * c - s.vz * sn, vz = s.vx * sn + s.vz * c; s.vx = vx; s.vz = vz;
+          }
+        }
+      }
     }
   }
   const ml = Math.hypot(mvx, mvz); if (ml > 0) { mvx /= ml; mvz /= ml; }
