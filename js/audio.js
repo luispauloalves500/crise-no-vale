@@ -208,15 +208,15 @@ export const isMuffled = () => muffled;
 
 // ----- efeitos nomeados -----
 export const sfx = {
-  pistol()  { noise(0.18, 3500, 150, 0.55, 'lowpass', 0, true); tone(180, 60, 0.08, 'square', 0.12, 0, true); },
+  pistol()  { noise(0.16, 4200, 180, 0.46, 'lowpass', 0, true); tone(170, 55, 0.09, 'triangle', 0.12, 0, true); tone(1450, 780, 0.035, 'triangle', 0.045, 0.075); },
   shotgun() { noise(0.45, 2200, 120, 0.9, 'lowpass', 0, true); tone(110, 40, 0.18, 'sawtooth', 0.25, 0, true); },
   smg()     { noise(0.09, 4200, 300, 0.38, 'lowpass', 0, true); tone(240 + Math.random() * 30, 90, 0.05, 'square', 0.08, 0, true); }, // v6: rajada curta e seca
   dry()     { tone(900, 800, 0.04, 'square', 0.08); },
   hit()     { if (gate('hit', 0.045)) tone(160 + Math.random() * 30, 90, 0.08, 'square', 0.12); },
   crit()    { if (gate('crit', 0.06)) { tone(1200, 700, 0.07, 'triangle', 0.14); tone(2400, 1800, 0.05, 'sine', 0.05, 0.01); } },
   kill()    { if (gate('kill', 0.08)) { tone(700, 1400, 0.09, 'triangle', 0.16); tone(350, 120, 0.2, 'square', 0.08, 0.04); } },
-  reloadStart() { tone(220, 180, 0.1, 'square', 0.1); },
-  reloadEnd()   { tone(300, 600, 0.08, 'square', 0.12); },
+  reloadStart() { noise(0.055, 1800, 750, 0.07, 'bandpass'); tone(300, 170, 0.07, 'triangle', 0.06); },
+  reloadEnd()   { tone(850, 420, 0.055, 'triangle', 0.08); noise(0.07, 2400, 700, 0.06, 'bandpass', 0.02); },
   swap()    { tone(500, 300, 0.08, 'square', 0.08); },
   pickup()  { tone(600, 1200, 0.15, 'triangle', 0.2); },
   hurt()    { if (gate('hurt', 0.12)) tone(220, 90, 0.25, 'sawtooth', 0.25, 0, true); },
@@ -227,7 +227,9 @@ export const sfx = {
   tick()    { tone(880, 880, 0.05, 'square', 0.06); },
   win()     { tone(300, 900, 0.6, 'triangle', 0.25); tone(450, 1350, 0.6, 'triangle', 0.15, 0.2); },
   thunder(delay = 0) { noise(2.2, 400, 40, 0.7, 'lowpass', delay, true, brownB); noise(0.5, 3000, 300, 0.25, 'lowpass', delay); },
-  door()    { noise(0.6, 500, 90, 0.35); tone(90, 60, 0.5, 'sawtooth', 0.08, 0.05); },
+  door()    { noise(0.5, 600, 120, 0.22, 'bandpass'); tone(105, 70, 0.4, 'triangle', 0.07); },
+  doorOpen() { noise(0.68, 1000, 260, 0.18, 'bandpass'); tone(110, 78, 0.55, 'triangle', 0.07); },
+  doorClose() { noise(0.45, 700, 100, 0.20, 'lowpass', 0, false, brownB); tone(80, 42, 0.26, 'sine', 0.12, 0.15); },
   locked()  { if (gate('locked', 0.35)) { tone(160, 150, 0.12, 'square', 0.12); tone(120, 110, 0.18, 'square', 0.12, 0.14); } },
   // v10: Terminal TELLUS — abrir, comprar e recusar
   terminal() { tone(392, 392, 0.06, 'square', 0.07); tone(784, 784, 0.1, 'square', 0.07, 0.07); },

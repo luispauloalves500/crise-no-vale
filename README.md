@@ -21,12 +21,11 @@ Você é a agente **Marina Rocha**, enviada depois de três dias de silêncio do
 
 ## Jogar online
 
-**https://luispauloalves500.github.io/crise-no-vale/**
+**https://jogoiarexx-blip.github.io/Crisis-no-vale/**
 
-O jogo roda direto no navegador (desktop, com teclado e mouse ou controle), sem instalar nada. Os ajustes ficam salvos no navegador (`crise-no-vale-settings`), assim como o progresso (`crise-no-vale-save`). O GitHub Pages republica o site a cada push na branch `main`.
+O jogo roda direto no navegador (desktop, com teclado e mouse ou controle), sem instalar nada. No final do Ato 1, pressione **E** na marca H para iniciar a extração; o portão leste leva ao Ato 2. Entrar na marca H por acidente não inicia o resgate. Os ajustes ficam salvos no navegador (`crise-no-vale-settings`), assim como o progresso (`crise-no-vale-save`). O GitHub Pages republica o site a cada push na branch `main`.
 
-- O repositório traz o workflow `.github/workflows/pages.yml` ("Publicar no GitHub Pages"), que publica só `index.html`, `css/` e `js/`.
-- Para o workflow assumir a publicação, ajuste uma vez **Settings → Pages → Source: GitHub Actions** (https://github.com/luispauloalves500/crise-no-vale/settings/pages). Enquanto a fonte for "Deploy from a branch" (`main`, raiz), o site continua sendo atualizado do mesmo jeito.
+- O repositório atual publica o jogo em `https://jogoiarexx-blip.github.io/Crisis-no-vale/`. Confira a configuração em [Settings → Pages](https://github.com/jogoiarexx-blip/Crisis-no-vale/settings/pages). Esta revisão não adiciona um workflow de GitHub Actions.
 - Os caminhos são relativos (`<base href="./">`) e o Three.js vem do CDN, então o jogo funciona em `/crise-no-vale/`.
 
 ## Como jogar
@@ -105,13 +104,13 @@ Todo o som é gerado no navegador com WebAudio; não há nenhum arquivo de áudi
 
 1. **Cais → Ruínas → Laboratório.** Pegue a escopeta no caminho.
 2. **Ligar a energia.** O portão norte do laboratório está sem energia. No pântano, ligue o gerador (E). O barulho atrai a matilha: fique perto dele por 20 s enquanto chegam três grupos de inimigos. A energia volta, as lâmpadas acendem e o portão abre. Depois disso as ruínas e o laboratório ganham novos encontros.
-3. **Escolta.** No pátio, fale com a Dra. Lima (E). Ela passa a seguir você. Leve-a até o terminal de controle no nordeste, protegendo-a de raptores e de um bruto que arromba o galpão. Ela aguenta uma mordida. Na segunda ela cai: chegue perto e aperte **E** para levantá-la. Ela digita o código e libera o portão leste. Se você sair do pátio antes disso, a escolta reinicia.
+3. **Escolta.** No pátio, fale com a Dra. Lima (E). Ela passa a seguir você. Leve-a até o terminal de controle no nordeste, protegendo-a de raptores e de um bruto que arromba o galpão. Ela aguenta uma mordida. Na segunda ela cai: chegue perto e aperte **E** para levantá-la. Ela digita o código e libera o portão leste. Se você sair do pátio antes disso, a Dra. Lima espera no ponto onde ficou; ao voltar, a escolta continua sem repetir as emboscadas.
 4. **Chefe.** No heliponto, o portão se fecha atrás de você e o **Colosso** ataca:
    - Ele investe em linha reta e pisa no chão em área.
    - Ele chama raptores nas fases de vida.
    - Quando bate numa parede fica atordoado e leva +50% de dano. Granadas também o atordoam.
    - v5: um **anel vermelho** no chão avisa o pisão e uma **faixa** mostra a direção da investida.
-5. **Resgate.** Com o Colosso morto, suba na marca H e aguente 14 s até o helicóptero chegar. No fim você recebe um rank (S–D) calculado pelo tempo, pela precisão e pelo número de saves.
+5. **Resgate.** Com o Colosso morto, aproxime-se da marca H e aperte **E** para acionar o sinalizador; então aguente 14 s até o helicóptero chegar. Se quiser continuar a campanha, use o portão leste para o Ato 2 antes de chamar o resgate. No fim você recebe um rank (S–D) calculado pelo tempo, pela precisão e pelo número de saves.
 
 ### Ato 2 — Rio Abaixo (v7, sem spoilers pesados)
 
@@ -215,7 +214,7 @@ js/input.js       teclado e mouse
 js/ui.js          HUD, radar, mapa das áreas, banners, telas
 js/main.js        loop principal e estados (menu, jogo, pausa, fim)
 js/utils.js       utilitários
-.github/workflows/pages.yml  publicação no GitHub Pages
+.github/workflows/coherence.yml  CI: sintaxe de todos os módulos + testes (a publicação usa o GitHub Pages da branch)
 ```
 
 ### Depuração
@@ -225,3 +224,19 @@ No console, `__game` expõe o estado (`area`, `flags`, `objective`, `hp`, `enemi
 Os saves antigos continuam compatíveis: o campo `story` (registros lidos e falas já ditas) é opcional e os saves `v: 1` (v5, duas armas) são migrados ao carregar. v6: `__game.SETTINGS`, `__game.setSetting(k, v)`, `__game.switchWeapon(i)`, `__game.cycleWeapon(±1)`, `__game.bag` (armas, colete) e `__game.story.ending()`.
 
 v7: o save é `v: 3` (flags da campanha); saves antigos são migrados. `__game.setFlags({...})`, `__game.brandt` e `__game.goto('margem' | 'acampamento' | 'ninho')`.
+
+
+## Revisão de coerência — IA e backtracking (03/11/2026)
+
+- Os dinossauros patrulham, investigam barulhos e só confirmam a posição de Marina quando têm linha de visão (com campo visual para os desatentos). Parede também reduz o alcance auditivo.
+- Ao perder o contato visual, perseguem a última posição conhecida por alguns segundos e depois investigam/retomam a patrulha. Mordidas, cuspes e ondas de choque não atravessam paredes sólidas.
+- Ao mudar de área ou salvar num terminal, posições, HP e estado de alerta dos sobreviventes são lembrados. Os mortos não voltam. Aparições programadas ainda pendentes voltam na próxima visita, evitando desaparecimento por atravessar uma porta rapidamente.
+- Ondas de eventos canceláveis (gerador e terminal) não sobrevivem à interrupção do evento. Saves antigos sem memória de inimigos continuam aceitos, usando a composição inicial da área e os abates registrados.
+- Testes puros: `node --test tests/coherence.test.mjs` (requer Node.js moderno; não executa WebGL).
+
+## Atualização: escolta e navegação (novembro de 2026)
+
+- A Dra. Lima contorna obstáculos do pátio com A* 2D e os colisores reais da área. A velocidade da animação segue o deslocamento efetivo, evitando passos no lugar.
+- A posição, resistência e escolta são preservadas ao sair e voltar ao pátio ou carregar um salvamento; emboscadas já disparadas não reiniciam.
+- O código de abertura do heliponto não pode ser interrompido atravessando outra porta durante seus 4 segundos.
+- Testes de rota em `tests/escort.test.mjs` e verificações de sintaxe no GitHub Actions.

@@ -1,3 +1,5 @@
+import { batchBackgroundTrees } from './tree-batching.mjs';
+import { buildContactShadows } from './contact-shadows.js';
 // areas.js — definição das ÁREAS conectadas (geometria, clima, portas, itens, inimigos e eventos).
 // Cada área é um grupo próprio na cena; só a área atual fica visível e com colisores ativos.
 // Coordenadas locais centradas na origem. Norte = -Z, Leste = +X.
@@ -91,8 +93,8 @@ export const AREAS = [
     encounters: [
       { id: 'ruinas-ambush', on: 'enter', first: true, delay: 1.2, msg: 'EMBOSCADA! Raptores no corredor!',
         spawn: [{ type: 'raptor', x: -4, z: 4 }, { type: 'raptor', x: 4, z: 6, delay: 0.5 }, { type: 'raptor', from: 'S', delay: 4 }] },
-      { id: 'ruinas-return', on: 'enter', flag: 'power', msg: 'A matilha voltou para as ruínas!',
-        spawn: [{ type: 'raptor', from: 'N' }, { type: 'raptor', from: 'N', delay: 0.6 }, { type: 'spitter', x: 5, z: -10, delay: 1.5 }] },
+      { id: 'ruinas-return', on: 'enter', flag: 'power', revisitFrom: 'lab', warning: 'Rugidos na mata — o alarme atraiu predadores às ruínas!',
+        spawn: [{ type: 'raptor', from: 'S' }, { type: 'raptor', from: 'S', delay: 0.6 }, { type: 'spitter', from: 'S', delay: 1.5 }] },
     ],
     build(ctx) {
       const b = this.bounds, rng = ctx.rng;
@@ -146,8 +148,8 @@ export const AREAS = [
     logs: [{ id: 'log3', x: 21.5, z: 17, yaw: -Math.PI / 2 }, { id: 'log5', x: -20.4, z: 15.4, yaw: Math.PI / 2 }],
 
     encounters: [
-      { id: 'lab-return', on: 'enter', flag: 'power', msg: 'Os alarmes atraíram uma matilha!',
-        spawn: [{ type: 'raptor', from: 'W' }, { type: 'raptor', from: 'E', delay: 0.4 }, { type: 'raptor', from: 'N', delay: 1.2 }, { type: 'spitter', from: 'E', delay: 2 }, { type: 'raptor', from: 'W', delay: 3 }] },
+      { id: 'lab-return', on: 'enter', flag: 'power', revisitFrom: 'pantano', warning: 'Sirene ativa — rugidos se aproximam pelo complexo!',
+        spawn: [{ type: 'raptor', from: 'E' }, { type: 'raptor', from: 'N', delay: 0.8 }, { type: 'spitter', from: 'E', delay: 1.8 }] },
       // v5: "Protocolo da diretoria" — ao entrar na sala do Brandt, a porta blindada bate e o alarme chama a matilha
       // (beat roteirizado em director.js → BEAT.lockdown; os spawns ficam esperando no corredor quando a porta reabre)
       { id: 'lab-lockdown', on: 'zone', flag: 'power', zone: { x: -17, z: 14.4, r: 2 }, beat: 'lockdown',
@@ -602,15 +604,25 @@ export function buildArea(a) {
   if (typeof a === 'string') a = AREA[a];
   if (a.ctx) return 0;
   const t0 = performance.now(), i = AREAS.indexOf(a);
-  a.ctx = W.makeCtx(mulberry32(WORLD.SEED + i * 101)); a.refs = a.build(a.ctx);
+  a.ctx = W.makeCtx(mulberry32(WORLD.SEED + i * 101));
+  try {
+  a.refs = a.build(a.ctx);
   a.refs.logs = (a.logs || []).map((l) => ({ ...l, ...W.datapad(a.ctx, l.x, l.z, l.yaw || 0) }));
   // placas com o destino em cada portão
   a.doors.forEach((d) => { const ref = a.refs.doors[d.id]; if (ref) W.doorSign(ref, '→ ' + AREA[d.to].name, DIR[d.side]); });
+  if (a.id === 'porto') a.ctx.treeBatchStats = batchBackgroundTrees(THREE, a.ctx.group);
+  buildContactShadows(a.ctx);
   W.applyShadowTiers(a.ctx.group);
   collectLod(a.ctx);   // v9: LOD por distância (js/lod.js)
   a.builds = (a.builds || 0) + 1;
   for (const fn of builtHooks) fn(a);
   return performance.now() - t0;
+  } catch (error) {
+    // Não deixar uma área parcialmente construída parecer pronta numa nova tentativa.
+    if (a.ctx) W.disposeGroup(a.ctx.group);
+    a.ctx = null; a.refs = null;
+    throw error;
+  }
 }
 /** Descarrega a área (descarta geometria/materiais próprios; recursos compartilhados ficam). */
 export function unloadArea(a) {

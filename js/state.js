@@ -1,6 +1,7 @@
 // state.js — estado de execução compartilhado entre módulos (evita imports circulares).
 export const G = {
   state: 'menu',
+  transitioning: false,
   hitstop: 0,         // v6: congelamento breve (s) em crítico/abate
   hitstopCd: 0,      // menu | play | pause | story | terminal | over | win | ended
   area: 'porto',      // id da área atual
@@ -19,6 +20,7 @@ export const G = {
   pitch: -0.12,
   aiming: false,
   shoulder: 1,        // 1 = ombro direito, -1 = esquerdo
+  cleanStreak: { kills: 0 },
   combo: 0,
   comboT: 0,
   best: 0,

@@ -137,7 +137,7 @@ const R = true; // marca de rádio
 export const LINES = {
   enter_porto: [['RADIO', '...chiado... Garça-1 em espera na base costeira. Sem condições de voo até a tempestade passar...', R], ['ROCHA', 'Ótimo. Sem barco, sem helicóptero. Só eu e o vale.']],
   enter_ruinas: [['ROCHA', 'Essas pedras foram escavadas há pouco tempo. Alguém mexeu no altar.']],
-  enter_lab: [['LIMA', 'Alguém aí? Vi uma lanterna nas câmeras do laboratório!', R], ['ROCHA', 'Dra. Lima? Agente Rocha, do resgate. Onde a senhora está?'],
+  enter_lab: [['LIMA', 'Alguém aí? Vi a sua lanterna da cabine do pátio!', R], ['ROCHA', 'Dra. Lima? Agente Rocha, do resgate. Onde a senhora está?'],
     ['LIMA', 'Presa na cabine da guarda, no pátio. O portão norte está sem energia. O gerador reserva fica no pântano, a oeste.', R]],
   enter_pantano: [['LIMA', 'O gerador não liga sozinho... alguém tirou o fusível automático. Você vai ter que ligar na mão — e o barulho vai chamar a matilha.', R]],
   enter_patio: [['LIMA', 'Estou vendo você pela janela! Canto sudoeste do pátio, depressa!', R]],
@@ -146,13 +146,13 @@ export const LINES = {
   greet: [['LIMA', 'Graças a Deus. Achei que ninguém viria.'], ['ROCHA', 'Consegue andar? O heliponto está trancado.'],
     ['LIMA', 'O Brandt trocou as senhas, mas eu escrevi aquele sistema. O terminal de controle fica no nordeste. Me cubra.']],
   code_start: [['LIMA', 'Senha nova... claro, a data de fundação da Tellus. Me dê alguns segundos.']],
-  boss_start: [['ROCHA', 'Então esse é o Colosso...'], ['LIMA', 'Rocha! Faça ele bater nas paredes — é o único jeito de ferir o couro!', R]],
+  boss_start: [['ROCHA', 'Então esse é o Colosso...'], ['LIMA', 'Rocha! Faça ele bater nas paredes — ele fica mais vulnerável!', R]],
   boss_phase1: [['LIMA', 'Ele está chamando a matilha! Cuidado com os flancos!', R]],
   boss_phase2: [['LIMA', 'Ele está fraco, mas furioso! Não pare agora!', R]],
-  boss_dead: [['ROCHA', 'Acabou, grandão.'], ['LIMA', 'Você conseguiu?! Fique na marca H e acenda o sinalizador. Já chamei o Garça-1!', R]],
-  rescue_start: [['PILOTO', 'Garça-1 para solo: a tempestade abriu, vemos seu sinalizador. Aguentem firme!', R]],
+  boss_dead: [['ROCHA', 'Acabou, grandão.'], ['LIMA', 'Você conseguiu?! Quando decidir sair, acione o sinalizador na marca H. Posso guiá-la pelo rádio do pátio.', R]],
+  rescue_start: [['PILOTO', 'Garça-1 para solo: recebemos o sinalizador. Buscamos você no penhasco e depois a doutora no pátio!', R]],
   rescue_mid: [['PILOTO', 'Muito movimento na mata! Mantenham a pista limpa!', R]],
-  rescue_near: [['PILOTO', 'Doutora a bordo! Aproximação final — vamos buscar você!', R]],
+  rescue_near: [['PILOTO', 'Aproximação final, agente Rocha! Mantenha a zona de pouso livre!', R]],
   lima_down: [['LIMA', 'Ai! Me ajude, eles estão em cima de mim!']],
   log5: [['ROCHA', 'O Brandt derrubou a energia de propósito... Isso aqui é prova.']],
   log4: [['ROCHA', 'Tiraram o fusível... a queda de energia não foi acidente.']],
@@ -164,10 +164,10 @@ export const LINES = {
     ['LIMA', 'Rocha, a sirene da diretoria está tocando no laboratório inteiro! Eles vão esperar você na porta!', R]],
   lockdown_open: [['ROCHA', 'Lá vêm eles. Bem-vindos.']],
   // ---------- v7: Ato 2 ----------
-  act2_offer: [['LIMA', 'Rocha... achei pegadas de sapato social descendo para o rio pelo portão leste. O Brandt está vivo!', R],
-    ['LIMA', 'Se quiser ir atrás dele, eu fico aqui com o rádio. O Garça-1 pode te buscar rio abaixo.', R]],
+  act2_offer: [['LIMA', 'Rocha, vi no monitor de emergência pegadas de sapato social na trilha do rio. O Brandt pode estar vivo!', R],
+    ['LIMA', 'Se decidir seguir o rio, fico na cabine do pátio para guiar você pelo rádio. O Garça-1 pode buscá-la mais abaixo.', R]],
   enter_margem: [['ROCHA', 'Rio cheio, barranco podre... e um barco da Tellus-2 encalhado.'], ['LIMA', 'Cuidado com o lodo da margem. Eles chocam no quente.', R]],
-  brandt_glimpse: [['ROCHA', 'Brandt! Parado!'], ['BRANDT', 'Você de novo? Vá embora, agente. Isto aqui é maior que nós dois!']],
+  brandt_glimpse: [['ROCHA', 'Brandt! Parado!'], ['BRANDT', 'A agente do resgate? Vá embora. Isto aqui é maior que nós dois!']],
   enter_acampamento: [['ROCHA', 'O acampamento da Tellus-2. Ninguém de pé.'], ['LIMA', 'Jaulas de contenção... Rocha, se elas abrirem, saia do meio!', R]],
   brandt_camp: [['BRANDT', 'Quer me prender? Então primeiro sobreviva aos meus bichinhos!']],
   hack_start: [['LIMA', 'É o mesmo sistema do heliponto. Leve o terminal até o fim — a sirene vai chamar todo mundo!', R]],
@@ -182,7 +182,7 @@ export const LINES = {
   brandt_escaped: [['ROCHA', 'Droga! Ele escapou rio abaixo...'], ['LIMA', 'Ainda dá para salvar o resto. Chame o Garça-1!', R]],
   charges: [['ROCHA', 'Cargas da Tellus-2. Hora de usar para alguma coisa boa.']],
   charges_done: [['LIMA', 'Que estrondo! Os ovos... acabou?', R], ['ROCHA', 'Acabou. Porto Anil vai beber água limpa.']],
-  rescue2_start: [['PILOTO', 'Garça-1 rio abaixo! A Dra. Lima está a bordo, vemos seu sinalizador na clareira!', R]],
+  rescue2_start: [['PILOTO', 'Garça-1 rio abaixo! Recebemos o sinalizador da clareira. Depois recolhemos a doutora no pátio!', R]],
   rescue2_mid: [['PILOTO', 'A cratera está fervendo de movimento! Segurem a clareira!', R]],
   log10: [['ROCHA', 'O Brandt sobreviveu à queda... e a Tellus quer ele vivo.']],
   log11: [['ROCHA', '"Nenhuma testemunha." Que gentileza.']],
@@ -298,18 +298,18 @@ export const BEATS = {
   // v7
   camp_gate: [{ kicker: 'ACAMPAMENTO TELLUS-2', title: 'O RASTRO DO DIRETOR', text: 'O portão sul destrava. Além dele, uma trilha de lama sobe até a borda de uma cratera fumegante — e, nela, as pegadas de sapato social do Brandt, uma maleta arrastada e marcas de garras enormes.\nO rádio chia: "Rocha, a Tellus-2 chamava aquilo de ninho. Ninguém de lá voltou."' }],
   nest: [{ kicker: 'A CRATERA', title: 'O NINHO', text: 'Quarenta ovos brilham no monte central, pulsando como brasa verde. Brandt está entre eles, de terno rasgado, com um sinalizador aceso na mão.\nAtrás dele, a água da cratera se mexe. Algo enorme estava dormindo ali.' }],
-  boss: [{ kicker: 'HELIPONTO', title: 'ESPÉCIME ZERO', text: 'Os destroços do helicóptero do diretor ainda queimam. Entre a fumaça e a chuva, algo do tamanho de um caminhão se levanta.\nO Colosso. Seis toneladas sem medo nenhum — e tudo o que faz barulho é presa.' }],
+  boss: [{ kicker: 'HELIPONTO', title: 'ESPÉCIME ZERO', text: 'A carcaça carbonizada do helicóptero do diretor repousa sob a chuva. Entre os destroços, algo do tamanho de um caminhão se levanta.\nO Colosso. Seis toneladas sem medo nenhum — e tudo o que faz barulho é presa.' }],
 };
 /** v7: cartão de abertura do Ato 2 (primeira vez na margem). */
 export const ACT2_INTRO = [
-  { kicker: 'ATO 2', title: 'RIO ABAIXO', text: 'O portão leste dá para uma trilha escorregadia que desce o penhasco até o rio. A Dra. Lima ficou no heliponto com o rádio: o Garça-1 só pode buscar você mais abaixo, longe do penhasco.\nNo barro da margem, pegadas de sapato social. O Brandt está vivo — e tem pressa.' },
+  { kicker: 'ATO 2', title: 'RIO ABAIXO', text: 'O portão leste dá para uma trilha escorregadia que desce o penhasco até o rio. A Dra. Lima continua na cabine do pátio, guiando você pelo rádio. O Garça-1 pode recolhê-la mais abaixo, numa clareira longe do penhasco.\nNo barro da margem, pegadas de sapato social. O Brandt está vivo — e tem pressa.' },
   { kicker: 'OBJETIVO', title: 'ALCANCE O BRANDT', text: 'Siga o rio para o sul: a margem, o acampamento da equipe Tellus-2 e, depois dele, a cratera que eles chamavam de ninho.\nLeia os registros do caminho — há quatro novos — e decida o que fazer com o que restou do Projeto RAIZ.' },
 ];
 /** v7: finais do Ato 2 (resgate na clareira do ninho). */
 function epilogueAct2(F) {
-  const caught = F.brandt === 'caught', burnt = !!F.nestDestroyed, n2 = ACT2_LOGS.filter((id) => S.logs.has(id)).length;
-  const pages = [{ kicker: 'GARÇA-1 — CLAREIRA DO NINHO', title: 'A CRATERA FICA PARA TRÁS', text: 'O Garça-1 sobe por cima da cratera fumegante. A Dra. Lima puxa Rocha para dentro pela porta lateral.\n' + (caught ? 'Algemado no banco de trás, Otávio Brandt não diz uma palavra.' : '"E o Brandt?" Rocha olha para o rio. O barco já virou uma mancha na neblina.') }];
-  if (caught) pages.push({ kicker: 'UM MÊS DEPOIS', title: 'O DIRETOR DEPÕE', text: 'Diante dos inspetores, com a maleta de amostras sobre a mesa, Brandt entrega o conselho inteiro da Fundação Tellus para salvar a própria pele.' + (n2 >= 2 ? '\nA ordem do conselho e o tablet do diretor confirmam cada palavra.' : '') });
+  const caught = F.brandt === 'caught', burnt = !!F.nestDestroyed;
+  const pages = [{ kicker: 'GARÇA-1 — CLAREIRA DO NINHO', title: 'A CRATERA FICA PARA TRÁS', text: 'O Garça-1 sobe por cima da cratera fumegante. Um tripulante puxa Rocha para dentro pela porta lateral. Na volta, o Garça-1 recolherá a Dra. Lima no pátio.\n' + (caught ? 'Algemado no banco de trás, Otávio Brandt não diz uma palavra.' : '"E o Brandt?" Rocha olha para o rio. O barco já virou uma mancha na neblina.') }];
+  if (caught) pages.push({ kicker: 'UM MÊS DEPOIS', title: 'O DIRETOR DEPÕE', text: 'Diante dos inspetores, com a maleta de amostras sobre a mesa, Brandt entrega o conselho inteiro da Fundação Tellus para salvar a própria pele.' + (S.logs.has('log11') && S.logs.has('log12') ? '\nA ordem do conselho e o tablet do diretor confirmam cada palavra.' : '') });
   else pages.push({ kicker: 'UM MÊS DEPOIS', title: 'UMA CONTA NO EXTERIOR', text: 'Uma maleta de amostras é vendida num leilão fechado do outro lado do oceano. O comprador nunca é identificado.\nO nome de Otávio Brandt some de todos os registros da Tellus.' });
   if (burnt) pages.push({ kicker: 'PORTO ANIL — AMANHECER', title: 'ÁGUA LIMPA', text: 'A cheia de março passa pela cratera e não leva nada além de cinzas. A captação de Porto Anil funciona normalmente — e, desta vez, isso é uma boa notícia.' });
   else pages.push({ kicker: 'PORTO ANIL — MARÇO', title: 'A CHEIA', text: 'A cheia de março transborda a cratera. Doze quilômetros rio abaixo, a captação de Porto Anil entope com algo que ninguém sabe explicar.\n(Os ovos podiam ter sido destruídos: as cargas da Tellus-2 estavam no ninho.)' });
@@ -322,7 +322,7 @@ export function epilogue(F = {}) {
   if (F.act2Win) return epilogueAct2(F);
   // v7: os finais do Ato 1 contam só os 9 registros do vale
   const n = ACT1_LOGS.filter((id) => S.logs.has(id)).length, proof = S.logs.has('log5') && S.logs.has('log4');
-  const pages = [{ kicker: 'GARÇA-1 — DECOLAGEM', title: 'O VALE FICA PARA TRÁS', text: 'O helicóptero sobe através da chuva. Lá embaixo, os holofotes do pátio piscam uma última vez e o vale some na neblina.\nA Dra. Lima aperta o tablet contra o peito. "Ninguém vai acreditar no que aconteceu aqui."' }];
+  const pages = [{ kicker: 'GARÇA-1 — DECOLAGEM', title: 'O VALE FICA PARA TRÁS', text: 'Depois de recolher a Dra. Lima no pátio, o helicóptero sobe através da chuva. Lá embaixo, os holofotes piscam uma última vez e o vale some na neblina.\nA Dra. Lima aperta o tablet contra o peito. "Ninguém vai acreditar no que aconteceu aqui."' }];
   if (proof) pages.push({ kicker: 'UMA SEMANA DEPOIS', title: 'A VERDADE', text: 'Desta vez, acreditaram. A gravação de Brandt e a ordem de serviço do fusível chegam aos inspetores do governo.\nA Fundação Tellus é investigada, o Projeto RAIZ é encerrado e a estação é lacrada.\nO corpo de Otávio Brandt nunca foi encontrado.' });
   else if (S.logs.has('log5')) pages.push({ kicker: 'UMA SEMANA DEPOIS', title: 'MEIA VERDADE', text: 'A gravação de Brandt vira manchete, mas a Tellus diz que ele agiu sozinho e que a queda de energia foi acidente.\nSem a ordem de serviço do fusível, ninguém mais responde. O Projeto RAIZ "é encerrado" — no papel.' });
   else pages.push({ kicker: 'UMA SEMANA DEPOIS', title: 'VERSÃO OFICIAL', text: 'Sem provas, o relatório da Tellus fala em "acidente natural causado pela tempestade". O diretor Otávio Brandt é dado como desaparecido.\nO Projeto RAIZ muda de nome e de endereço.\n(As provas estavam pelo caminho: procure os registros do diretor e da manutenção.)' });

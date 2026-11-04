@@ -17,7 +17,7 @@ let T = null; // { view:'menu'|'shop', sel, tab, row, onSave, flags, area, saved
 export const terminalOpen = () => !!T;
 
 /**
- * Abre o terminal. opts: { onSave(): void, flags: flags da campanha, area: nome da área }
+ * Abre o terminal. opts: { onSave(): boolean, flags: flags da campanha, area: nome da área }
  */
 export function openTerminal(opts) {
   T = { view: 'menu', sel: 0, tab: 0, row: 0, onSave: opts.onSave, flags: opts.flags || {}, area: opts.area || '', saved: false, msg: '', msgCol: '' };
@@ -96,7 +96,8 @@ function activateMenu(i) {
   const k = MENU[i];
   if (k === 'save') {
     if (T.saved) return say('Progresso já salvo neste acesso', '#cde', true);
-    T.onSave(); T.saved = true;
+    if (!T.onSave()) return say('Não foi possível salvar. Verifique o armazenamento do navegador.', '#ff8a70', true);
+    T.saved = true;
     say(`Progresso salvo — vida restaurada (${PLAYER.HP})`, '#9fffb0');
   } else if (k === 'shop') { T.view = 'shop'; T.row = 0; T.msg = ''; sfx.tick(); render(); }
   else closeTerminal();

@@ -26,7 +26,7 @@ export function initInput(cvs, h) {
   canvas = cvs; handlers = h;
   addEventListener('keydown', (e) => {
     if (['Space', 'Tab', 'ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight'].includes(e.code)) e.preventDefault();
-    const first = !keys[e.code];
+    const first = !keys[e.code] && !e.repeat;
     keys[e.code] = true;
     if (first && handlers.onKey) handlers.onKey(e.code);
   });
@@ -34,7 +34,7 @@ export function initInput(cvs, h) {
 
   canvas.addEventListener('mousedown', (e) => {
     if (handlers.onCanvasDown) handlers.onCanvasDown();
-    if (G.state !== 'play') return;
+    if (G.state !== 'play' || G.transitioning) return;
     if (!document.pointerLockElement) lockPointer();
     if (e.button === 0) mouse.down = true;
     if (e.button === 2) { mouse.right = true; G.aiming = true; }
@@ -44,7 +44,7 @@ export function initInput(cvs, h) {
     if (e.button === 2) { mouse.right = false; G.aiming = false; }
   });
   addEventListener('mousemove', (e) => {
-    if (G.state !== 'play') return;
+    if (G.state !== 'play' || G.transitioning) return;
     // com pointer lock usa movementX/Y; sem lock ainda funciona enquanto o cursor se move na janela
     // v6: sensibilidade do jogador e inverter Y (ajustes)
     const s = (G.aiming ? CAMERA.AIM_SENS : CAMERA.SENS) * SETTINGS.sens, iy = SETTINGS.invertY ? -1 : 1;

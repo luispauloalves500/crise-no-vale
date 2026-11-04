@@ -79,6 +79,9 @@ export const ESCORT = {
   GRIT_REGEN: 7,    // s sem ser mordida para recuperar 1 ponto de fôlego
   DOWN: 4,          // s caída se ninguém ajudar (E perto dela levanta na hora)
   SAFE: 2.2,        // s ignorada pelos inimigos depois de levantar
+  FOLLOW_STOP: 2.1, // distância atrás de Marina
+  FOLLOW_MAX: 5.6,  // mantém o acompanhante abaixo da velocidade máxima de Marina
+  REPATH: 1.2,      // intervalo mínimo entre caminhos
 };
 
 export const INVENTORY = { MED_MAX: 4, MED_START: 1 };

@@ -5,6 +5,8 @@ import { FX, CAMERA } from './config.js';
 import { rand, clamp, noiseTex, glowTex, texMat, corrugatedTex, rippleTex, beamTex, labelTex, mergeGeos, softSplatTex, mulberry32 } from './utils.js';
 import { G } from './state.js';
 import { quality, onQuality } from './quality.js';
+import { makeGrassBlades, grassCount } from './grass-design.mjs';
+import { queueShadow, contactShadowResources } from './contact-shadows.js';
 
 export const GLOW = glowTex();
 
@@ -13,14 +15,15 @@ const SHARED = new WeakSet();
 /** Marca geometria/material/textura como compartilhado (não é descartado com a área). */
 export function share(...xs) { for (const x of xs) if (x) SHARED.add(x); return xs[0]; }
 const isShared = (x) => SHARED.has(x);
-share(GLOW);
+share(GLOW, ...contactShadowResources);
 
 // ---------- renderer / cena / câmera ----------
 export const renderer = new THREE.WebGLRenderer({ antialias: true, powerPreference: 'high-performance' });
+renderer.info.autoReset = false; // o bloom faz várias passagens por quadro; main.js zera a contagem 1x por quadro (renderInfo fica correto)
 const pixelRatio = () => Math.min(window.devicePixelRatio || 1, quality.p.pixelRatio);
 renderer.setPixelRatio(pixelRatio());
 renderer.setSize(innerWidth, innerHeight);
-renderer.shadowMap.enabled = true;
+renderer.shadowMap.enabled = false; // sombras de contato WebP substituem o shadow map
 renderer.shadowMap.type = quality.p.softShadows ? THREE.PCFSoftShadowMap : THREE.BasicShadowMap;
 renderer.outputColorSpace = THREE.SRGBColorSpace;
 renderer.toneMapping = THREE.ACESFilmicToneMapping;
@@ -43,7 +46,7 @@ addEventListener('resize', () => {
 const hemi = new THREE.HemisphereLight(0x7a9a8a, 0x0a0f08, 1.25);
 scene.add(hemi);
 const moon = new THREE.DirectionalLight(0xa8bce0, 1.2);
-moon.position.set(-20, 40, -12); moon.castShadow = true;
+moon.position.set(-20, 40, -12); moon.castShadow = false;
 moon.shadow.mapSize.set(quality.p.shadowSize, quality.p.shadowSize);
 Object.assign(moon.shadow.camera, { left: -38, right: 38, top: 38, bottom: -38, near: 1, far: 110 });
 moon.shadow.bias = -0.0008;
@@ -184,6 +187,7 @@ export function makeCtx(rng) { const group = new THREE.Group(); group.visible = 
 /** Paralelepípedo sólido (colide e bloqueia tiros se h alto). */
 export function solid(ctx, x, z, w, d, h, mat = MATS.concrete, y = 0, collide = true) {
   const m = boxMesh(mat, w, h, d); m.position.set(x, y + h / 2, z); m.castShadow = m.receiveShadow = true; ctx.group.add(m);
+  if (y === 0 && w <= 12 && d <= 12) queueShadow(ctx, x, z, w + 0.8, d + 0.8);
   if (collide) ctx.boxes.push({ minX: x - w / 2, maxX: x + w / 2, minZ: z - d / 2, maxZ: z + d / 2, h: y + h });
   return m;
 }
@@ -217,6 +221,7 @@ export function crate(ctx, x, z, s, mat = MATS.crate) {
   if (mat !== MATS.crate) return solid(ctx, x, z, s, s, s, mat);
   const m = new THREE.Mesh(crateGeo(), crateMat); m.scale.setScalar(s); m.position.set(x, 0, z);
   m.castShadow = m.receiveShadow = true; ctx.group.add(m);
+  queueShadow(ctx, x, z, s + 0.7, s + 0.7);
   ctx.boxes.push({ minX: x - s / 2, maxX: x + s / 2, minZ: z - s / 2, maxZ: z + s / 2, h: s });
   return m;
 }
@@ -313,14 +318,15 @@ export function tree(ctx, x, z, collide, sc, palm = false) {
   const rng = ctx.rng, style = palm ? 'palm' : (ctx.treeStyle || (rng() < 0.3 ? 'conifer' : 'broad'));
   const vs = treeVariants(style), m = new THREE.Mesh(vs[Math.floor(rng() * vs.length)], TREE_MAT);
   m.scale.set(sc, sc * (0.9 + rng() * 0.25), sc); m.rotation.y = rng() * 6.28; m.position.set(x, 0, z);
-  tier(m, collide ? 'near' : 'far'); lod(m, 'big'); ctx.group.add(m);
+  tier(m, collide ? 'near' : 'far'); lod(m, 'big'); m.userData.backgroundTree = !collide; ctx.group.add(m);
+  queueShadow(ctx, x, z, sc * 2.4, sc * 2.4);
   if (collide) ctx.circles.push({ x, z, r: 0.45 * sc, h: 6 });
 }
 const rockGeo = share(new THREE.DodecahedronGeometry(1, 0));
 export function rock(ctx, x, z, s, collide = true) {
   const rng = ctx.rng, m = new THREE.Mesh(rockGeo, MATS.rock); m.scale.set(s, s * 0.7, s);
   m.position.set(x, s * 0.45, z); m.rotation.set(rng() * 3, rng() * 3, rng() * 3);
-  m.receiveShadow = true; tier(m, collide ? 'near' : s < 0.8 ? 'small' : 'far'); lod(m, s < 0.8 ? 'small' : 'big'); ctx.group.add(m); if (collide) ctx.circles.push({ x, z, r: s * 0.9, h: s * 1.1 });
+  m.receiveShadow = true; tier(m, collide ? 'near' : s < 0.8 ? 'small' : 'far'); lod(m, s < 0.8 ? 'small' : 'big'); ctx.group.add(m); queueShadow(ctx, x, z, s * 2.4, s * 2.4); if (collide) ctx.circles.push({ x, z, r: s * 0.9, h: s * 1.1 });
 }
 const FLAT = share(new THREE.PlaneGeometry(1, 1));
 const puddleMat = share(new THREE.MeshStandardMaterial({ color: 0x05080a, roughness: 0.03, metalness: 0.35, transparent: true, opacity: 0.85, alphaMap: SPLAT, depthWrite: false, bumpMap: rip(1, 1), bumpScale: 0.5, polygonOffset: true, polygonOffsetFactor: -2 }));
@@ -348,14 +354,19 @@ export function ground(ctx, b, tex, extra = 30, opts = {}) {
   if (opts.puddles) scatter(opts.puddles, puddleMat, 0.02, 1.2, 3.4);
 }
 export function grass(ctx, b, n, color = 0x2f5524) {
-  const rng = ctx.rng, geo = new THREE.ConeGeometry(0.12, 0.6, 4); geo.translate(0, 0.3, 0);
-  const inst = new THREE.InstancedMesh(geo, new THREE.MeshStandardMaterial({ color: 0xffffff, roughness: 1 }), n), d = new THREE.Object3D();
+  const rng = ctx.rng, blades = makeGrassBlades(), geo = new THREE.BufferGeometry();
+  geo.setAttribute('position', new THREE.BufferAttribute(blades.positions, 3));
+  geo.setAttribute('color', new THREE.BufferAttribute(blades.colors, 3));
+  geo.computeVertexNormals();
+  const inst = new THREE.InstancedMesh(geo, new THREE.MeshStandardMaterial({ color: 0xffffff, roughness: 1, vertexColors: true, side: THREE.DoubleSide }), n), d = new THREE.Object3D();
   const base = new THREE.Color(color), c = new THREE.Color();
   for (let i = 0; i < n; i++) {
     d.position.set(b.minX - 4 + rng() * (b.maxX - b.minX + 8), 0, b.minZ - 4 + rng() * (b.maxZ - b.minZ + 8));
-    d.rotation.set(rng() * 0.4, rng() * 3, rng() * 0.4); d.scale.set(0.6 + rng(), 0.5 + rng() * 1.3, 0.6 + rng()); d.updateMatrix(); inst.setMatrixAt(i, d.matrix);
+    d.rotation.set(rng() * 0.16, rng() * 3, rng() * 0.16); d.scale.set(0.6 + rng(), 0.5 + rng() * 1.3, 0.6 + rng()); d.updateMatrix(); inst.setMatrixAt(i, d.matrix);
     c.copy(base).multiplyScalar(0.7 + rng() * 0.6); inst.setColorAt(i, c);
   }
+  // O limite usa todas as instâncias, permitindo aumentar a qualidade depois sem cortar a grama.
+  inst.computeBoundingSphere(); inst.userData.grassMax = n; inst.count = grassCount(n, quality.p.grass ?? 1);
   ctx.group.add(inst);
 }
 /** Anel de árvores fora dos limites (selva fechada ao redor). */
@@ -455,10 +466,11 @@ export function doorway(ctx, side, at, b, label = 'gate') {
   const stripe = boxMesh(MATS.stripe, span, 0.12, 0.6); stripe.position.y = hgt - 0.35;
   const plate = boxMesh(MATS.post, span, 0.05, 1.4); plate.position.y = 0.025;
   g.add(pL, pR, top, stripe, plate);
-  // folha do portão (grade) — desce no chão quando abre
+  // Porta sólida reforçada, visível mesmo quando destrancada; sobe apenas na travessia.
   const gate = new THREE.Group(); gate.position.y = 0;
-  for (let i = -5; i <= 5; i++) { const bar = boxMesh(MATS.rust, 0.08, hgt - 0.3, 0.08); bar.position.set(i * 0.4, (hgt - 0.3) / 2, 0); gate.add(bar); }
-  for (const y of [0.4, 1.6, 2.9]) { const bar = boxMesh(MATS.rust, span - 0.2, 0.1, 0.1); bar.position.y = y; gate.add(bar); }
+  const panel = boxMesh(MATS.metal, span - 0.32, hgt - 0.35, 0.17); panel.position.y = (hgt - 0.35) / 2; gate.add(panel);
+  for (let i = -5; i <= 5; i++) { const bar = boxMesh(MATS.rust, 0.08, hgt - 0.3, 0.08); bar.position.set(i * 0.4, (hgt - 0.3) / 2, 0.12); gate.add(bar); }
+  for (const y of [0.4, 1.6, 2.9]) { const bar = boxMesh(MATS.rust, span - 0.2, 0.1, 0.1); bar.position.y = y; bar.position.z = 0.13; gate.add(bar); }
   g.add(gate);
   const lightMat = new THREE.SpriteMaterial({ map: GLOW, color: 0xff3030, blending: THREE.AdditiveBlending, depthWrite: false, transparent: true });
   const light = new THREE.Sprite(lightMat); light.scale.setScalar(1.1); light.position.set(span / 2 + 0.1, hgt - 0.6, 0.38 * inward); g.add(light);
@@ -681,6 +693,7 @@ export function applyQuality(p = quality.p) {
   const ffPer = Math.floor(Math.min(FF, p.fireflies) / 2);
   ffSets.forEach((f) => { f.n = Math.min(f.max, ffPer); f.geo.setDrawRange(0, f.n); });
   applyShadowTiers(scene);
+  scene.traverse(o => { if (o.isInstancedMesh && Number.isFinite(o.userData.grassMax)) o.count = grassCount(o.userData.grassMax, p.grass ?? 1); });
   if (recompile) { scene.traverse((o) => { const m = o.material; if (m) (Array.isArray(m) ? m : [m]).forEach((x) => { x.needsUpdate = true; }); }); for (const fn of extraMats) fn(); }
   assignLamps(true);
   return recompile;

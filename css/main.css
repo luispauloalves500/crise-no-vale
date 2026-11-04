@@ -213,3 +213,55 @@ code{background:#0c1a10;padding:1px 5px;border-radius:3px;color:#cfe9a8}
 #tl .epv{color:#ffe08a;margin-left:4px}
 body.rm .term-box{animation:none!important}
 @media (prefers-reduced-motion:reduce){.term-box{animation:none!important}}
+
+/* Cenas curtas usam o cenário existente e respeitam a pausa. */
+#passageScene[hidden]{display:none}
+#passageScene{position:fixed;inset:0;z-index:6;pointer-events:none;display:flex;flex-direction:column;justify-content:space-between}
+#passageScene .passage-top{height:7vh;background:#030504}
+#passageScene .passage-bottom{min-height:19vh;background:linear-gradient(transparent,rgba(2,5,3,.96) 30%);padding:24px max(5vw,20px) 16px;display:flex;align-items:end;justify-content:space-between;gap:16px}
+#passageScene .passage-copy{max-width:760px;text-shadow:0 2px 4px #000}
+#passageTitle{font-size:clamp(17px,2vw,24px);letter-spacing:3px;color:#d5eeb8}
+#passageText{font-size:clamp(14px,1.4vw,17px);line-height:1.4;margin:5px 0;color:#f1f5ef}
+#passageHint{font-size:13px;color:#e7cf93}
+#passageSkip{pointer-events:auto;font-size:11px;letter-spacing:1px;padding:8px 12px;margin:0;white-space:nowrap;background:#14261a}
+#pause{z-index:10}
+@media(max-width:640px){#passageScene .passage-bottom{display:block;padding-top:18px}#passageSkip{margin-top:8px}}
+
+#archive{z-index:7}
+.archive-box{max-width:720px;text-align:left}
+.archive-box h2{color:#d4ebc4;letter-spacing:3px;margin:8px 0}
+.archive-list{max-height:47vh;overflow-y:auto;display:grid;gap:6px;overscroll-behavior:contain}
+.archive-entry{width:100%;margin:0;padding:10px 12px;text-align:left;letter-spacing:0;font-size:14px;background:#111e18;border-color:#345343}
+.archive-entry.on{border-color:#8edf9c;background:#203b29}
+.archive-entry strong,.archive-entry span{display:block}
+.archive-entry span{font-size:12px;font-weight:normal;color:#b6c5bb;margin-top:3px}
+#archiveClose{font-size:12px;padding:10px 14px}
+
+/* Menu principal: painel editorial sobre o cenário em tempo real, sem efeitos 3D adicionais. */
+#menu.ov{justify-content:flex-start;padding:3vh clamp(20px,6vw,96px);background:linear-gradient(90deg,rgba(3,9,7,.94) 0%,rgba(4,11,8,.84) 42%,rgba(3,8,7,.35) 72%,rgba(0,0,0,.42) 100%)}
+#menu .menu-box{max-width:620px;max-height:94vh;padding:28px clamp(24px,3vw,42px) 22px;text-align:left;border:1px solid rgba(161,190,156,.18);border-radius:4px;background:linear-gradient(145deg,rgba(12,23,18,.92),rgba(4,10,8,.88));box-shadow:0 24px 75px rgba(0,0,0,.4);scrollbar-color:#506453 transparent}
+#menu .menu-topline{display:flex;justify-content:space-between;gap:12px;padding-bottom:15px;margin-bottom:23px;border-bottom:1px solid rgba(172,196,167,.19);font-size:10px;letter-spacing:.18em;color:#8fa596}
+#menu .menu-topline span:last-child{color:#d2a667;text-align:right}
+#menu .kicker{margin:0 0 9px;color:#c89c5c;font-size:10px;font-weight:bold;letter-spacing:.24em}
+#menu h1.title{font-size:clamp(43px,5.2vw,68px);letter-spacing:.055em;line-height:.98;color:#edf1df;background:none;filter:none;text-shadow:0 3px 18px #000;animation:fadeUp .6s ease both}
+#menu .sub{margin:12px 0 18px;color:#a7b9a7;letter-spacing:.18em;font-size:10px}
+#menu .synopsis{margin:0;max-width:510px;color:#c4cec1;font-size:14px;line-height:1.65}
+#menu .synopsis b{color:#edf0df}
+#menu .acts{display:inline-block;margin-top:18px;padding:8px 10px;border-left:2px solid #c49859;background:rgba(171,140,86,.09);font-size:10px;letter-spacing:.12em;color:#bac8b8}
+#menu .acts .act-label{margin:0 12px 0 0;color:#d4aa70;font-weight:bold}
+#menu .acts span{margin:0 5px;color:#788a79}
+#menu .cta{margin:20px 0 5px}
+#menu .cta button{width:100%;max-width:340px;margin-top:0;min-height:46px}
+#menu .cta button.primary{border-radius:2px;border-color:#a9c69a;background:#aac696;color:#101c13;box-shadow:none;font-size:14px;letter-spacing:.2em}
+#menu .cta button.primary:hover:not(:disabled){background:#c4dbb3;box-shadow:0 5px 24px rgba(139,180,135,.18)}
+#menu .cta button.secondary{margin-top:8px;border-radius:2px;border-color:#52695a;text-align:center;font-size:11px;letter-spacing:.12em}
+#menu .qsel{margin-top:14px;padding-top:12px;border-top:1px solid rgba(170,190,164,.14);font-size:10px;letter-spacing:.16em;color:#a3b6a4}
+#menu .qsel button{padding:7px 13px;margin:7px 5px 0 0;border-radius:2px;border-color:#4c6250;color:#c9d6c6;font-size:11px;letter-spacing:.04em}
+#menu .qsel button.on{background:#a9c596;border-color:#a9c596;color:#17251a}
+#menu .fold{gap:5px;margin-top:15px}
+#menu .fold .sset{max-width:none;margin:0;border-color:rgba(159,185,151,.15);background:rgba(255,255,255,.018)}
+#menu .fold summary{text-align:left}
+#menu #bgLoad,#menu .hint{color:#8b9e90;font-size:11px;line-height:1.4}
+@media(max-width:700px){#menu.ov{justify-content:center;padding:12px;background:rgba(3,9,7,.8)}#menu .menu-box{max-height:96vh;padding:22px}#menu h1.title{font-size:clamp(36px,9vw,54px)}#menu .menu-topline{margin-bottom:16px}#menu .synopsis{font-size:13px}}
+@media(prefers-reduced-motion:reduce){#menu h1.title{animation:none}}
+body.rm #menu h1.title{animation:none}

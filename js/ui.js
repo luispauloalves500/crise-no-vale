@@ -56,6 +56,11 @@ export function initUI(hasSave) {
 }
 export function setHasSave(on) { el.continueBtn.classList.toggle('hidden', !on); el.continueEndBtn.classList.toggle('hidden', !on); }
 export function setFade(v) { el.fade.style.opacity = v.toFixed(3); }
+export function showPassage(scene) {
+  $('passageTitle').textContent = scene.title; $('passageText').textContent = scene.text;
+  $('passageHint').textContent = scene.hint; $('passageScene').hidden = false;
+}
+export function hidePassage() { $('passageScene').hidden = true; }
 export function toggleMap(on) { el.mapOv.classList.toggle('on', on); if (on) { lastMini = -1e9; lastBig = -1e9; } } // força redesenho imediato
 export const mapOpen = () => el.mapOv.classList.contains('on');
 
@@ -214,7 +219,7 @@ export function updateHUD(dt, d) {
   if (d.meter) { el.meterLbl.textContent = d.meter.label; el.meterFill.style.width = (100 * d.meter.k) + '%'; }
   el.score.textContent = G.score;
   if (el.ep.textContent !== String(G.ep)) el.ep.textContent = G.ep; // v10: Pontos de Extinção
-  el.combo.textContent = G.combo > 1 ? STR.combo(Math.min(G.combo, COMBO.MAX)) : '';
+  el.combo.textContent = (G.combo > 1 ? STR.combo(Math.min(G.combo, COMBO.MAX)) + ' · ' : '') + (G.cleanStreak.kills ? `SEM DANO: ${G.cleanStreak.kills} ABATES` : '');
 
   // retícula: abre com recuo e ao andar, fecha mirando
   spread = Math.max(0, spread - dt * 90);

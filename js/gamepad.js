@@ -12,7 +12,7 @@ const prev = [];
 // v10: Terminal TELLUS — A confirma, B volta, LB/RB trocam de aba, direcional/analógico navegam
 const TERM_MAP = { 0: 'Enter', 1: 'Escape', 4: 'TabPrev', 5: 'TabNext', 9: 'Escape', 12: 'ArrowUp', 13: 'ArrowDown', 14: 'ArrowLeft', 15: 'ArrowRight' };
 let stickDir = '';
-const PLAY_MAP = { 0: 'KeyE', 1: 'KeyG', 2: 'KeyR', 3: 'KeyH', 8: 'Tab', 9: 'Escape', 11: 'KeyV' };
+const PLAY_MAP = { 0: 'KeyE', 1: 'KeyG', 2: 'KeyR', 3: 'KeyH', 8: 'Tab', 9: 'Escape', 11: 'KeyV', 12: 'KeyJ' };
 const DZ = 0.18;
 const dz = (v) => (Math.abs(v) < DZ ? 0 : (v - Math.sign(v) * DZ) / (1 - DZ));
 const LOOK_SPEED = 2.8, AIM_LOOK = 1.5; // rad/s com o analógico no máximo
@@ -33,14 +33,14 @@ export function pollGamepad(dt, h) {
   const btn = (i) => { const b = gp.buttons[i]; return !!(b && (b.pressed || b.value > 0.5)); };
   const play = G.state === 'play';
   pad.mx = play ? ax(0) : 0; pad.mz = play ? -ax(1) : 0;
-  if (play) {
+  if (play && !G.transitioning) {
     const lx = ax(2), ly = ax(3), s = (G.aiming ? AIM_LOOK : LOOK_SPEED) * SETTINGS.sens * dt, iy = SETTINGS.invertY ? -1 : 1;
     G.yaw -= lx * Math.abs(lx) * s;
     G.pitch = clamp(G.pitch - ly * Math.abs(ly) * s * 0.7 * iy, CAMERA.PITCH_MIN, CAMERA.PITCH_MAX);
   }
   pad.fire = play && btn(7); pad.run = play && btn(10);
   const aim = play && btn(6); if (aim !== pad.aim) { pad.aim = aim; G.aiming = aim; }
-  if (G.state === 'terminal') { // analógico esquerdo como direcional (uma vez por inclinada)
+  if (G.state === 'terminal' || G.state === 'archive') { // analógico esquerdo como direcional (uma vez por inclinada)
     const x = ax(0), y = ax(1), d = Math.abs(y) > 0.6 ? (y > 0 ? 'ArrowDown' : 'ArrowUp') : Math.abs(x) > 0.6 ? (x > 0 ? 'ArrowRight' : 'ArrowLeft') : '';
     if (d && d !== stickDir) h.onKey(d); stickDir = d;
   } else stickDir = '';
@@ -49,6 +49,7 @@ export function pollGamepad(dt, h) {
     if (!now || was) continue;
     // borda de subida: traduz para as mesmas teclas do teclado
     if (G.state === 'terminal') { if (TERM_MAP[i]) h.onKey(TERM_MAP[i]); }
+    else if (G.state === 'archive') { if (i === 0) h.onKey('Enter'); else if (i === 1 || i === 9) h.onKey('Escape'); else if (i === 12) h.onKey('ArrowUp'); else if (i === 13) h.onKey('ArrowDown'); }
     else if (G.state === 'story') { if (i === 0) h.onKey('KeyE'); else if (i === 9) h.onKey('Enter'); }
     else if (G.state === 'pause') { if (i === 9 || i === 0) h.onKey('KeyP'); }
     else if (G.state === 'menu' || G.state === 'ended') { if (i === 0 || i === 9) h.onKey('Enter'); }

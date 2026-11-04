@@ -8,17 +8,19 @@ import { initAudio, sfx, toggleMute, isMuted, setAmbience, setMuffle, ambienceSt
 import { SETTINGS, loadSettings, setSetting, resetSettings, onSettings } from './settings.js';
 import { pollGamepad, pad } from './gamepad.js';
 import { updateFx, clearFx } from './fx.js';
-import { heroReady, heroInfo, player, bag, events, resetPlayer, updatePlayer, updateCamera, menuCamera, switchWeapon, startReload, arms, curWeapon, useMed, weapons, medMax, grenadeMax, applyUpgrades } from './player.js';
+import { heroReady, heroInfo, selectHero, player, bag, events, resetPlayer, updatePlayer, updateCamera, menuCamera, switchWeapon, startReload, arms, curWeapon, useMed, weapons, medMax, grenadeMax, applyUpgrades } from './player.js';
 import { terminalKey, terminalOpen } from './shop.js';
+import { openArchive, archiveKey } from './archive.js';
 import { enemies, spawnEnemy, updateEnemies, clearEnemies, prewarmEnemies, poolStats } from './enemies.js';
 import { fire, throwGrenade, updateCombat, clearPickups, pickups, damageEnemy } from './combat.js';
 import { updateSurvivor, hideSurvivor, survivor } from './npc.js';
 import { updateBrandt, hideBrandt, brandt } from './brandt.js';
 import { AREAS, AREA, buildArea, builtCount, isBuilt } from './areas.js';
-import { D, startCampaign, updateDirector, updateHeli, hudData, interact, hasSave, setWinHandler, endStats, currentObjective, debugGoto, debugFlags, warmArea, streamStats, ambienceNow } from './director.js';
+import { D, startCampaign, updateDirector, updateHeli, hudData, interact, skipPassage, hasSave, setWinHandler, endStats, currentObjective, debugGoto, debugFlags, warmArea, streamAround, streamStats, ambienceNow } from './director.js';
 import { readSave } from './state.js';
 import { quality, setQualityMode, autoQualityTick, applyQualityNow, onQuality, MODE_LABEL, PRESETS } from './quality.js';
 import { nextFrame, idleBusy } from './idle.js';
+import { compileShaderVariants } from './shader-warmup.mjs';
 import { updateLod, lodStats, forceLod } from './lod.js';
 import * as story from './story.js';
 import { initPost, render, toggleBloom, post } from './post.js';
@@ -33,6 +35,7 @@ let endT = 0;
 const setState = (s) => { G.state = s; };
 
 function startGame(fromSave) {
+  if (heroBusy) return;
   initAudio();
   if (fromSave && !hasSave()) fromSave = false;
   ui.showScreen('hud'); ui.toggleMap(false); ui.setFade(0);
@@ -44,6 +47,7 @@ function startGame(fromSave) {
 }
 function endGame(win) {
   if (G.state !== 'play') return;
+  if (win) { jillUnlockedSession = true; try { localStorage.setItem('crise-no-vale-jill-unlocked', '1'); } catch (e) { console.warn('Não foi possível salvar desbloqueio:', e); } }
   setState(win ? 'win' : 'over'); endT = win ? 2.4 : 2.2; clearInput(); ui.toggleMap(false);
   if (win) { ui.banner('RESGATE!', D.area && D.area.id === 'ninho' ? 'O Garça-1 pousa na clareira do ninho' : 'O helicóptero pousa no penhasco', 3); sfx.win(); }
 }
@@ -61,14 +65,15 @@ function finishEnd() {
 }
 function setPause(p) {
   if (p && G.state === 'play') { setState('pause'); clearInput(); ui.setPauseText('Objetivo: ' + currentObjective()); ui.showScreen('pause'); unlockPointer(); }
-  else if (!p && G.state === 'pause') {
+  else if (!p && G.state === 'pause' && !heroBusy) {
     setState('play'); ui.showScreen('hud'); lockPointer();
     setTimeout(() => { if (G.state === 'play' && !mouse.locked && document.pointerLockElement === null) ui.feed(ui.STR.lockHint, '#cde'); }, 400);
   }
 }
 function toMenu() {
+  G.transitioning = false; D.trans = null; ui.hidePassage();
   setState('menu'); story.clearSpeech(); clearEnemies(); clearPickups(); clearFx(); ui.clearFloaters(); ui.clearMessages(); hideSurvivor(); hideBrandt(); resetPlayer(); ui.setFade(0);
-  ui.setHasSave(hasSave()); ui.showScreen('menu'); unlockPointer();
+  ui.setHasSave(hasSave()); ui.showScreen('menu'); refreshCharacterButtons(); unlockPointer();
 }
 events.onDeath = () => endGame(false);
 setWinHandler(() => endGame(true));
@@ -94,6 +99,7 @@ function cycleWeapon(dir) {
 // ---------- entrada ----------
 const inputHandlers = {
   onKey(code) {
+    if (G.state === 'archive') { archiveKey(code); return; }
     if (G.state === 'terminal') { terminalKey(code); if (code === 'KeyM') ui.feed(ui.STR.muted(toggleMute()), '#cde'); return; } // v10: Terminal TELLUS
     if (G.state === 'story') {
       if (code === 'Space' || code === 'KeyE') story.advanceCard();
@@ -103,12 +109,18 @@ const inputHandlers = {
     if (code === 'KeyB') { ui.feed(ui.STR.bloom(toggleBloom()), '#cde'); return; }
     if (G.state === 'loading') return;
     if (G.state === 'play') {
+      if (D.trans) {
+        if (code === 'KeyE' || code === 'Space' || code === 'Enter') skipPassage();
+        else if (code === 'KeyP' || code === 'Escape') setPause(true);
+        return;
+      }
       if (code === 'KeyR') startReload();
       if (code === 'Digit1') switchWeapon(0);
       if (code === 'Digit2') { if (bag.owned[1]) switchWeapon(1); else ui.feed('Você ainda não tem a escopeta', '#a09070'); }
       if (code === 'Digit3') { if (bag.owned[2]) switchWeapon(2); else ui.feed('Você ainda não tem a submetralhadora', '#a09070'); }
       if (code === 'KeyQ') cycleWeapon(1);
-      if (code === 'KeyE') { if (ui.mapOpen()) ui.toggleMap(false); interact(); }
+      if (code === 'KeyE') { if (ui.mapOpen()) ui.toggleMap(false); else interact(); }
+      if (code === 'KeyJ') { if (ui.mapOpen()) ui.toggleMap(false); openArchive(); }
       if (code === 'KeyG') throwGrenade();
       if (code === 'KeyH') useMed();
       if (code === 'Tab') ui.toggleMap(!ui.mapOpen());
@@ -121,9 +133,39 @@ const inputHandlers = {
   onCanvasDown() { initAudio(); },
   onLockLost() { if (G.state === 'play' && !ui.mapOpen()) setPause(true); },
   onBlur() { if (G.state === 'play') setPause(true); },
-  onWheel(dir) { if (G.state === 'play') cycleWeapon(dir); },
+  onWheel(dir) { if (G.state === 'play' && !D.trans) cycleWeapon(dir); },
 };
 initInput(renderer.domElement, inputHandlers);
+$('passageSkip').onclick = () => skipPassage();
+let selectedCharacter = 'marina', heroBusy = false, jillUnlockedSession = false;
+function isJillUnlocked() { try { return jillUnlockedSession || G.best > 0 || localStorage.getItem('crise-no-vale-jill-unlocked') === '1'; } catch (e) { return jillUnlockedSession || G.best > 0; } }
+const characterSelectors = [
+  { marina: $('heroMarina'), jill: $('heroJill'), note: $('heroNote') },
+  { marina: $('pauseHeroMarina'), jill: $('pauseHeroJill'), note: $('pauseHeroNote') },
+];
+function refreshCharacterButtons() {
+  const unlocked = isJillUnlocked();
+  for (const group of characterSelectors) {
+    group.marina.disabled = heroBusy; group.jill.disabled = heroBusy || !unlocked;
+    group.marina.classList.toggle('on', selectedCharacter === 'marina');
+    group.jill.classList.toggle('on', selectedCharacter === 'jill');
+    group.jill.textContent = unlocked ? 'Jill' : 'Jill — bloqueada';
+    group.note.textContent = heroBusy ? 'Carregando personagem…' : unlocked ? 'Escolha Marina ou Jill.' : 'Conclua um final para desbloquear Jill.';
+  }
+  $('startBtn').disabled = heroBusy; $('continueBtn').disabled = heroBusy; $('resumeBtn').disabled = heroBusy;
+}
+async function chooseCharacter(choice) {
+  if (heroBusy || (choice === 'jill' && !isJillUnlocked())) return;
+  heroBusy = true; refreshCharacterButtons();
+  const ok = await selectHero(choice);
+  if (ok) { selectedCharacter = choice; try { localStorage.setItem('crise-no-vale-personagem', choice); } catch (e) {} }
+  heroBusy = false; refreshCharacterButtons();
+  if (!ok) for (const group of characterSelectors) group.note.textContent = 'Não foi possível carregar esse personagem. Tente novamente.';
+}
+for (const group of characterSelectors) {
+  group.marina.onclick = () => chooseCharacter('marina');
+  group.jill.onclick = () => chooseCharacter('jill');
+}
 $('startBtn').onclick = () => startGame(false);
 $('continueBtn').onclick = () => startGame(true);
 $('restartBtn').onclick = () => startGame(false);
@@ -138,16 +180,19 @@ const clock = new THREE.Clock();
 function update(dt) {
   G.time += dt;
   updateWorld(dt);
-  story.updateStory(dt);
+  if (!D.trans) story.updateStory(dt);
   if (G.state === 'play' || G.state === 'over' || G.state === 'win') {
-    if (G.state === 'play') G.elapsed += dt;
-    updatePlayer(dt);
-    if (G.state === 'play' && (mouse.down || keys.Space || pad.fire) && !D.trans) fire();
-    updateEnemies(dt);
-    updateSurvivor(dt);
-    updateBrandt(dt);
-    updateCombat(dt);
-    updateHeli(dt);
+    if (G.state === 'play' && !D.trans) G.elapsed += dt;
+    // Durante o fade nenhum ator ou projétil continua avançando fora da tela.
+    if (!D.trans) {
+      updatePlayer(dt);
+      if (G.state === 'play' && (mouse.down || keys.Space || pad.fire)) fire();
+      updateEnemies(dt);
+      updateSurvivor(dt);
+      updateBrandt(dt);
+      updateCombat(dt);
+      updateHeli(dt);
+    }
     if (G.state === 'play') updateDirector(dt);
     else { endT -= dt; if (endT <= 0) showEnd(); }
   }
@@ -168,8 +213,18 @@ function loop() {
   G.surface = D.area ? D.area.id : '';
   const inGame = G.state !== 'menu' && G.state !== 'loading' && D.area;
   if (inGame) { const [k, m] = ambienceNow(); setAmbience(k, m); } else setAmbience('menu');
-  setMuffle(G.state === 'pause' || G.state === 'story' || G.state === 'terminal');
+  setMuffle(G.state === 'pause' || G.state === 'story' || G.state === 'terminal' || G.state === 'archive');
   if (G.state === 'menu' || story.cinematic()) menuCamera(dt); else if (G.state !== 'pause') updateCamera(dt);
+  // Plano fixo da travessia enquadra a abertura, a passagem e o fechamento.
+  if (G.state === 'play' && D.trans?.shot) {
+    const s = D.trans.shot;
+    camera.position.set(s.x, s.y, s.z); camera.lookAt(s.tx, s.ty, s.tz);
+  }
+  // Pequeno enquadramento, sem geometrias ou luzes adicionais.
+  if (G.state === 'play' && D.trans?.sceneActive && !SETTINGS.reducedMotion) {
+    const t = D.trans.sceneTime / D.trans.scene.duration;
+    camera.fov -= 2.5 * Math.sin(Math.PI * t); camera.updateProjectionMatrix();
+  }
   // v9: LOD por distância da câmera (cenário a ~6 Hz; inimigos leem o nível em updateEnemies)
   updateLod(dt, D.area ? D.area.ctx : null);
   const h = D.area ? hudData() : EMPTY;
@@ -177,6 +232,7 @@ function loop() {
     camera, player, weapon: curWeapon(), weapons, cur: arms.cur, reloading: arms.reloading, reloadTotal: arms.reloadTotal, moving: player.moving,
     enemies, pickups, boxes, lightning: atmo.lightning, haze: atmo.haze, bag, medMax: medMax(), grenadeMax: grenadeMax(), ...h,
   });
+  renderer.info.reset();
   render(renderer, scene, camera, dt);
 }
 
@@ -186,7 +242,6 @@ ui.bindQuality((mode) => {
   setQualityMode(mode); refreshQualityUI();
   document.querySelectorAll('.qsel.first').forEach((q) => { q.classList.remove('first'); q.querySelector('span').textContent = 'QUALIDADE GRÁFICA'; });
   ui.feed(ui.STR.quality(MODE_LABEL[mode] + (mode === 'auto' ? ' → ' + quality.p.label : '')), '#cde');
-  if (!quality.p.stream && D.area) AREAS.forEach(warmArea); // Alto: mantém todas as áreas prontas
 });
 // a predefinição Auto pode baixar sozinha — mantém os botões em dia
 onQuality(() => refreshQualityUI());
@@ -198,7 +253,7 @@ async function compileShaders(extra) {
   const tmp = [];
   for (const o of extra) if (!o.parent) { scene.add(o); tmp.push({ o, v: o.visible }); o.visible = true; o.position.y = -40; }
   try {
-    if (renderer.compileAsync) await renderer.compileAsync(scene, camera);
+    if (renderer.compileAsync) await compileShaderVariants(renderer, scene, camera, scene, post.composer?.renderTarget1);
     else renderer.compile(scene, camera);
   } catch (e) { console.warn('pré-compilação de shaders falhou (segue sem):', e && e.message); }
   for (const { o, v } of tmp) { scene.remove(o); o.visible = v; o.position.y = 0; }
@@ -208,7 +263,7 @@ async function boot() {
   const steps = 5; let n = 0;
   const step = async (txt) => { ui.setLoading(n++ / steps, txt); await nextFrame(); };
   applyQualityNow(); refreshQualityUI();
-  if (quality.firstRun) document.querySelectorAll('#menu .qsel').forEach((q) => { q.classList.add('first'); q.querySelector('span').textContent = `PRIMEIRA VEZ? ESCOLHA A QUALIDADE (AUTO DETECTOU: ${quality.p.label.toUpperCase()})`; });
+  if (quality.firstRun) document.querySelectorAll('#menu .quality-select').forEach((q) => { q.classList.add('first'); q.querySelector('span').textContent = `PRIMEIRA VEZ? ESCOLHA A QUALIDADE (AUTO DETECTOU: ${quality.p.label.toUpperCase()})`; });
   await step(`Carregando… qualidade ${quality.p.label}${quality.mode === 'auto' ? ' (auto)' : ''}`);
   await step('Carregando… 1/' + AREAS.length + ' ' + AREA.porto.name.toLowerCase());
   buildArea(AREA.porto);
@@ -220,15 +275,17 @@ async function boot() {
   // tela de menu: mostra o cais ao fundo
   startCampaign(false); clearEnemies(); hideSurvivor();
   await step('Carregando… preparando shaders');
+  await initPost(renderer, scene, camera);
   await compileShaders(warm);
   ui.setLoading(1, 'Pronto!');
   G.state = 'menu';
   ui.initUI(hasSave());
-  ui.showScreen('menu');
+  ui.showScreen('menu'); refreshCharacterButtons();
+  try { if (isJillUnlocked() && localStorage.getItem('crise-no-vale-personagem') === 'jill') chooseCharacter('jill'); } catch (e) {}
   post.onAuto = () => ui.feed(ui.STR.bloomAuto, '#cde');
-  initPost(renderer, scene, camera);
   loop();
   ui.hideLoading();
+  streamAround(D.area); // inicia shaders dos vizinhos após compilar a área inicial
   // continuar: deixa a área do save pronta em segundo plano
   const sv = readSave(); if (sv && AREA[sv.area]) warmArea(AREA[sv.area]);
   bgStatus();

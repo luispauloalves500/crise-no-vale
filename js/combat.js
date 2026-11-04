@@ -3,8 +3,11 @@ import * as THREE from 'three';
 import { scene, camera, castWorld, rayCircle, resolve, GLOW } from './world.js';
 import { PICKUPS, COMBO, PLAYER, GRENADE, INVENTORY, ARMOR, NOISE, EP, AIM } from './config.js';
 import { pad } from './gamepad.js';
+import { quality } from './quality.js';
+import { showPelletVisual } from './effect-budget.mjs';
 import { SETTINGS } from './settings.js';
 import { G, addEp } from './state.js';
+import { recordKill } from './clean-streak.mjs';
 import { player, weapons, arms, bag, curWeapon, startReload, muzzleFlash, gunTip, heal, switchWeapon, hurtPlayer, medMax, grenadeMax, resMax } from './player.js';
 import { enemies, enemyEvents, makeNoise } from './enemies.js';
 import { sfx, roar } from './audio.js';
@@ -99,14 +102,16 @@ export function fire() {
     const a = base + off * spread, dx = Math.sin(a), dz = Math.cos(a);
     const h = castAll(player.pos.x, player.pos.z, dx, dz, w.range);
     v2.set(player.pos.x + dx * h.t, h.e ? 1.1 * h.e.cfg.scale : v1.y, player.pos.z + dz * h.t);
-    if (w.pellets === 1 || p % 2 === 0 || Math.random() < 0.3) tracer(v1, v2, w.tracer, w.pellets > 1 ? 0.7 : 1);
+    const renderPellet = showPelletVisual(p, w.pellets, quality.id);
+    if (renderPellet) tracer(v1, v2, w.tracer, w.pellets > 1 ? 0.7 : 1);
     if (h.e) {
       // escopeta: mais dano de perto
       const falloff = w.pellets > 1 ? Math.max(w.falloffMin || 0.45, 1 - Math.max(0, h.t - (w.falloffStart || 4)) / (w.falloffLen || 22)) : 1;
+      const firstImpact = !dmgBy.has(h.e);
       const prev = dmgBy.get(h.e) || { d: 0, dx: 0, dz: 0, x: 0, y: 0, z: 0, n: 0 };
       prev.d += w.dmg * falloff; prev.dx += dx; prev.dz += dz; prev.x += v2.x; prev.y += v2.y; prev.z += v2.z; prev.n++; dmgBy.set(h.e, prev);
-      impactFx(v2.x, v2.y, v2.z, dx, dz, 'flesh', w.pellets > 1 ? 0.6 : 1);
-    } else if (h.t < w.range) impactFx(v2.x, v2.y, v2.z, dx, dz, 'world', w.pellets > 1 ? 0.55 : 1);
+      if (renderPellet || firstImpact) impactFx(v2.x, v2.y, v2.z, dx, dz, 'flesh', w.pellets > 1 ? 0.6 : 1);
+    } else if (h.t < w.range && renderPellet) impactFx(v2.x, v2.y, v2.z, dx, dz, 'world', w.pellets > 1 ? 0.55 : 1);
   }
   let anyKill = false, anyCrit = false;
   for (const [e, info] of dmgBy) {
@@ -156,7 +161,7 @@ export function damageEnemy(e, d, dx, dz, knock) {
   else if (e.windup > 0 && d >= (e.cfg.boss ? 70 : 40)) { e.windup = 0; e.stun = 0.8; } // tiro forte interrompe a investida
   if (e.hp > 0) return false;
   e.dead = true; e.deadT = 0; e.fallDir = Math.random() < 0.5 ? 1 : -1;
-  G.kills++;
+  G.kills++; recordKill(G.cleanStreak);
   G.combo = G.comboT > 0 ? G.combo + 1 : 1; G.comboT = COMBO.WINDOW;
   const mult = Math.min(G.combo, COMBO.MAX), pts = e.cfg.score * mult;
   G.score += pts;
@@ -344,9 +349,9 @@ function updatePickups(dt) {
 }
 
 /** Por frame: auto-recarga, combo, retícula sobre inimigo, granadas e itens. */
-export function updateCombat(dt) {
+export function updateCombat(dt, freezeCombo = false) {
   if (autoReloadT > 0) { autoReloadT -= dt; if (autoReloadT <= 0 && G.state === 'play') startReload(); }
-  if (G.comboT > 0) { G.comboT -= dt; if (G.comboT <= 0) G.combo = 0; }
+  if (!freezeCombo && G.comboT > 0) { G.comboT -= dt; if (G.comboT <= 0) G.combo = 0; }
   // v11: dispersão volta sozinha; retícula fica vermelha também quando a assistência pegaria o alvo
   bloom *= Math.exp(-(curWeapon().bloomRec || 5) * dt);
   if (G.state === 'play') {

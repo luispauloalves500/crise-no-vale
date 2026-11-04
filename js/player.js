@@ -1,3 +1,4 @@
+import { actorShadow } from './contact-shadows.js';
 // player.js — personagem (modelo GLB da Marina, com malha low-poly de reserva), movimento, vida, armas e câmera em terceira pessoa.
 import * as THREE from 'three';
 import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
@@ -5,6 +6,10 @@ import { MeshoptDecoder } from 'three/addons/libs/meshopt_decoder.module.js';
 import { scene, camera, resolve, castWorld, inWater, bounds, GLOW } from './world.js';
 import { PLAYER, CAMERA, WEAPONS, COLORS, GRENADE, INVENTORY, PICKUPS, ARMOR, UPGRADES } from './config.js';
 import { G } from './state.js';
+import { breakStreak } from './clean-streak.mjs';
+import { loadModel, limitTextures, fitWeapon } from './model-assets.js';
+import { adaptWalkClip } from './animation-retarget.mjs';
+import { GUN_SCALE, GUN_ASSETS as gunAssets } from './gun-layout.mjs';
 import { keys } from './input.js';
 import { pad } from './gamepad.js';
 import { SETTINGS, motionK } from './settings.js';
@@ -19,6 +24,7 @@ export const events = { onDeath: null };
 // ---------- malha ----------
 // pg = raiz do personagem (segue player.pos / yaw). body = malha procedural antiga (reserva se o GLB falhar).
 export const pg = new THREE.Group(); scene.add(pg);
+const playerShadow = actorShadow(pg, 1.25, 1.05);
 const body = new THREE.Group(); pg.add(body);
 const suit = new THREE.MeshStandardMaterial({ color: 0x4b5a3a, roughness: 0.8 });
 const vest = new THREE.MeshStandardMaterial({ color: 0x2a2f2a, roughness: 0.7 });
@@ -78,7 +84,26 @@ part(B(0.07, 0.26, 0.08), gunM, 0, -0.24, 0.74, smgMesh).rotation.x = 0.12; // p
 part(B(0.08, 0.18, 0.09), gunM, 0, -0.18, 0.52, smgMesh).rotation.x = 0.3;  // empunhadura
 part(B(0.04, 0.04, 0.32), gunM, 0, 0.0, 0.3, smgMesh);                   // coronha
 const gunMeshes = [pistolMesh, shotgunMesh, smgMesh];
-function showGun(i) { gunMeshes.forEach((m, k) => { m.visible = k === i; }); }
+const modelGuns = [null, null, null], loadingGuns = [false, false, false];
+
+function showGun(i) {
+  gunMeshes.forEach((m, k) => { m.visible = k === i; });
+  const offset = gunRig.userData.gripSet ? GRIP_OFS : null;
+  const muzzleZ = modelGuns[i] ? gunAssets[i].tip : 0.98;
+  const muzzleY = modelGuns[i] ? (gunAssets[i].tipY ?? -0.05) : -0.05;
+  gunTip.position.set(offset?.x || 0, muzzleY + (offset?.y || 0), muzzleZ + (offset?.z || 0));
+  if (modelGuns[i] || loadingGuns[i]) return;
+  loadingGuns[i] = true;
+  const spec = gunAssets[i], container = gunMeshes[i];
+  loadModel(spec.url, spec.parts || 0).then(gltf => {
+    const model = gltf.scene; limitTextures(model);
+    model.traverse(o => { if (o.isMesh) { o.castShadow = false; o.receiveShadow = true; } });
+    const fitted = fitWeapon(model, spec.length, spec.rotationY); fitted.position.set(...spec.pos);
+    for (const child of container.children) child.visible = false;
+    container.add(fitted); modelGuns[i] = fitted;
+    if (arms.cur === i) showGun(i); // atualiza o clarão quando o GLB substituir a reserva
+  }).catch(e => console.warn('Arma GLB indisponível; usando arma simples:', e)).finally(() => { loadingGuns[i] = false; });
+}
 
 export const gunTip = new THREE.Object3D(); gunTip.position.set(0, -0.05, 0.98); gunRig.add(gunTip);
 // clarão do disparo: sprite + "estrela" de dois planos + luz forte
@@ -101,7 +126,6 @@ const hero = { ok: false, model: null, mixer: null, act: {}, spine: null, fireW:
 const UPPER = /Spine1|Spine2|Neck|Head|Shoulder|Arm|ForeArm|Hand/;
 const FIRE_CLIP = { pistol: ['Fire_Pistol_Controlled', 'Fire_Revolver'], shotgun: ['Fire_Shotgun_Heavy_REV4', 'Fire_Shotgun'], smg: ['Fire_SMG_Burst_REV4', 'Fire_SMG'] };
 const GRIP_OFS = new THREE.Vector3(0, 0.17, -0.48); // ponto da empunhadura (no espaço do braço antigo) → origem do soquete
-const GUN_SCALE = 0.55; // as armas procedurais eram exageradas para o boneco antigo
 const RELOAD_CLIP = { pistol: ['Reload_Revolver'], shotgun: ['Reload_Shotgun'], smg: ['Reload_SMG_REV4'] };
 function lowerOnly(clip) {
   const c = clip.clone(); c.name = clip.name + '_pernas';
@@ -134,31 +158,68 @@ function heroAction(clips, names, { lower = false, swing = false, once = false }
   }
   return null;
 }
+// Guardar a pose original: o mixer pode alterar ossos antes de uma troca de personagem.
+const bindPoses = new WeakMap();
+function captureBindPose(model) {
+  if (bindPoses.has(model)) return bindPoses.get(model);
+  const poses = new Map();
+  model.traverse(o => { if (o.isBone && o.name) poses.set(o.name, o.quaternion.toArray()); });
+  bindPoses.set(model, poses); return poses;
+}
+function installJillWalk(targetModel, targetGLTF, jillGLTF) {
+  if (!hero.ok || hero.model !== targetModel || selectedHero !== 'marina') return false;
+  const base = targetGLTF.animations.find(c => c.name === 'Walking_Woman' || c.name === 'Walking');
+  const source = jillGLTF.animations.find(c => c.name === 'Walking_Woman');
+  const walk = adaptWalkClip(base, source, captureBindPose(jillGLTF.scene), captureBindPose(targetModel));
+  if (!walk) return false;
+  const oldWalk = hero.act.walk, oldUp = hero.act.walkUp;
+  const clips = [walk];
+  const newWalk = heroAction(clips, [walk.name], { lower:true });
+  const newUp = heroAction(clips, [walk.name], { swing:true });
+  if (!newWalk || !newUp) { newWalk?.stop(); newUp?.stop(); return false; }
+  if (oldWalk) oldWalk.stop(); if (oldUp) oldUp.stop();
+  newWalk.timeScale = newUp.timeScale = 0;
+  hero.act.walk = newWalk; hero.act.walkUp = newUp;
+  hero.walkSource = 'jill-retargeted'; return true;
+}
 function loadGLB(loader, url) {
   return new Promise((res, rej) => loader.load(url, res, undefined, rej));
 }
-async function loadHeroInner() {
+let defaultHeroGLTF = null, selectedHero = 'marina', heroGeneration = 0;
+async function loadHeroInner(choice = 'marina') {
   if (/[?&]heroi=0/.test(location.search)) throw new Error('desligado por ?heroi=0');
   const loader = new GLTFLoader(); loader.setMeshoptDecoder(MeshoptDecoder);
   let gltf;
-  try { gltf = await loadGLB(loader, HERO.url); } catch (e) {
-    // reserva: cópia em base64 versionada no repositório (o GitHub Pages normalmente já serve o .glb binário)
-    const r = await fetch(HERO.url + '.b64'); if (!r.ok) throw e;
-    const bin = Uint8Array.from(atob((await r.text()).replace(/\s+/g, '')), (ch) => ch.charCodeAt(0));
-    gltf = await new Promise((res, rej) => loader.parse(bin.buffer, '', res, rej));
+  if (!defaultHeroGLTF) {
+    // O repositório publica só a versão .b64 (o .glb não vai no Pages): tenta ela primeiro para não gerar um 404 a cada abertura.
+    try {
+      const r = await fetch(HERO.url + '.b64'); if (!r.ok) throw new Error('b64 indisponível: ' + r.status);
+      const bin = Uint8Array.from(atob((await r.text()).replace(/\s+/g, '')), ch => ch.charCodeAt(0));
+      defaultHeroGLTF = await new Promise((res, rej) => loader.parse(bin.buffer, '', res, rej));
+    } catch (e) { defaultHeroGLTF = await loadGLB(loader, HERO.url); }
   }
+  gltf = choice === 'jill' ? await loadModel('assets/personagens/jill.glb') : defaultHeroGLTF;
   const model = gltf.scene;
+  captureBindPose(model);
+  if (choice === 'jill') limitTextures(model);
   model.traverse((o) => { if (o.isMesh) { o.castShadow = true; o.receiveShadow = true; o.frustumCulled = false; if (o.material) o.material.side = THREE.FrontSide; } });
   // escala para ~1,8 m e pés no chão (y=0); o modelo já vem Y-up e virado para +Z (mesma frente do jogador)
   model.updateMatrixWorld(true);
   const box = new THREE.Box3().setFromObject(model), h = Math.max(0.01, box.max.y - box.min.y), k = HERO.height / h;
   model.scale.setScalar(k); model.position.y = -box.min.y * k;
-  const socket = model.getObjectByName('WeaponSocket_R') || model.getObjectByName('mixamorig:RightHand') || model.getObjectByName('mixamorigRightHand');
-  if (!socket) throw new Error('osso da mão direita não encontrado');
+  let socket = model.getObjectByName('WeaponSocket_R');
+  if (!socket) {
+    const hand = model.getObjectByName('mixamorig:RightHand') || model.getObjectByName('mixamorigRightHand');
+    if (!hand) throw new Error('osso da mão direita não encontrado');
+    socket = new THREE.Group(); socket.name = 'WeaponSocket_R';
+    socket.position.set(0, 0.075, 0.005); hand.add(socket);
+  }
   const bone = (n) => model.getObjectByName('mixamorig:' + n) || model.getObjectByName('mixamorig' + n);
   hero.spine = bone('Spine2'); hero.hips = bone('Hips'); hero.spine0 = bone('Spine'); hero.armR = bone('RightArm'); hero.handR = bone('RightHand'); hero.socket = socket;
+  if (hero.model) { hero.mixer.stopAllAction(); hero.model.removeFromParent(); }
   hero.mixer = new THREE.AnimationMixer(model);
-  const clips = gltf.animations;
+  hero.act = {}; hero.fireAct = hero.relAct = null;
+  const clips = choice === 'jill' ? [...gltf.animations, ...defaultHeroGLTF.animations.filter(c => !gltf.animations.some(a => a.name === c.name))] : gltf.animations;
   const A = hero.act;
   A.walk = heroAction(clips, ['Walking_Woman', 'Walking'], { lower: true });
   A.run = heroAction(clips, ['Running', 'Walking'], { lower: true });
@@ -175,9 +236,15 @@ async function loadHeroInner() {
   // armas procedurais vão para o soquete da mão: o cano (+Z antigo) segue o +Y do soquete; a empunhadura fica na palma
   gunRig.removeFromParent(); socket.add(gunRig);
   gunRig.rotation.set(-Math.PI / 2, 0, 0); gunRig.scale.setScalar(GUN_SCALE / k);
-  gunRig.position.set(0, 0, 0); for (const c of gunRig.children) c.position.add(GRIP_OFS);
+  gunRig.position.set(0, 0, 0); if (!gunRig.userData.gripSet) { for (const c of gunRig.children) c.position.add(GRIP_OFS); gunRig.userData.gripSet = true; }
   pg.add(model); body.visible = false;
-  hero.model = model; hero.ok = true;
+  hero.model = model; hero.ok = true; selectedHero = choice;
+  hero.walkSource = choice === 'jill' ? 'jill' : 'original';
+  if (choice === 'marina') {
+    loadModel('assets/personagens/jill.glb').then(reference => {
+      captureBindPose(reference.scene); installJillWalk(model, gltf, reference);
+    }).catch(e => console.warn('Caminhada de referência indisponível; mantendo a original:', e));
+  }
   return true;
 }
 /** Promessa do carregamento do personagem: resolve true (GLB) ou false (malha antiga), nunca trava. */
@@ -185,7 +252,14 @@ export const heroReady = Promise.race([
   loadHeroInner(),
   new Promise((_, rej) => setTimeout(() => rej(new Error('tempo esgotado')), HERO.timeout)),
 ]).catch((e) => { hero.err = String(e && e.message || e); console.warn('modelo da Marina indisponível, usando malha antiga:', hero.err); return false; });
-export const heroInfo = () => ({ ok: hero.ok, err: hero.err, weights: { walk: hero.walkW, run: hero.runW, loco: hero.loco, blend: hero.blend, legYaw: hero.legYaw, phase: hero.ph, aim: hero.aimW, fire: hero.fireW, reload: hero.relW } });
+export async function selectHero(choice) {
+  if (!['marina', 'jill'].includes(choice)) return false;
+  if (choice === selectedHero && hero.ok) return true;
+  const generation = ++heroGeneration;
+  try { if (generation !== heroGeneration) return false; return await loadHeroInner(choice); }
+  catch (e) { console.warn('Personagem indisponível:', e); return false; }
+}
+export const heroInfo = () => ({ ok: hero.ok, err: hero.err, walkSource: hero.walkSource, weights: { walk: hero.walkW, run: hero.runW, loco: hero.loco, blend: hero.blend, legYaw: hero.legYaw, phase: hero.ph, aim: hero.aimW, fire: hero.fireW, reload: hero.relW } });
 function heroFire() {
   if (!hero.ok) return;
   const id = curWeapon().id, a = hero.act['fire_' + id]; if (!a) return;
@@ -388,6 +462,7 @@ let armKick = 0, armSwap = 0;
 // ---------- vida ----------
 export function hurtPlayer(d, fromX, fromZ, knock) {
   if (player.inv > 0 || G.state !== 'play' || player.dead) return;
+  if (G.cleanStreak.kills) { breakStreak(G.cleanStreak); ui.feed('Sequência sem dano interrompida', '#ff8a70'); }
   let soaked = 0;
   if (bag.armor > 0) { // v6: colete absorve parte do golpe
     soaked = Math.min(bag.armor, Math.round(d * ARMOR.ABSORB)); bag.armor -= soaked; d -= soaked;
@@ -439,7 +514,7 @@ export function restoreBag(s) {
 
 export function resetPlayer() {
   Object.assign(player, { hp: PLAYER.HP, inv: 0, kx: 0, kz: 0, dead: false, phase: 0, moving: false });
-  player.pos.set(0, 0, 0); pg.rotation.set(0, 0, 0); pg.position.set(0, 0, 0); pg.visible = true;
+  player.pos.set(0, 0, 0); pg.rotation.set(0, 0, 0); pg.position.set(0, 0, 0); pg.visible = true; playerShadow.visible = true;
   bag.owned = [true, false, false]; bag.grenades = GRENADE.START; bag.meds = INVENTORY.MED_START; bag.armor = 0; bag.up = {};
   applyUpgrades(); // v10: volta aos atributos base
   weapons.forEach((w) => { w.mag = w.size; w.res = w.startRes; });
@@ -448,11 +523,28 @@ export function resetPlayer() {
   snapCamera();
 }
 
+// Move só a representação da personagem durante a cena; a posição de jogo muda na chegada.
+export function animateDoorWalk(dt, point, yaw, moving) {
+  const prevX = pg.position.x, prevZ = pg.position.z;
+  pg.position.set(point.x, 0, point.z); pg.rotation.y = yaw; pg.visible = true;
+  G.yaw = yaw; G.aiming = false;
+  player.vx = moving ? (point.x - prevX) / Math.max(dt, 0.001) : 0;
+  player.vz = moving ? (point.z - prevZ) / Math.max(dt, 0.001) : 0;
+  player.spd = moving ? Math.max(0.8, Math.hypot(player.vx, player.vz)) : 0;
+  player.moving = moving; player.running = false;
+  if (!hero.ok) {
+    player.phase += moving ? dt * 8 : 0;
+    const sw = moving ? Math.sin(player.phase) * 0.55 : 0;
+    legL.rotation.x = sw; legR.rotation.x = -sw;
+  }
+  updateHero(dt, motionK());
+}
+
 // ---------- atualização ----------
 let heartT = 0;
 export function updatePlayer(dt) {
   updateWeapons(dt);
-  if (player.dead) { player.vx = player.vz = 0; pg.rotation.x = Math.max(pg.rotation.x - dt * 3, -Math.PI / 2); pg.position.y = 0.2 * Math.min(1, -pg.rotation.x); pg.visible = true; return; }
+  if (player.dead) { playerShadow.visible = false; player.vx = player.vz = 0; pg.rotation.x = Math.max(pg.rotation.x - dt * 3, -Math.PI / 2); pg.position.y = 0.2 * Math.min(1, -pg.rotation.x); pg.visible = true; return; }
   if (keys.ArrowLeft) G.yaw += dt * 2.4; if (keys.ArrowRight) G.yaw -= dt * 2.4;
   let ix = 0, iz = 0;
   if (keys.KeyW || keys.ArrowUp) iz += 1; if (keys.KeyS || keys.ArrowDown) iz -= 1; if (keys.KeyD) ix += 1; if (keys.KeyA) ix -= 1;

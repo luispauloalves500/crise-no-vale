@@ -1,6 +1,7 @@
 // fx.js — partículas (sangue/faíscas/poeira/ácido), traçantes e manchas no chão, tudo com pool.
 import * as THREE from 'three';
-import { scene, GLOW, flashAt } from './world.js';
+import { scene, camera, GLOW, flashAt } from './world.js';
+import { createParticleBatches } from './particle-batches.mjs';
 import { FX, COLORS } from './config.js';
 import { rand, RingPool, softSplatTex } from './utils.js';
 import { quality } from './quality.js';
@@ -24,16 +25,16 @@ const pMats = {
 
 // ---------- partículas ----------
 const particles = new RingPool(FX.MAX_PARTICLES, () => {
-  // v9: frustumCulled ligado (padrão) — a caixinha tem bounding sphere correta; partícula fora da tela não desenha
-  const m = new THREE.Mesh(pGeo, pMats.blood); m.visible = false; scene.add(m);
-  return { m, vx: 0, vy: 0, vz: 0, life: 0, life0: 1, s0: 1, grav: 12, shrink: false };
+  const m = new THREE.Object3D(); m.visible = false; m.material = pMats.blood;
+  return { m, kind: 'blood', vx: 0, vy: 0, vz: 0, life: 0, life0: 1, s0: 1, grav: 12, shrink: false };
 });
+const particleBatches = createParticleBatches(THREE, scene, pGeo, pMats, FX.MAX_PARTICLES);
 /** Explosão de partículas. kind: blood | spark | spit | dust | fire */
 export function burst(x, y, z, kind, n, sp, dirX = 0, dirZ = 0) {
   n = Math.max(1, Math.round(n * fxK()));
   for (let i = 0; i < n; i++) {
     const p = particles.next();
-    p.m.material = pMats[kind]; p.m.position.set(x, y, z); p.m.visible = true;
+    p.kind = kind; p.m.material = pMats[kind]; p.m.position.set(x, y, z); p.m.rotation.set(0,0,0); p.m.visible = true;
     const s = kind === 'dust' ? rand(1, 2.2) : rand(0.7, 1.4); p.m.scale.setScalar(s);
     p.vx = (rand(-1, 1) + dirX * 1.2) * sp; p.vy = rand(0.5, 1.6) * sp; p.vz = (rand(-1, 1) + dirZ * 1.2) * sp;
     p.grav = kind === 'dust' ? 3 : kind === 'fire' ? -1.5 : 12;
@@ -77,6 +78,7 @@ const impacts = new RingPool(16, () => {
  */
 export function impactFx(x, y, z, dx, dz, kind, k = 1) {
   const rich = fxRich(), im = impacts.next();
+  im.mist.visible = false; im.ml = 0;
   if (kind === 'flesh') {
     burst(x, y, z, 'blood', 5 * k, 3.2, dx, dz);
     burst(x, y, z, 'blood', 2 * k, 1.6, -dx * 0.6, -dz * 0.6); // respingo para trás, na direção de quem atirou
@@ -161,6 +163,7 @@ const smokes = new RingPool(18, () => {
   s.visible = false; scene.add(s); return { s, life: 0, max: 1, vy: 0, g: 1 };
 });
 export function smoke(x, y, z, n = 6, size = 1.5) {
+  n = Math.max(1, Math.round(n * fxK()));
   for (let i = 0; i < n; i++) {
     const p = smokes.next(); p.s.visible = true; p.life = p.max = rand(1.2, 2.2); p.vy = rand(0.6, 1.4); p.g = size * rand(0.8, 1.3);
     p.s.position.set(x + rand(-0.6, 0.6), y + rand(0, 0.5), z + rand(-0.6, 0.6)); p.s.scale.setScalar(p.g);
@@ -178,15 +181,13 @@ export function explosion(x, z, r) {
 
 /** v6: floreio de crítico/abate — faíscas e um anel rápido no ponto do golpe (leve no Baixo). */
 export function flourish(x, y, z, kill) {
-  burst(x, y, z, 'spark', kill ? 10 : 6, kill ? 5 : 3.5);
-  if (!fxRich()) return;
-  if (kill) { shockwave(x, z, 1.8, 0xff5040); flashAt(x, y, z, 0xff6040, 30); }
-  else flashAt(x, y, z, 0xffd060, 18);
+  if (kill) return; // abate já tem sangue e animação; evita faíscas e anel duplicados
+  burst(x, y, z, 'spark', 3, 3.5);
+  if (fxRich()) flashAt(x, y, z, 0xffd060, 18);
 }
 /** v6: jorro de sangue de abate — mais forte, com um spray para cima no Médio/Alto. */
 export function bloodBurst(x, y, z, heavy, dx = 0, dz = 0) {
-  burst(x, y, z, 'blood', heavy ? 34 : 20, heavy ? 5 : 4.5, dx, dz);
-  if (fxRich()) { burst(x, y + 0.3, z, 'blood', heavy ? 16 : 10, 6.5, dx * 0.4, dz * 0.4); decal(x + dx * 1.2, z + dz * 1.2, heavy ? 1.6 : 1.1); }
+  burst(x, y, z, 'blood', heavy ? 10 : 6, heavy ? 3.5 : 3, dx, dz); // uma mancha já é criada pelo combate
 }
 
 export function updateFx(dt) {
@@ -225,6 +226,7 @@ export function updateFx(dt) {
     if (p.shrink) { const k = Math.max(0.05, p.life / p.life0); if (p.spark) p.m.scale.set(p.s0 * 0.5 * k, p.s0 * 0.5 * k, p.s0 * 2.2 * k); else p.m.scale.setScalar(p.s0 * k); }
     if (p.spark) p.m.lookAt(pos.x + p.vx, pos.y + p.vy, pos.z + p.vz);
   });
+  particleBatches.flush(particles.items, camera);
   tracers.forEach((t) => {
     if (t.head.visible) {
       // projétil viaja da boca do cano até o alvo; o rastro aparece logo e some depressa
@@ -247,7 +249,7 @@ export function updateFx(dt) {
   });
 }
 export function clearFx() {
-  particles.forEach((p) => { p.m.visible = false; });
+  particles.forEach((p) => { p.m.visible = false; }); particleBatches.clear();
   tracers.forEach((t) => { t.m.visible = false; t.head.visible = false; });
   impacts.forEach((im) => { im.s.visible = false; im.mist.visible = false; });
   decals.forEach((d) => { d.m.visible = false; });
