@@ -6,8 +6,8 @@ import {PASSAGES, passageFor, advancePassage} from '../js/passage-scenes.mjs';
 const src=readFileSync(new URL('../js/areas.js',import.meta.url),'utf8');
 const literal=src.slice(src.indexOf('export const AREAS = [')+'export const AREAS = '.length,src.indexOf('\nexport const AREA ='));
 const areas=vm.runInNewContext(literal,{Math});
-test('as cenas usam rotas reais e cobrem as oito ligações principais',()=>{
-  assert.equal(Object.keys(PASSAGES).length,8);
+test('as cenas usam rotas reais e cobrem as dez ligações principais',()=>{
+  assert.equal(Object.keys(PASSAGES).length,10);
   for(const [route, scene] of Object.entries(PASSAGES)) {
     const [from,to]=route.split('>');
     assert.ok(areas.find(a=>a.id===from)?.doors.some(d=>d.to===to), route);

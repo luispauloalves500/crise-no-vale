@@ -8,8 +8,8 @@ import { validateDoorGraph, safeDoorArrival } from '../js/door-safety.mjs';
 const src = readFileSync(new URL('../js/areas.js', import.meta.url), 'utf8');
 const literal = src.slice(src.indexOf('export const AREAS = [') + 'export const AREAS = '.length, src.indexOf('\nexport const AREA ='));
 const areas = vm.runInNewContext(literal, { Math });
-test('as nove áreas possuem conexões recíprocas sem IDs de porta repetidos', () => {
-  assert.equal(areas.length, 9);
+test('as doze áreas possuem conexões recíprocas sem IDs de porta repetidos', () => {
+  assert.equal(areas.length, 12);
   assert.deepEqual(validateDoorGraph(areas), []);
   const broken = [{ id:'a', doors:[{id:'N',side:'N',to:'b',toDoor:'S'}] }, { id:'b', doors:[] }];
   assert.equal(validateDoorGraph(broken).length, 1);
