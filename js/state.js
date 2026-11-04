@@ -39,3 +39,9 @@ export const SAVE_KEY = 'crise-no-vale-save';
 export function readSave() { try { const s = localStorage.getItem(SAVE_KEY); return s ? JSON.parse(s) : null; } catch (e) { return null; } }
 export function writeSave(data) { try { localStorage.setItem(SAVE_KEY, JSON.stringify(data)); return true; } catch (e) { return false; } }
 export function clearSave() { try { localStorage.removeItem(SAVE_KEY); } catch (e) { /* ignore */ } }
+
+// v11: ponto de partida do Ato 3 (gravado ao escolher Porto Anil ou ao voar para casa depois do Ato 2).
+// Fica separado do save principal para não sobrescrever o último terminal do jogador.
+export const ACT3_KEY = 'crise-no-vale-act3';
+export function readAct3() { try { const s = localStorage.getItem(ACT3_KEY); return s ? JSON.parse(s) : null; } catch (e) { return null; } }
+export function writeAct3(data) { try { localStorage.setItem(ACT3_KEY, JSON.stringify(data)); return true; } catch (e) { return false; } }

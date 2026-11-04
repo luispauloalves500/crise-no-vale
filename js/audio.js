@@ -114,6 +114,10 @@ const AMB = {
   margem:      { rain: 0.6, wind: 0.5, insects: 0.8, sea: 0.3, hum: 0,   alarm: 0,   tension: 0.15, river: 1.0, breath: 0 },
   acampamento: { rain: 0.7, wind: 0.4, insects: 0.4, sea: 0,   hum: 0.8, alarm: 0.2, tension: 0.25, river: 0.35, breath: 0 },
   ninho:       { rain: 0.3, wind: 0.3, insects: 0.2, sea: 0,   hum: 0,   alarm: 0,   tension: 0.7, river: 0.5, breath: 1.0 },
+  // v11 — Ato 3 (cidade sob chuva, casa de bombas, bunker)
+  portoanil:   { rain: 1.0, wind: 0.7, insects: 0,   sea: 0.8, hum: 0.2, alarm: 0.35, tension: 0.2, river: 0.2, breath: 0 },
+  captacao:    { rain: 0.4, wind: 0.3, insects: 0,   sea: 0,   hum: 0.9, alarm: 0.15, tension: 0.35, river: 0.9, breath: 0.2 },
+  sede:        { rain: 0,   wind: 0.1, insects: 0,   sea: 0,   hum: 1.0, alarm: 0.3, tension: 0.75, river: 0.2, breath: 0.8 },
   menu:      { rain: 0.7, wind: 0.6, insects: 0.1,  sea: 0.5, hum: 0,    alarm: 0,   tension: 0 },
 };
 const BASE = { rain: 0.06, wind: 0.09, insects: 0.018, sea: 0.08, hum: 0.035, alarm: 0.022, tension: 0.07, river: 0.07, breath: 0.06 };

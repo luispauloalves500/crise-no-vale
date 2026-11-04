@@ -107,6 +107,12 @@ export const ENEMY_TYPES = {
              color: 0x2a3a30, belly: 0x7a8a6a, stripe: 0x1a6a40, eye: 0x9aff40, horn: 0xd8f0c0, radar: '#40ff90', scar: 0x60ff90,
              chargeDmg: 36, chargeSpeed: 18, mass: 22, stompR: 6.5, stompDmg: 22,
              stompWind: 1.1, windup: 1.15, wallStun: 3.0, stunGrace: 1.2 },
+  // v11: PRIMÓRDIO — chefe final do Ato 3 (sede da Tellus). Bruto ancestral, pele pálida e glândulas ácidas.
+  // acid: leque de cuspe ácido (3 projéteis) a média distância; as fases chamam a matilha e chocam ovos.
+  primordio:{ name: 'Primórdio', shape: 'brute', hp: 1500, speed: 3.3, dmg: 32, r: 2.4, scale: 3.0, score: 6000, ep: 700, aggro: 99, boss: true,
+             color: 0x4a4a3c, belly: 0xb0a890, stripe: 0x6a8a20, eye: 0xd0ff30, horn: 0xe8e0c0, radar: '#d0ff30', scar: 0xb0ff40,
+             chargeDmg: 38, chargeSpeed: 16, mass: 28, stompR: 7, stompDmg: 24,
+             stompWind: 1.2, windup: 1.25, wallStun: 3.0, stunGrace: 1.3, acid: { cd: 5.5, n: 3, spread: 0.22 } },
 };
 
 export const PICKUPS = {

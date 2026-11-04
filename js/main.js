@@ -16,6 +16,7 @@ import { fire, throwGrenade, updateCombat, clearPickups, pickups, damageEnemy } 
 import { updateSurvivor, hideSurvivor, survivor } from './npc.js';
 import { updateBrandt, hideBrandt, brandt } from './brandt.js';
 import { AREAS, AREA, buildArea, builtCount, isBuilt } from './areas.js';
+import { hasAct3 } from './director.js';
 import { D, startCampaign, updateDirector, updateHeli, hudData, interact, skipPassage, hasSave, setWinHandler, endStats, currentObjective, debugGoto, debugFlags, warmArea, streamAround, streamStats, ambienceNow } from './director.js';
 import { readSave } from './state.js';
 import { quality, setQualityMode, autoQualityTick, applyQualityNow, onQuality, MODE_LABEL, PRESETS } from './quality.js';
@@ -37,7 +38,7 @@ const setState = (s) => { G.state = s; };
 function startGame(fromSave) {
   if (heroBusy) return;
   initAudio();
-  if (fromSave && !hasSave()) fromSave = false;
+  if (fromSave === 'act3' ? !hasAct3() : (fromSave && !hasSave())) fromSave = false;
   ui.showScreen('hud'); ui.toggleMap(false); ui.setFade(0);
   setState('play');
   startCampaign(fromSave);
@@ -49,7 +50,7 @@ function endGame(win) {
   if (G.state !== 'play') return;
   if (win) { jillUnlockedSession = true; try { localStorage.setItem('crise-no-vale-jill-unlocked', '1'); } catch (e) { console.warn('Não foi possível salvar desbloqueio:', e); } }
   setState(win ? 'win' : 'over'); endT = win ? 2.4 : 2.2; clearInput(); ui.toggleMap(false);
-  if (win) { ui.banner('RESGATE!', D.area && D.area.id === 'ninho' ? 'O Garça-1 pousa na clareira do ninho' : 'O helicóptero pousa no penhasco', 3); sfx.win(); }
+  if (win) { ui.banner(D.flags.act3Win ? 'FUGA!' : 'RESGATE!', D.flags.act3Win ? 'O Garça-1 recolhe a Marina no cais velho de Porto Anil' : D.area && D.area.id === 'ninho' ? 'O Garça-1 pousa na clareira do ninho' : 'O helicóptero pousa no penhasco', 3); sfx.win(); }
 }
 function showEnd() {
   // vitória: epílogo (muda conforme os registros encontrados) antes da tela de pontos
@@ -59,7 +60,7 @@ function showEnd() {
 function finishEnd() {
   const win = G.state === 'win'; unlockPointer();
   const newBest = win ? saveBest() : false;
-  ui.setHasSave(hasSave());
+  ui.setHasSave(hasSave()); refreshAct3Btn();
   ui.showEnd(win, endStats(), newBest);
   setState('ended');
 }
@@ -73,7 +74,7 @@ function setPause(p) {
 function toMenu() {
   G.transitioning = false; D.trans = null; ui.hidePassage();
   setState('menu'); story.clearSpeech(); clearEnemies(); clearPickups(); clearFx(); ui.clearFloaters(); ui.clearMessages(); hideSurvivor(); hideBrandt(); resetPlayer(); ui.setFade(0);
-  ui.setHasSave(hasSave()); ui.showScreen('menu'); refreshCharacterButtons(); unlockPointer();
+  ui.setHasSave(hasSave()); refreshAct3Btn(); ui.showScreen('menu'); refreshCharacterButtons(); unlockPointer();
 }
 events.onDeath = () => endGame(false);
 setWinHandler(() => endGame(true));
@@ -152,7 +153,7 @@ function refreshCharacterButtons() {
     group.jill.textContent = unlocked ? 'Jill' : 'Jill — bloqueada';
     group.note.textContent = heroBusy ? 'Carregando personagem…' : unlocked ? 'Escolha Marina ou Jill.' : 'Conclua um final para desbloquear Jill.';
   }
-  $('startBtn').disabled = heroBusy; $('continueBtn').disabled = heroBusy; $('resumeBtn').disabled = heroBusy;
+  $('startBtn').disabled = heroBusy; $('continueBtn').disabled = heroBusy; if ($('act3Btn')) $('act3Btn').disabled = heroBusy; $('resumeBtn').disabled = heroBusy;
 }
 async function chooseCharacter(choice) {
   if (heroBusy || (choice === 'jill' && !isJillUnlocked())) return;
@@ -168,6 +169,9 @@ for (const group of characterSelectors) {
 }
 $('startBtn').onclick = () => startGame(false);
 $('continueBtn').onclick = () => startGame(true);
+// v11: atalho para o Ato 3 (checkpoint próprio, gravado ao terminar o Ato 2)
+function refreshAct3Btn() { const b = $('act3Btn'); if (b) b.classList.toggle('hidden', !hasAct3()); }
+if ($('act3Btn')) $('act3Btn').onclick = () => startGame('act3');
 $('restartBtn').onclick = () => startGame(false);
 $('continueEndBtn').onclick = () => startGame(true);
 $('resumeBtn').onclick = () => setPause(false);
@@ -279,7 +283,7 @@ async function boot() {
   await compileShaders(warm);
   ui.setLoading(1, 'Pronto!');
   G.state = 'menu';
-  ui.initUI(hasSave());
+  ui.initUI(hasSave()); refreshAct3Btn();
   ui.showScreen('menu'); refreshCharacterButtons();
   try { if (isJillUnlocked() && localStorage.getItem('crise-no-vale-personagem') === 'jill') chooseCharacter('jill'); } catch (e) {}
   post.onAuto = () => ui.feed(ui.STR.bloomAuto, '#cde');
