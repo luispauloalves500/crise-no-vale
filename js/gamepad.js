@@ -50,6 +50,7 @@ export function pollGamepad(dt, h) {
     // borda de subida: traduz para as mesmas teclas do teclado
     if (G.state === 'terminal') { if (TERM_MAP[i]) h.onKey(TERM_MAP[i]); }
     else if (G.state === 'archive') { if (i === 0) h.onKey('Enter'); else if (i === 1 || i === 9) h.onKey('Escape'); else if (i === 12) h.onKey('ArrowUp'); else if (i === 13) h.onKey('ArrowDown'); }
+    else if (G.state === 'cutscene') { if(i===0||i===9)h.onKey('Enter'); }
     else if (G.state === 'story') { if (i === 0) h.onKey('KeyE'); else if (i === 9) h.onKey('Enter'); }
     else if (G.state === 'pause') { if (i === 9 || i === 0) h.onKey('KeyP'); }
     else if (G.state === 'menu' || G.state === 'ended') { if (i === 0 || i === 9) h.onKey('Enter'); }

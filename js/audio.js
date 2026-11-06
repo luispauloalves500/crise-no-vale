@@ -118,6 +118,8 @@ const AMB = {
   portoanil:   { rain: 1.0, wind: 0.7, insects: 0,   sea: 0.8, hum: 0.2, alarm: 0.35, tension: 0.2, river: 0.2, breath: 0 },
   captacao:    { rain: 0.4, wind: 0.3, insects: 0,   sea: 0,   hum: 0.9, alarm: 0.15, tension: 0.35, river: 0.9, breath: 0.2 },
   sede:        { rain: 0,   wind: 0.1, insects: 0,   sea: 0,   hum: 1.0, alarm: 0.3, tension: 0.75, river: 0.2, breath: 0.8 },
+  setorzero: { rain:.2,wind:.6,insects:0,sea:.9,hum:.35,alarm:.1,tension:.35,river:0,breath:0 },
+  raiz: { rain:0,wind:.1,insects:0,sea:0,hum:1,alarm:.4,tension:.9,river:0,breath:.7 },
   menu:      { rain: 0.7, wind: 0.6, insects: 0.1,  sea: 0.5, hum: 0,    alarm: 0,   tension: 0 },
 };
 const BASE = { rain: 0.06, wind: 0.09, insects: 0.018, sea: 0.08, hum: 0.035, alarm: 0.022, tension: 0.07, river: 0.07, breath: 0.06 };

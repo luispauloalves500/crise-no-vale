@@ -12,7 +12,7 @@ const dir = readFileSync(new URL('../js/director.js', import.meta.url), 'utf8');
 const A = (id) => areas.find((a) => a.id === id);
 
 test('Ato 3 fica no fim da lista (sementes antigas não mudam) e forma uma cadeia própria', () => {
-  assert.deepEqual([...areas.slice(-3).map((a) => a.id)], ['portoanil', 'captacao', 'sede']);
+  assert.deepEqual([...areas.slice(9,12).map((a) => a.id)], ['portoanil', 'captacao', 'sede']);
   assert.deepEqual([...areas.slice(0, 9).map((a) => a.id)], ['porto', 'ruinas', 'lab', 'pantano', 'patio', 'heliponto', 'margem', 'acampamento', 'ninho']);
   assert.deepEqual(validateDoorGraph(areas), []);
   assert.ok(A('portoanil').doors.some((d) => d.to === 'captacao'));
@@ -23,7 +23,7 @@ test('Ato 3 fica no fim da lista (sementes antigas não mudam) e forma uma cadei
 test('travas do Ato 3 têm regra e mensagem no diretor', () => {
   assert.match(dir, /valveLock[^\n]*F\.valvesClosed/);
   assert.match(dir, /primLock[^\n]*F\.primFight/);
-  assert.match(dir, /const SAVE_V = 7/);
+  assert.match(dir, /const SAVE_V = 8/);
 });
 test('registros 14–17 existem, estão nas áreas certas e os ids de pickups seguem únicos', () => {
   const want = { log14: 'portoanil', log15: 'captacao', log16: 'sede', log17: 'captacao' };

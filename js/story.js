@@ -372,7 +372,7 @@ export const ACT2_INTRO = [
 ];
 /** v11: cartão de abertura do Ato 3 (o Garça-1 leva a Marina até Porto Anil). */
 export const ACT3_INTRO = [
-  { kicker: 'ATO 3', title: 'PORTO ANIL', text: 'O Garça-1 desce o rio com a Dra. Lima a bordo. Doze quilômetros abaixo, a chuva cai sobre uma cidade costeira com sirenes ligadas e ruas vazias.\nO piloto deixa você no cais velho. "Combustível para uma volta, agente. Chame quando terminar."' },
+  { kicker: 'ATO 3', title: 'PORTO ANIL', text: 'O Garça-1 desce o rio com a Dra. Lima a bordo. Doze quilômetros abaixo, a chuva cai sobre uma cidade costeira com sirenes ligadas e ruas vazias.\nO piloto deixa você no cais velho. "Pouco combustível. A Defesa Civil envia uma lancha quando a sede estiver neutralizada."' },
   { kicker: 'OBJETIVO', title: 'A CAPTAÇÃO', text: 'Atravesse o cais até a captação de água, feche as comportas antes que a água do ninho chegue aos bairros e descubra o que a Tellus esconde embaixo dela.\nHá quatro registros novos. Terminais verdes continuam salvando o jogo.' },
 ];
 /** v11: finais do Ato 3 — escolha (expor x destruir) × contaminação (comportas a tempo ou não). */
@@ -404,6 +404,7 @@ function epilogueAct2(F) {
   return pages;
 }
 export function epilogue(F = {}) {
+  if(F.act4Win)return epilogueAct4(F);
   if (F.act3Win) return epilogueAct3(F);
   if (F.act2Win) return epilogueAct2(F);
   // v7: os finais do Ato 1 contam só os 9 registros do vale
@@ -428,6 +429,7 @@ export function epilogue(F = {}) {
 }
 /** v6: qual final o jogador viu (título da tela de fim + linha de resumo). */
 export function ending(F = {}) {
+  if(F.act4Win)return F.act4Choice==='proof'?{id:'custodia',title:'A VERDADE SOB CUSTÓDIA',line:'Rocha inocentada, arquivo RAIZ preservado e nenhum estoque viável restante.'}:{id:'quarentena',title:'QUARENTENA DEFINITIVA',line:'Setor Zero esterilizado e lacrado. Nenhuma amostra viva saiu da ilha.'};
   if (F.act3Win) {
     const x = F.act3Choice === 'expose', d = !!F.contaminated;
     if (x && !d) return { id: 'mare', title: 'MARÉ LIMPA', line: 'Comportas fechadas a tempo e o Conselho exposto em todas as rádios da costa.' };
@@ -448,4 +450,14 @@ export function ending(F = {}) {
 export function logPages(id) {
   const L = LOGS[id];
   return L.pages.map((t, i) => ({ kicker: `REGISTRO ${LOG_IDS.indexOf(id) + 1}/${TOTAL_LOGS}${L.pages.length > 1 ? ` • pág. ${i + 1}` : ''}`, title: L.title, who: L.who, text: t }));
+}
+
+function epilogueAct4(F) {
+  return [
+    {kicker:'ATO 4 — CONCLUÍDO',title:ending(F).title,text:F.act4Choice==='proof'?'A lancha deixa a ilha sem material biológico. A cópia integral do arquivo RAIZ chega aos investigadores com a cadeia de custódia preservada. O ciclo controlado neutralizou os estoques. A assinatura falsa é desmontada: Marina Rocha não autorizou o surto.':'A lancha deixa a ilha. O ciclo de esterilização destruiu servidores, embriões e culturas. O Setor Zero é lacrado definitivamente. Lima registra em depoimento a falsificação da assinatura de Marina Rocha. Nenhum estoque viável do RAIZ permanece.'},
+    {kicker:'A ORDEM ORIGINAL',title:'NÃO FOI A TEMPESTADE',text:'Brandt liberou o V-7 para apagar testemunhas e falsificou a autorização de Rocha. A tempestade encobriu a operação. O Conselho financiou a matriz de clonagem e tentou atribuir o desastre à equipe de resgate. '+(F.brandt==='caught'?'Preso no ninho, Brandt responde com os conselheiros.':'Os dados de rota e contas permitem localizar Brandt e interceptar sua maleta antes da venda. Ele é preso semanas depois.')},
+    {kicker:'PORTO ANIL',title:F.contaminated?'RECUPERAÇÃO LENTA':'A CIDADE ACORDA',text:(F.contaminated?'A água chegou aos bairros baixos. O tratamento e a recuperação do rio levam meses; o custo humano não desaparece com a vitória.':'As comportas protegeram os bairros. A captação só reabre após a inspeção independente. Ninguém volta a beber água sem análise.')+' '+(F.act3Choice==='expose'?'A transmissão do Ato 3 já havia exposto o Conselho. Nem a destruição dos servidores apaga essas provas.':F.act4Choice==='proof'?'A destruição da sede não apaga o arquivo de origem recuperado na ilha.':'Sem os servidores da sede nem da ilha, a acusação depende dos depoimentos e registros resgatados; o processo será mais difícil.')},
+    {kicker:'MARINA ROCHA · HELENA LIMA',title:'DE VOLTA À COSTA',text:'As duas sobrevivem. Lima entrega o mapa completo das instalações. Rocha encerra o relatório com uma frase: “Não foi acidente. E não haverá uma próxima matriz.” Os sobreviventes do vale recebem proteção; a Fundação Tellus perde o controle das instalações.'},
+    {kicker:'CAMPANHA CONCLUÍDA — 4 ATOS',title:'FIM — CRISE NO VALE',text:'Créditos\nCrise no Vale — criação e desenvolvimento do projeto.\nThree.js r160 e colaboradores — renderização 3D.\nRaptor e T-rex — modelos fornecidos pelo jogador; animação e otimização integradas ao projeto.\nDemais recursos: assets/originais/LEIA-ME.md.\n\nObrigado por jogar. Registros opcionais ampliam a história, mas não são necessários para concluir.'}
+  ];
 }

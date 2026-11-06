@@ -26,6 +26,12 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+      - name: Node para regressão
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Testar campanha, cutscenes e assets
+        run: node --test tests/*.test.mjs
       - name: Configurar Pages
         uses: actions/configure-pages@v5
       - name: Montar o site

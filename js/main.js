@@ -1,8 +1,10 @@
+import { playCutscene, skipCutscene, cancelCutscene, updateCutscene, currentCutscene, cutsceneActive } from './cutscenes.js';
+import { preloadDinos, dinoModelStats } from './dino-models.js';
 // main.js — inicialização, máquina de estados (menu/story/play/pause/over/win) e laço principal.
 // A progressão (áreas, portas, eventos, chefe) fica em director.js.
 import * as THREE from 'three';
 import { renderer, scene, camera, boxes, updateWorld, atmo, bounds } from './world.js';
-import { difficultyId } from './campaign-rules.mjs';
+import { difficultyId, currentAct } from './campaign-rules.mjs';
 import { G, saveBest } from './state.js';
 import { initInput, lockPointer, unlockPointer, clearInput, keys, mouse } from './input.js';
 import { initAudio, sfx, toggleMute, isMuted, setAmbience, setMuffle, ambienceState, setVolumes, getVolumes } from './audio.js';
@@ -45,14 +47,20 @@ function startGame(fromSave) {
   if (!fromSave) G.difficulty = selectedDifficulty;
   startCampaign(fromSave);
   // novo jogo: introdução (barco, rádio, missão) — clique/Espaço avança, Enter pula
-  if (!fromSave) story.showCard(story.INTRO, () => story.say(story.LINES.enter_porto, 'enter_porto'), { full: true, cinematic: true });
-  else lockPointer();
+  if (!fromSave) playCutscene('opening',{focus:{x:0,z:10},onComplete:()=>playCutscene('act1',{focus:{x:0,z:5}})});
+  else {
+    const id='act'+currentAct(D.flags);
+    if(currentAct(D.flags)>1&&!D.flags.cinematics?.[id]){
+      D.flags.cinematics={...D.flags.cinematics,[id]:true};
+      playCutscene(id,{focus:{x:player.pos.x,z:player.pos.z},flags:D.flags});
+    } else lockPointer();
+  }
 }
 function endGame(win) {
   if (G.state !== 'play') return;
   if (win) { jillUnlockedSession = true; try { localStorage.setItem('crise-no-vale-jill-unlocked', '1'); } catch (e) { console.warn('Não foi possível salvar desbloqueio:', e); } }
   setState(win ? 'win' : 'over'); endT = win ? 2.4 : 2.2; clearInput(); ui.toggleMap(false);
-  if (win) { ui.banner(D.flags.act3Win ? 'FUGA!' : 'RESGATE!', D.flags.act3Win ? 'O Garça-1 recolhe a Marina no cais velho de Porto Anil' : D.area && D.area.id === 'ninho' ? 'O Garça-1 pousa na clareira do ninho' : 'O helicóptero pousa no penhasco', 3); sfx.win(); }
+  if (win) { ui.banner(D.flags.act4Win ? 'MISSÃO CONCLUÍDA' : 'RESGATE!', D.flags.act4Win ? 'A lancha deixa o Setor Zero — RAIZ neutralizado' : D.area && D.area.id === 'ninho' ? 'O Garça-1 pousa na clareira do ninho' : 'O helicóptero pousa no penhasco', 3); sfx.win(); }
 }
 function showEnd() {
   // vitória: epílogo (muda conforme os registros encontrados) antes da tela de pontos
@@ -74,6 +82,7 @@ function setPause(p) {
   }
 }
 function toMenu() {
+  cancelCutscene();
   G.transitioning = false; D.trans = null; ui.hidePassage();
   setState('menu'); story.clearSpeech(); clearEnemies(); clearPickups(); clearFx(); ui.clearFloaters(); ui.clearMessages(); hideSurvivor(); hideBrandt(); resetPlayer(); ui.setFade(0);
   ui.setHasSave(hasSave()); refreshAct3Btn(); ui.showScreen('menu'); refreshCharacterButtons(); unlockPointer();
@@ -116,6 +125,7 @@ refreshDifficulty();
 // ---------- entrada ----------
 const inputHandlers = {
   onKey(code) {
+    if(G.state==='cutscene'){if(code==='Escape'||code==='Enter')skipCutscene();return;}
     if (G.state === 'archive') { archiveKey(code); return; }
     if (G.state === 'terminal') { terminalKey(code); if (code === 'KeyM') ui.feed(ui.STR.muted(toggleMute()), '#cde'); return; } // v10: Terminal TELLUS
     if (G.state === 'story') {
@@ -200,6 +210,7 @@ const clock = new THREE.Clock();
 function update(dt) {
   G.time += dt;
   updateWorld(dt);
+  if(G.state==='cutscene'){updateCutscene(dt);updateFx(dt);return;}
   if (!D.trans) story.updateStory(dt);
   if (G.state === 'play' || G.state === 'over' || G.state === 'win') {
     if (G.state === 'play' && !D.trans) G.elapsed += dt;
@@ -234,7 +245,7 @@ function loop() {
   const inGame = G.state !== 'menu' && G.state !== 'loading' && D.area;
   if (inGame) { const [k, m] = ambienceNow(); setAmbience(k, m); } else setAmbience('menu');
   setMuffle(G.state === 'pause' || G.state === 'story' || G.state === 'terminal' || G.state === 'archive');
-  if (G.state === 'menu' || story.cinematic()) menuCamera(dt); else if (G.state !== 'pause') updateCamera(dt);
+  if (G.state === 'menu' || story.cinematic()) menuCamera(dt); else if (G.state !== 'pause' && G.state !== 'cutscene') updateCamera(dt);
   // Plano fixo da travessia enquadra a abertura, a passagem e o fechamento.
   if (G.state === 'play' && D.trans?.shot) {
     const s = D.trans.shot;
@@ -291,6 +302,7 @@ async function boot() {
   const heroOk = await heroReady; // nunca trava: em falha/tempo esgotado volta à malha antiga
   if (!heroOk) ui.setLoading(n / steps, 'Modelo da Marina indisponível — usando personagem simples');
   await step('Carregando… criaturas');
+  await Promise.race([preloadDinos(),new Promise(r=>setTimeout(r,15000))]);
   const warm = prewarmEnemies();
   // tela de menu: mostra o cais ao fundo
   startCampaign(false); clearEnemies(); hideSurvivor();
@@ -332,6 +344,7 @@ window.__game = {
   get ambience() { return ambienceState(); }, get muted() { return isMuted(); }, toggleMute,
   // v6: ajustes, controle e armas
   SETTINGS, setSetting, getVolumes, pad, cycleWeapon, switchWeapon, arms,
+  currentCutscene, playCutscene, skipCutscene, dinoModelStats,
   hero: heroInfo, // v8: modelo GLB da Marina
   // v4: desempenho
   quality, setQuality: (m) => { setQualityMode(m); refreshQualityUI(); }, PRESETS, poolStats, streamStats, bounds, hudStats: ui.hudStats,

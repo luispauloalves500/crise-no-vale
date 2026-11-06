@@ -26,7 +26,7 @@ for(const a of AREAS){
  const env={bounds:a.bounds,boxes:a.ctx.boxes,circles:a.ctx.circles},arrival=[];
  for(const d of a.doors){const p=safeDoorArrival(a,d.id,.5,1.6);if(!p||!canStand(p.x,p.z,env,.5))fail.push(a.id+':'+d.id);arrival.push([d.id,p]);}
  const start=a.start||arrival[0][1];
- const targets=[...arrival.map(([id,p])=>({...p,id:'porta-'+id})),...(a.refs.terminals||[]),...(a.logs||[]),...(a.encounters||[]).filter(e=>e.zone).map(e=>({...e.zone,id:e.id})),a.core&&{...a.core,id:'nucleo'},a.helipad&&{...a.helipad,id:'helipad'},a.quayPad&&{...a.quayPad,id:'resgate'}].filter(Boolean);
+ const targets=[...arrival.map(([id,p])=>({...p,id:'porta-'+id})),...(a.refs.terminals||[]),...(a.logs||[]),...(a.encounters||[]).filter(e=>e.zone).map(e=>({...e.zone,id:e.id})),a.core&&{...a.core,id:'nucleo'},a.helipad&&{...a.helipad,id:'helipad'},a.quayPad&&{...a.quayPad,id:'resgate'},a.extraction&&{...a.extraction,id:'barco'}].filter(Boolean);
  for(const t of targets){
    let path=[];
    for(const r of [0,1,1.8]){for(let i=0;i<16;i++){const q={x:t.x+Math.cos(i*Math.PI/8)*r,z:t.z+Math.sin(i*Math.PI/8)*r};if(canStand(q.x,q.z,env,.5)){path=findEscortPath(start,q,env,.5);if(path.length)break;}}if(path.length)break;}

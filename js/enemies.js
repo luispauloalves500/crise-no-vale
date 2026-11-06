@@ -1,3 +1,4 @@
+import { attachDino, resetDino, animateDino, disposeDino } from './dino-models.js';
 import { actorShadow } from './contact-shadows.js';
 // enemies.js — construção dos dinossauros (silhuetas distintas), IA (patrulha → alerta → ataque),
 // chefe Colosso, spawn por posição/borda da área e cuspe ácido.
@@ -142,7 +143,8 @@ function buildDino(type) {
   // v9: listas do LOD — meshes que projetam sombra e detalhes finos (dentes/garras) que somem de longe
   const shadowMeshes = [], fine = [];
   g.traverse((o) => { if (!o.isMesh) return; if (o.castShadow) shadowMeshes.push(o); if (o.material === toothM) fine.push(o); });
-  return { type, g, body, head, jaw, tail, tail2, legs, frill, mats, em0, eyeM, eyeGlow, bar, barFg: fg, shadowMeshes, fine, contactShadow };
+  const P = { type, g, body, head, jaw, tail, tail2, legs, frill, mats, em0, eyeM, eyeGlow, bar, barFg: fg, shadowMeshes, fine, contactShadow };
+  attachDino(P, T); return P;
 }
 
 // ---------- pool de inimigos (raptor / cuspidor / bruto). O Colosso é único e não entra no pool ----------
@@ -150,6 +152,7 @@ function buildDino(type) {
 const POOL = {}, POOL_MAX = 8;
 export const poolStats = { built: 0, reused: 0 };
 function resetParts(P) {
+  resetDino(P);
   P.contactShadow.visible = true; P.g.rotation.set(0, 0, 0); P.g.position.set(0, 0, 0); P.g.visible = true; P.g.scale.setScalar(ENEMY_TYPES[P.type].scale);
   P.body.position.set(0, 0, 0); P.body.rotation.set(0, 0, 0);
   P.legs.forEach((l) => l.rotation.set(0, 0, 0)); P.jaw.rotation.set(0, 0, 0);
@@ -165,7 +168,7 @@ function acquireParts(type) {
   if (!T.boss && list && list.length) { poolStats.reused++; return resetParts(list.pop()); }
   poolStats.built++; return buildDino(type);
 }
-function disposeParts(P) { P.mats.forEach((m) => m.dispose()); P.eyeM.dispose(); P.eyeGlow.forEach((sp) => sp.material.dispose()); }
+function disposeParts(P) { disposeDino(P); P.mats.forEach((m) => m.dispose()); P.eyeM.dispose(); P.eyeGlow.forEach((sp) => sp.material.dispose()); }
 /** Pré-cria modelos no pool durante a carga. Retorna os grupos (para pré-compilar shaders). */
 export function prewarmEnemies(counts = { raptor: 4, spitter: 2, brute: 2 }) {
   const groups = [];
@@ -288,7 +291,12 @@ function updateEnemy(e, dt) {
     if (e.lane) { hideLane(e.lane); e.lane = null; }
     e.deadT += dt; e.bar.visible = false;
     // v6: desabamento — tranco (achata), tomba com pequeno quique, desliza com o impulso, afunda e encolhe até sumir
-    const d = e.deadT, k = Math.min(1, d * 3), ease = 1 - (1 - k) * (1 - k);
+    const d = e.deadT;
+    if (animateDino(e.parts,e,dt)) {
+      g.position.set(e.pos.x, d>2.3?-(d-2.3)*1.5:0, e.pos.z);
+      if (d>3.5) { disposeEnemy(e);e.remove=true; } return;
+    }
+    const k = Math.min(1, d * 3), ease = 1 - (1 - k) * (1 - k);
     const bounce = d > 0.33 && d < 0.6 ? Math.sin((d - 0.33) / 0.27 * Math.PI) * 0.08 : 0;
     g.rotation.z = (ease * Math.PI / 2 + bounce) * e.fallDir;
     const sq = d < 0.12 ? Math.sin(d / 0.12 * Math.PI) * 0.14 : 0, shrink = d > 2.3 ? Math.max(0.05, 1 - (d - 2.3) / 1.2) : 1;
@@ -444,6 +452,7 @@ function updateEnemy(e, dt) {
   e.yaw = lerpAngle(e.yaw, face, Math.min(1, dt * (e.charge > 0 ? 2 : 8)));
   g.rotation.y = e.yaw; g.position.set(e.pos.x, 0, e.pos.z);
   const moved = Math.hypot(e.pos.x - ox, e.pos.z - oz) / Math.max(dt, 1e-4); e.phase += moved * dt * 2.4 / T.scale;
+  animateDino(e.parts,e,dt,moved);
   const sw = Math.sin(e.phase) * Math.min(1, moved / 2) * 0.7; e.legs[0].rotation.x = sw; e.legs[1].rotation.x = -sw;
   e.body.position.y = Math.abs(Math.sin(e.phase)) * 0.06;
   if (e.lane && !(e.windup > 0)) { hideLane(e.lane); e.lane = null; }
@@ -505,4 +514,9 @@ export function updateEnemies(dt) {
     if (d < m && d > 1e-4) { const p = (m - d) / 2, ux = dx / d, uz = dz / d; a.pos.x -= ux * p; a.pos.z -= uz * p; b.pos.x += ux * p; b.pos.z += uz * p; }
   }
   updateSpits(dt);
+}
+
+/** Cinematic animation only: no AI, damage, projectiles or navigation. */
+export function animateCinematicEnemies(dt) {
+  for (const e of enemies) animateDino(e.parts,e,dt,0);
 }

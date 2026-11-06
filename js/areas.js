@@ -49,6 +49,27 @@ function rescueHelicopter() {
   return heli;
 }
 
+/** Barco atracado + sinalizador físico; ativados junto com o ponto E e o radar. */
+function extractionSite(ctx, point, final = false) {
+  const group = new THREE.Group(); group.name = 'extraction-site'; group.position.set(point.x, 0, point.z); group.visible = false; ctx.group.add(group);
+  const boat = new THREE.Group(); boat.position.set(0, .2, 6); group.add(boat);
+  const part = (mat,w,h,d,x,y,z) => { const m=W.boxMesh(mat,w,h,d); m.position.set(x,y,z); boat.add(m); return m; };
+  part(MATS.metal,4.8,1.1,7.2,0,.2,0); part(MATS.plank,4.4,.15,6.7,0,.85,0);
+  part(MATS.concrete,2.7,1.8,2.5,0,1.7,1); part(MATS.metal,3.2,.2,3,0,2.65,1);
+  part(MATS.glass,2.2,.7,.1,0,1.9,-.3); part(MATS.hazard,4.9,.22,7.3,0,.55,0);
+  const gangway=W.boxMesh(MATS.plank,2.2,.16,4); gangway.position.set(0,.18,2); group.add(gangway);
+  const beam=new THREE.Mesh(new THREE.CylinderGeometry(.16,.55,9,12,1,true),new THREE.MeshBasicMaterial({color:0x70ffdc,transparent:true,opacity:.24,depthWrite:false})); beam.position.set(0,4.5,0); group.add(beam);
+  const ring=new THREE.Mesh(new THREE.RingGeometry(1.8,2.15,40),new THREE.MeshBasicMaterial({color:0x70ffdc,transparent:true,opacity:.9,side:THREE.DoubleSide})); ring.rotation.x=-Math.PI/2; ring.position.y=.06; group.add(ring);
+  const flare=new THREE.Mesh(new THREE.CylinderGeometry(.1,.1,.65,8),MATS.hazard);flare.position.set(2.6,.35,0);group.add(flare);
+  const flame=new THREE.Sprite(new THREE.SpriteMaterial({map:W.GLOW,color:0x60ffd0,transparent:true,blending:THREE.AdditiveBlending,depthWrite:false}));flame.scale.set(1.3,2,1);flame.position.set(2.6,1.2,0);group.add(flame);
+  const lamp=new THREE.PointLight(0x60ffd0,32,22,2); lamp.position.set(0,2,0); group.add(lamp);
+  const sign=new THREE.Mesh(new THREE.PlaneGeometry(4.4,1),new THREE.MeshBasicMaterial({map:labelTex('EMBARQUE  [E]',final?'EVACUAÇÃO FINAL':'BARCO → SETOR ZERO'),side:THREE.DoubleSide,transparent:true})); sign.position.set(0,3.4,0); group.add(sign);
+  return {group,boat,beam,ring,lamp,sign};
+}
+function areaSign(ctx,x,z,title,sub) {
+  const sign=new THREE.Mesh(new THREE.PlaneGeometry(4.6,1.2),new THREE.MeshBasicMaterial({map:labelTex(title,sub),side:THREE.DoubleSide})); sign.position.set(x,2.8,z); ctx.group.add(sign);
+}
+
 export const AREAS = [
   // ------------------------------------------------------------------ 1. CAIS
   {
@@ -630,7 +651,7 @@ export const AREAS = [
   {
     id: 'portoanil', save: true, name: 'PORTO ANIL', sub: 'Cidade costeira sob chuva — sirenes de evacuação ecoando no cais',
     map: { x: 5, y: 3 }, bounds: { minX: -24, maxX: 24, minZ: -24, maxZ: 20 },
-    start: { x: 0, z: 14.5, yaw: Math.PI },
+    start: { x: 0, z: 14.5, yaw: Math.PI }, extraction: { x: 0, z: 17.2, r: 3.4 },
     mood: { fog: 0x0c1218, density: 0.034, sky: 0x40505e, groundCol: 0x06080a, hemi: 0.9, moonCol: 0x9ab0c8, moon: 0.7,
       rain: 1, lightning: true, fireflies: false, exposure: 1.2, moonPos: [-14, 38, 18] },
     doors: [{ id: 'N', side: 'N', at: 0, to: 'captacao', toDoor: 'S' }],
@@ -651,10 +672,15 @@ export const AREAS = [
     build(ctx) {
       const b = this.bounds, rng = ctx.rng;
       W.ground(ctx, b, W.groundTex.paving, 10, { patchCol: 0x101418, puddles: 10 });
-      W.perimeter(ctx, b, 4.5, MATS.concrete, [{ side: 'N', at: 0, half: 2.4 }], 1.2);
+      W.perimeter(ctx, b, 4.5, MATS.concrete, [{ side: 'N', at: 0, half: 2.4 }, { side: 'S', at: 0, half: 4 }], 1.2);
       // cais ao sul: mar escuro e píer onde o Garça-1 deixou o jogador
       const sea = new THREE.Mesh(new THREE.PlaneGeometry(90, 40), MATS.water); sea.rotation.x = -Math.PI / 2; sea.position.set(0, 0.02, b.maxZ + 20); ctx.group.add(sea);
       W.solid(ctx, 0, 18.5, 8, 3, 0.3, MATS.plank, 0, false);
+      // Eixo do cais: marcações e balizas fora da passagem do jogador.
+      for(let z=-19;z<14;z+=4) W.solid(ctx,0,z,.25,1.6,.025,MATS.stripe,0,false);
+      for(const x of [-4.2,4.2]) { W.lamp(ctx,x,17.6,0x60dfff,'steady',14,2.4); W.solid(ctx,x,18.6,.25,2,.8,MATS.plank); }
+      areaSign(ctx,0,-17,this.id==='setorzero'?'SETOR ZERO':'PORTO ANIL',this.id==='setorzero'?'MATRIZ RAIZ → NORTE':'CAPTAÇÃO ↑ · EMBARQUE ↓ SUL');
+      const extraction=extractionSite(ctx,this.extraction,this.id==='setorzero');
       // prédios da orla (fachadas) e ônibus/contêineres da evacuação
       W.building(ctx, -17, -15, 10, 8, 9, MATS.concrete, 0.25);
       W.building(ctx, 17, -17, 9, 7, 11, MATS.concrete, 0.2);
@@ -670,8 +696,8 @@ export const AREAS = [
       W.lamp(ctx, -4, -20, 0xff3020, 'pulse', 24, 3);
       W.lamp(ctx, 4, -20, 0x3060ff, 'pulse', 24, 3);
       W.lamp(ctx, 0, 16, 0xfff0d0, 'steady', 16, 3);
-      for (let i = 0; i < 10; i++) W.rock(ctx, -22 + rng() * 44, 19 + rng() * 2, 1 + rng() * 1.4, false);
-      return { doors: { N: W.doorway(ctx, 'N', 0, b) },
+      for (let i = 0; i < 10; i++) W.rock(ctx, (rng()<.5?-1:1)*(7+rng()*15), 19 + rng() * 2, 1 + rng() * 1.4, false);
+      return { extraction, doors: { N: W.doorway(ctx, 'N', 0, b) },
         terminals: [{ id: 'save-portoanil', kind: 'save', ...W.terminal(ctx, 6, 14, Math.PI), x: 6, z: 14 }] };
     },
   },
@@ -708,7 +734,12 @@ export const AREAS = [
       // tubulações longas (decorativas) e canal de água contaminada
       const pipeGeo = new THREE.CylinderGeometry(0.45, 0.45, 30, 10);
       [[-6, 3.6], [6, 3.6]].forEach(([x, y]) => { const pp = new THREE.Mesh(pipeGeo, MATS.metal); pp.rotation.x = Math.PI / 2; pp.position.set(x, y, 2); ctx.group.add(pp); });
-      W.pool(ctx, 0, 6, 6, 18, MATS.mud);
+      // Canal legível com duas travessias secas, sem reduzir a velocidade em uma ponte.
+      for(const [z,d] of [[-2.25,1.5],[6,9],[14.25,1.5]])W.pool(ctx,0,z,6,d,MATS.mud);
+      for(const z of [0,12]){W.solid(ctx,0,z,8.5,3,.035,MATS.metal,0,false);for(const dz of [-1.45,1.45])W.solid(ctx,0,z+dz,8.5,.1,.045,MATS.hazard,0,false);}
+      // Faixas de serviço e identificação do painel, sem novos bloqueios.
+      for(const x of [-7.4,7.4]) for(let z=-7;z<17;z+=4) W.solid(ctx,x,z,.2,2,.025,MATS.stripe,0,false);
+      areaSign(ctx,0,-18,this.id==='raiz'?'MATRIZ RAIZ — SETOR ZERO':'CAPTAÇÃO ANIL',this.id==='raiz'?'ARQUIVO CENTRAL · CONTENÇÃO':'PAINEL DAS COMPORTAS ↓');
       // comportas (painel de controle ao norte do canal)
       W.solid(ctx, -5, -10, 3, 1.2, 2.4, MATS.metal); W.solid(ctx, 5, -10, 3, 1.2, 2.4, MATS.metal);
       const gate = W.boxMesh(MATS.hazard, 7, 2.6, 0.4); gate.position.set(0, 1.3, -12); ctx.group.add(gate);
@@ -765,6 +796,44 @@ export const AREAS = [
       W.lamp(ctx, 0, 16, 0xff3020, 'pulse', 22, 3.4);
       return { doors: { S: W.doorway(ctx, 'S', 0, b) }, eggs, eggMat, coreLight: core,
         terminals: [{ id: 'uplink', kind: 'uplink', ...W.terminal(ctx, 14, -18.6, 0, 0x40c0ff), x: 14, z: -18.6 }] };
+    },
+  },
+  // Ato 4: variações independentes do cais/captação, sem portas para o Ato 3.
+  {
+    id:'setorzero',save:true,name:'SETOR ZERO',sub:'Ilha de contenção — a origem do Projeto RAIZ',map:{x:6,y:3},
+    bounds:{minX:-24,maxX:24,minZ:-24,maxZ:20},start:{x:0,z:14.5,yaw:Math.PI},extraction:{x:0,z:17.2,r:3.4},
+    mood:{fog:0x172329,density:.024,sky:0x808f91,groundCol:0x0e1718,hemi:1.05,moonCol:0xffdfaa,moon:.85,rain:.2,lightning:false,fireflies:false,exposure:1.35,moonPos:[-14,38,18]},
+    doors:[{id:'N',side:'N',at:0,to:'raiz',toDoor:'S'}],
+    pickups:[{id:'p13ammo',kind:'ammo',x:-19,z:10},{id:'p13smg',kind:'smgammo',x:18,z:-6},{id:'p13med',kind:'med',x:-8,z:-18},{id:'p13crate',kind:'crate',x:19,z:12}],
+    ambient:[{type:'raptor',x:-12,z:-6},{type:'raptor',x:12,z:-12}],logs:[],
+    encounters:[{id:'zero-pier',on:'zone',zone:{x:0,z:-3,r:7},msg:'O último posto de contenção foi abandonado!',spawn:[{type:'raptor',from:'W'},{type:'raptor',from:'E',delay:1}]}],
+    build(ctx) { const refs=AREAS.find(a=>a.id==='portoanil').build.call(this,ctx); refs.terminals[0].id='save-setorzero'; areaSign(ctx,-12,6,'DEFESA CIVIL','NENHUMA AMOSTRA SAI DA ILHA'); return refs; },
+  },
+  {
+    id:'raiz',save:true,name:'MATRIZ RAIZ',sub:'Arquivo de origem e recinto do Tirano Matriz',map:{x:6,y:2},
+    bounds:{minX:-24,maxX:24,minZ:-22,maxZ:22},
+    mood:{fog:0x1c1510,density:.028,sky:0x8a7561,groundCol:0x100c08,hemi:1,moonCol:0xffd9a0,moon:.8,rain:0,lightning:false,fireflies:false,exposure:1.35,moonPos:[10,40,-12]},
+    doors:[{id:'S',side:'S',at:0,to:'setorzero',toDoor:'N',lock:'originLock'}],logs:[],
+    pickups:[{id:'p14ammo',kind:'ammo',x:19,z:16},{id:'p14smg',kind:'smgammo',x:-19,z:-14},{id:'p14med',kind:'med',x:12,z:-16},{id:'p14crate',kind:'crate',x:-20,z:16}],
+    ambient:[{type:'raptor',x:14,z:2}],
+    encounters:[{id:'zero-awaken',on:'flag',flag:'originKnown',boss:true,delay:2,msg:'O TIRANO MATRIZ rompe a última contenção!',spawn:[{type:'origin',x:0,z:-16}]}],
+    build(ctx) {
+      const b=this.bounds;
+      W.ground(ctx,b,W.groundTex.paving,8,{patchCol:0x20160d,puddles:2});
+      W.perimeter(ctx,b,6,MATS.metal,[{side:'S',at:0,half:2.4}],1.2);
+      for(const [x,z] of [[-9,-1],[9,-1],[-10,11],[10,11]])W.solid(ctx,x,z,2.4,2.4,5.8,MATS.concrete);
+      // Arena própria, sem canal nem porta falsa para outro capítulo.
+      for(const x of [-18,18])W.solid(ctx,x,-19,8,2,4.5,MATS.metal);
+      const glass=W.boxMesh(MATS.glass,10,4,.2);glass.position.set(0,2,-19);ctx.group.add(glass);
+      areaSign(ctx,0,-20,'MATRIZ RAIZ','CONTENÇÃO ORIGINAL · ACESSO RESTRITO');
+      for(let z=-17;z<18;z+=4)for(const x of [-6,6])W.solid(ctx,x,z,.2,1.8,.025,MATS.stripe,0,false);
+      W.lamp(ctx,-18,0,0x50bfff,'steady',24,4);W.lamp(ctx,18,0,0xffb040,'steady',24,4);
+      const alarm=W.lamp(ctx,0,-16,0xff3020,'pulse',35,5);
+      const refs={doors:{S:W.doorway(ctx,'S',0,b)},alarm,terminals:[
+        {id:'save-raiz',kind:'save',...W.terminal(ctx,20,17,-Math.PI/2),x:20,z:17},
+        {id:'origin-archive',kind:'originArchive',...W.terminal(ctx,-14,-16,Math.PI,0x40c0ff),x:-14,z:-16},
+        {id:'quarantine',kind:'finalQuarantine',...W.terminal(ctx,14,-16,Math.PI,0xffa040),x:14,z:-16}]};
+      return refs;
     },
   },
 ];

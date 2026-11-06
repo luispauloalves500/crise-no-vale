@@ -113,7 +113,12 @@ export const ENEMY_TYPES = {
              color: 0x4a4a3c, belly: 0xb0a890, stripe: 0x6a8a20, eye: 0xd0ff30, horn: 0xe8e0c0, radar: '#d0ff30', scar: 0xb0ff40,
              chargeDmg: 38, chargeSpeed: 16, mass: 28, stompR: 7, stompDmg: 24,
              stompWind: 1.2, windup: 1.25, wallStun: 3.0, stunGrace: 1.3, acid: { cd: 5.5, n: 3, spread: 0.22 } },
+  origin:{ name:'Tirano Matriz',shape:'brute',hp:1800,speed:3.2,dmg:34,r:2.5,scale:3.1,score:8000,ep:900,aggro:99,boss:true,
+    color:0x483b32,belly:0xa79076,stripe:0x7a281c,eye:0xffc040,horn:0xe8d8b0,radar:'#ffb040',scar:0xffa040,
+    chargeDmg:40,chargeSpeed:17,mass:30,stompR:7,stompDmg:25,stompWind:1.3,windup:1.35,wallStun:3.3,stunGrace:1.4 },
 };
+// Ativar só depois de instalar os GLBs; enquanto isso, nenhum 404 por inimigo.
+export const DINO_VISUALS = Object.freeze({ enabled:true, raptor:'assets/models/raptor.glb', trex:'assets/models/trex.glb' });
 
 export const PICKUPS = {
   MAX_DROPS: 6,          // drops de inimigos simultâneos (itens do mapa não contam)

@@ -20,7 +20,7 @@ const noop = () => {};
 const proxy = new Proxy({}, { get: () => noop });
 function harness(difficulty = 'normal') {
   const AREAS = areaData(), AREA = Object.fromEntries(AREAS.map(a => [a.id, a]));
-  const storage = {}, idleJobs = [], cards = [], messages = [], wins = [], sounds=[];
+  const storage = {}, idleJobs = [], cards = [], messages = [], wins = [], sounds=[], scenes=[];
   const pos = { x: 0, y: 0, z: 0, set(x,y,z) { Object.assign(this,{x,y,z}); } };
   const G = { state:'play', difficulty, cleanStreak:{kills:0}, yaw:0, ep:0, epTotal:0, time:0, combo:0 };
   const survivor = {name:'Dra. Helena Lima',pos:{x:0,z:0},visible:false,following:false,downT:0};
@@ -29,15 +29,17 @@ function harness(difficulty = 'normal') {
     player:{pos,r:.5,hp:100,inv:0}, pg:{position:pos,rotation:{},visible:true}, weapons:config.WEAPONS.map(w=>({...w,mag:w.size,res:w.startRes})),
     captureEncounterMemory,restoreEncounterMemory,normalizeStreak,finishStreak,safeDoorArrival,passageFor,advancePassage,doorPose,doorVectors,DOOR_TIMING,gateVisible,
     canTriggerRevisit,scheduleRevisit,rearmPendingWarnings,
+    cancelCutscene:noop,playCutscene(id,opts){scenes.push(id);opts.onComplete?.();return true;},
     doorArrival: vm.runInNewContext(areaSource.slice(areaSource.indexOf('export function doorArrival(')).replace('export ', '')+';doorArrival',{WORLD:config.WORLD}),
     isBuilt:a=>!!a?.ctx, neighbors:a=>a.doors.map(d=>AREA[d.to]), onAreaBuilt:noop, onQuality:noop, quality:{p:{stream:true}},
     buildArea(a){
       if (ctx.failBuild === a.id) throw new Error('falha sintética');
       if (a.ctx) return 0;
       a.ctx={group:{visible:false},boxes:[],circles:[]};
-      const terminals = {pantano:[{kind:'generator',x:-20.5,z:3}], acampamento:[{kind:'hack',x:-1,z:16.8}],captacao:[{kind:'valves',x:0,z:-8.6}],sede:[{kind:'uplink',x:14,z:-18.6}]};
+      const terminals = {pantano:[{kind:'generator',x:-20.5,z:3}], acampamento:[{kind:'hack',x:-1,z:16.8}],captacao:[{kind:'valves',x:0,z:-8.6}],sede:[{kind:'uplink',x:14,z:-18.6}],raiz:[{kind:'originArchive',x:-14,z:-16},{kind:'finalQuarantine',x:14,z:-16}]};
       const doors=Object.fromEntries(a.doors.map(d=>[d.id,{group:{position:{x:d.side==='W'?a.bounds.minX:d.side==='E'?a.bounds.maxX:d.at,z:d.side==='N'?a.bounds.minZ:d.side==='S'?a.bounds.maxZ:d.at}},gate:{position:{y:0}}}]));
       a.refs={doors,terminals:(terminals[a.id]||[]).map(t=>({...t,glow:{material:{opacity:0}}})),logs:[],powerLamps:[]};
+      if(a.extraction)a.refs.extraction={group:{visible:false},ring:{rotation:{}},beam:{material:{}},boat:{position:{}}};
       if(a.cages){a.refs.cageGates=a.cages.map(c=>{const w=c.big?5:3.6,h=c.big?3.4:2.4,x=c.x+c.face*w/2,box={minX:x-.2,maxX:x+.2,minZ:c.z-w/2,maxZ:c.z+w/2,h};a.ctx.boxes.push(box);return {mesh:{position:{y:0}},box,h,open:0};});}
       if(['porto','ninho','heliponto'].includes(a.id)) a.refs.heli={group:{visible:false,position:{set:noop},rotation:{set:noop}},rotor:{rotation:{y:0}},tailRotor:{rotation:{x:0}},nav:[]};
       return 1;
@@ -74,7 +76,7 @@ function harness(difficulty = 'normal') {
     assert.deepEqual(Array.from(AREAS.filter(a=>a.ctx?.group.visible),a=>a.id),[id]);
   };
   const event = async (kind,x,z) => {pos.set(x,0,z);ctx.interact();assert.equal(ctx.D.event?.kind,kind);for(let i=0;i<600&&ctx.D.event;i++)await tick();};
-  return {ctx,storage,cards,messages,wins,sounds,tick,go,event,flush,AREAS,AREA,G,pos};
+  return {ctx,storage,cards,messages,wins,sounds,tick,go,event,flush,AREAS,AREA,G,pos,scenes};
 }
 
 test('grafo tem uma única fronteira terrestre 1→2 e nenhuma porta física para o Ato 3',()=>{
@@ -130,8 +132,8 @@ test('tarefas ociosas antigas não reconstroem cenários de outro ato (inclusive
   Object.assign(h.ctx.D.flags,{act2:true,power:true,heliCode:true,bossDead:true});h.ctx.D.area=null;h.ctx.enterArea('margem');h.ctx.streamAround(h.ctx.D.area);h.flush();
   assert.ok(h.AREAS.filter(a=>a.ctx).every(a=>rules.actOf(a.id)===2));
 });
-for(const choice of ['expose','destroy'])test(`campanha lógica completa 1→2→3→extração→fim (${choice})`,async()=>{
-  const h=harness('hard'),c=h.ctx;c.startCampaign(false);
+for(const difficulty of ['easy','normal','hard'])for(const choice of ['expose','destroy'])for(const finalChoice of ['proof','quarantine'])test(`campanha lógica completa 1→4→fim (${difficulty}/${choice}/${finalChoice})`,async()=>{
+  const h=harness(difficulty),c=h.ctx;c.startCampaign(false);
   await h.go('ruinas');await h.go('lab');await h.go('pantano');
   await h.event('gen',-20.5,3);assert.equal(c.D.flags.power,true);
   await h.go('lab');await h.go('patio');
@@ -139,7 +141,7 @@ for(const choice of ['expose','destroy'])test(`campanha lógica completa 1→2�
   c.survivor.pos={x:19.6,z:-16};await h.tick(120);assert.equal(c.D.flags.heliCode,true);
   await h.go('heliponto');await h.tick(80);
   c.enemyEvents.onKilled({type:'colossus',cfg:config.ENEMY_TYPES.colossus,pos:{x:0,z:-8}});
-  await h.go('margem');assert.equal(c.D.flags.act1Complete,true);assert.equal(c.D.flags.act2,true);assert.equal(c.D.flags.act3,undefined);
+  await h.go('margem');await h.tick(20);assert.equal(c.D.flags.act1Complete,true);assert.equal(c.D.flags.act2,true);assert.equal(c.D.flags.act3,undefined);
   assert.equal(c.debugGoto('porto'),false);
   await h.go('acampamento');await h.event('hack',-1,16.8);await h.go('ninho');
   h.pos.set(0,0,-3);await h.tick(80);assert.equal(c.D.flags.nestFight,true);
@@ -148,15 +150,32 @@ for(const choice of ['expose','destroy'])test(`campanha lógica completa 1→2�
   await h.event('rescue',-13,-9);assert.equal(c.D.flags.act2Win,true);assert.equal(h.wins.length,0);
   await h.tick(60);assert.equal(c.D.heli.land,1);
   assert.equal(c.startAct3(),true);assert.equal(c.startAct3(),false);await h.tick(60);h.flush();
-  assert.equal(c.D.area.id,'portoanil');assert.equal(c.D.flags.act3,true);assert.equal(h.storage.main.difficulty,'hard');
+  assert.equal(c.D.area.id,'portoanil');assert.equal(c.D.flags.act3,true);assert.equal(h.storage.main.difficulty,difficulty);
   assert.ok(h.AREAS.filter(a=>a.ctx).every(a=>rules.actOf(a.id)===3));
   await h.go('captacao');assert.equal(c.isLocked('captacao','N'),true);await h.event('flood',0,-8.6);await h.go('sede');
   h.pos.set(0,0,0);await h.tick(80);c.enemyEvents.onKilled({type:'primordio',cfg:config.ENEMY_TYPES.primordio,pos:{x:0,z:-10}});
   if(choice==='expose')await h.event('uplink',14,-18.6);
   else await h.event('core',c.D.area.core.x,c.D.area.core.z+2);
   assert.equal(c.D.flags.act3Resolved,true);assert.equal(c.D.flags.act3Win,undefined);assert.equal(h.wins.length,0);
-  await h.go('captacao');await h.go('portoanil');h.pos.set(0,0,14.5);c.interact();
-  assert.equal(c.D.flags.act3Win,true);assert.deepEqual(h.wins,['portoanil']);c.interact();assert.equal(h.wins.length,1);
+  await h.go('captacao');await h.go('portoanil');
+  assert.equal(c.D.area.refs.extraction.group.visible,true);
+  assert.ok(c.hudData().points.some(p=>p.x===0&&p.z===17.2&&p.col==='#70ffdc'));
+  h.pos.set(0,0,17.2);c.interact();assert.equal(h.wins.length,0);await h.tick(60);h.flush();
+  assert.equal(c.D.flags.act3Win,true);assert.equal(c.D.flags.act4,true);assert.equal(c.D.area.id,'setorzero');
+  assert.ok(h.AREAS.filter(a=>a.ctx).every(a=>rules.actOf(a.id)===4));
+  assert.equal(c.D.area.refs.extraction.group.visible,false);assert.equal(c.debugGoto('portoanil'),false);
+  assert.equal(c.startAct4(),false);assert.equal(c.finishAct4(finalChoice),false);
+  await h.go('raiz');await h.event('originScan',-14,-16);await h.tick(60);
+  assert.equal(c.D.flags.originKnown,true);assert.equal(c.D.flags.originFight,true);assert.equal(c.isLocked('raiz','S'),true);
+  assert.equal(c.terminalDanger(),true);assert.equal(c.finishAct4(finalChoice),false);
+  c.enemyEvents.onKilled({type:'origin',cfg:config.ENEMY_TYPES.origin,pos:{x:0,z:-16}});
+  assert.equal(c.isLocked('raiz','S'),false);
+  h.pos.set(finalChoice==='proof'?-14:14,0,-16);c.interact();assert.equal(c.D.flags.act4Choice,finalChoice);
+  assert.equal(c.D.flags.act4Resolved,true);assert.equal(h.wins.length,0);
+  await h.go('setorzero');assert.equal(c.D.area.refs.extraction.group.visible,true);
+  h.pos.set(0,0,17.2);c.interact();assert.equal(c.D.flags.act4Win,true);assert.deepEqual(h.wins,['setorzero']);c.interact();assert.equal(h.wins.length,1);
+  for(const scene of ['act2','cages','act3','extraction','act4','brandt','tyrant','ending-'+finalChoice])assert.ok(h.scenes.includes(scene),scene);
+
 });
 test('falha ao construir Ato 3 mantém Ato 2 recuperável e sem conceder vitória',async()=>{
   const h=harness(),c=h.ctx;c.startCampaign(false);Object.assign(c.D.flags,{act2:true,nestClear:true,act2Win:true});c.D.area=null;c.enterArea('ninho');c.D.heli.land=1;c.failBuild='portoanil';
@@ -173,7 +192,7 @@ test('evacuar Lima no Cais não transporta Marina, não abre outro ato e não du
 });
 test('há créditos e quatro desfechos; nenhuma condição exige os 17 registros para terminar',()=>{
   const src=read('story.js');assert.match(src,/FIM — CRISE NO VALE/);assert.match(src,/Créditos/);
-  for(const choice of ['expose','destroy'])for(const dirty of [true,false])assert.equal(rules.canFinishCampaign({act3:true,act2Win:true,nestClear:true,valvesClosed:true,primDead:true,act3Choice:choice,contaminated:dirty}),true);
+  for(const choice of ['expose','destroy'])for(const dirty of [true,false])assert.equal(rules.canFinishCampaign({act3:true,act2Win:true,nestClear:true,valvesClosed:true,primDead:true,act3Choice:choice,contaminated:dirty,act4:true,originKnown:true,originDead:true,act4Resolved:true,act4Choice:'proof'}),true);
   assert.equal(rules.canFinishCampaign({act3:true,act3Choice:'expose'}),false);
 });
 
@@ -222,4 +241,24 @@ test('hack também libera jaulas se a jogadora contornar o gatilho; save legado 
   const h=harness(),c=h.ctx;h.storage.main={v:7,area:'acampamento',flags:{act2:true},enc:['camp-brandt','camp-jaula']};c.startCampaign(true);
   assert.ok(c.D.area.refs.cageGates.every(g=>g.open===0));assert.equal(c.D.enc.has('camp-brandt'),false);
   h.pos.set(-1,0,16.8);c.interact();assert.equal(c.D.flags.cagesReleased,true);assert.equal(c.D.event.kind,'hack');
+});
+
+test('falha de construção do Ato 4 preserva Porto Anil; tentar novamente não pula nem concede vitória',async()=>{
+ const h=harness(),c=h.ctx;h.storage.main={v:7,area:'portoanil',flags:{act3:true,act2Win:true,nestClear:true,valvesClosed:true,primDead:true,act3Choice:'expose'}};c.startCampaign(true);
+ assert.equal(c.D.area.refs.extraction.group.visible,true);c.failBuild='setorzero';assert.equal(c.startAct4(),true);await h.tick(2);
+ assert.equal(c.D.area.id,'portoanil');assert.equal(c.D.flags.act4,false);assert.equal(h.wins.length,0);
+ c.failBuild=null;assert.equal(c.startAct4(),true);await h.tick(60);h.flush();assert.equal(c.D.area.id,'setorzero');
+});
+test('save da ilha: pré-leitura, chefe abatido e ambas escolhas retomam sem misturar atos',()=>{
+ for(const choice of [undefined,'proof','quarantine']){
+  const h=harness(),c=h.ctx;h.storage.main={v:8,area:'raiz',flags:{act4:true,act3:true,act2Win:true,nestClear:true,valvesClosed:true,primDead:true,act3Choice:'destroy',act3Resolved:true,originKnown:!!choice,originDead:!!choice,act4Resolved:!!choice,act4Choice:choice}};
+  c.startCampaign(true);h.flush();assert.equal(c.D.area.id,'raiz');assert.equal(c.D.flags.originDead,!!choice);assert.equal(c.D.flags.act4Choice,choice);
+  assert.ok(h.AREAS.filter(a=>a.ctx).every(a=>rules.actOf(a.id)===4));assert.equal(h.wins.length,0);
+ }
+});
+test('save adulterado: não pula Atos 2/3, não prende escolha inválida nem suprime cenas futuras',()=>{
+ const bad=rules.normalizeCampaignSave({v:8,area:'raiz',flags:{act4:true,act3:true,act2Win:true,nestClear:true,cinematics:{act4:true,tyrant:true}}});
+ assert.equal(bad.area,'portoanil');assert.equal(bad.flags.act4,false);assert.equal(bad.flags.cinematics.tyrant,undefined);
+ const choice=rules.normalizeCampaignSave({v:7,area:'portoanil',flags:{act3:true,act2Win:true,nestClear:true,act3Choice:'hacked',primDead:true,valvesClosed:true}});
+ assert.equal(choice.flags.act3Choice,undefined);assert.equal(choice.flags.act3Resolved,false);
 });
