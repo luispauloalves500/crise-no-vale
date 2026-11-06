@@ -23,7 +23,7 @@ test('Ato 3 fica no fim da lista (sementes antigas não mudam) e forma uma cadei
 test('travas do Ato 3 têm regra e mensagem no diretor', () => {
   assert.match(dir, /valveLock[^\n]*F\.valvesClosed/);
   assert.match(dir, /primLock[^\n]*F\.primFight/);
-  assert.match(dir, /const SAVE_V = 6/);
+  assert.match(dir, /const SAVE_V = 7/);
 });
 test('registros 14–17 existem, estão nas áreas certas e os ids de pickups seguem únicos', () => {
   const want = { log14: 'portoanil', log15: 'captacao', log16: 'sede', log17: 'captacao' };

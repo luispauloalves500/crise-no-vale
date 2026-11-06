@@ -56,7 +56,7 @@
     <div id="br" class="panel">
       <div id="wname">PISTOLA</div>
       <div class="lbl">MUNIÇÃO</div>
-      <div id="ammo">12 <small>/ ∞</small></div>
+      <div id="ammo">12 <small>/ 72</small></div>
       <div id="pips"></div>
       <div id="reload"><div id="reloadFill"></div><span id="reloadTxt"></span></div>
     </div>
@@ -121,13 +121,19 @@
     <div class="sub">Ação e sobrevivência em terceira pessoa • história original</div>
     <p class="synopsis">A Estação Vale Verde pediu socorro há três dias e ficou em silêncio. Como a agente <b>Marina Rocha</b>,
        atravesse as ruínas sob a tempestade, <b>restaure a energia</b> e resgate a <b>Dra. Helena Lima</b>
-       — antes que o <b>Projeto RAIZ</b> engula o vale. Depois do Colosso, escolha entre a extração no penhasco e investigar o rio — e, depois do ninho, descubra o que a Tellus esconde sob a captação de <b>Porto Anil</b>.</p>
+       — antes que o <b>Projeto RAIZ</b> engula o vale. Saia do cais pelo portão norte, atravesse as ruínas e, depois do Colosso, siga a pé pelo portão norte do penhasco. Conclua o ninho antes de descobrir o que a Tellus esconde sob a captação de <b>Porto Anil</b>.</p>
     <div class="acts"><span class="act-label">OPERAÇÃO</span> ATO 01 — O VALE <span> / </span> ATO 02 — RIO ABAIXO <span> / </span> ATO 03 — PORTO ANIL</div>
     <div class="cta">
       <button id="startBtn" class="primary" disabled>CARREGANDO…</button>
       <div><button id="continueBtn" class="ghost secondary hidden">CONTINUAR DO ÚLTIMO TERMINAL</button></div>
       <div><button id="act3Btn" class="ghost secondary hidden">CONTINUAR ATO 3 — PORTO ANIL</button></div>
       <div id="best" class="small"></div>
+    </div>
+    <div class="qsel" aria-label="Dificuldade do novo jogo"><span>DIFICULDADE — NOVO JOGO</span>
+      <button type="button" class="ghost" data-difficulty="easy" aria-pressed="false">Fácil</button>
+      <button type="button" class="ghost on" data-difficulty="normal" aria-pressed="true">Normal</button>
+      <button type="button" class="ghost" data-difficulty="hard" aria-pressed="false">Difícil</button>
+      <div class="small">Afeta dano, resistência e patrulhas dos dinossauros e munição. Continuar mantém a dificuldade do save.</div>
     </div>
     <div class="qsel" aria-label="Selecionar personagem"><span>PERSONAGEM</span>
       <button type="button" class="ghost on" id="heroMarina">Marina</button>

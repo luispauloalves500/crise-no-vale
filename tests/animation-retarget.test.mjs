@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
-import {retargetQuaternion,retargetValues,adaptWalkClip} from '../js/animation-retarget.mjs';
+import {retargetQuaternion,retargetValues,adaptWalkClip,retargetCombatClip} from '../js/animation-retarget.mjs';
 import {GUN_ASSETS,GUN_SCALE} from '../js/gun-layout.mjs';
 const close=(a,b)=>assert.ok(Math.abs(a-b)<1e-6,`${a} != ${b}`);
 function jsonGLB(bytes) { const len=bytes.readUInt32LE(12); return JSON.parse(bytes.subarray(20,20+len)); }
@@ -43,4 +43,13 @@ test('clipe adaptado mantém translação do destino e rejeita rig incompatível
   assert.equal(pos.times[1],2); assert.ok(Math.abs(pos.values[4]-1.1)<1e-6);
   assert.equal(base.tracks.at(-1).times[1],1);
   assert.equal(adaptWalkClip(base,source,new Map(),poses),null);
+});
+
+test('combate da Jill usa sua pose de repouso e nomes corretos, sem copiar translações da Marina',()=>{
+  const track=(name,values)=>({name,times:new Float32Array([0]),values:new Float32Array(values),clone(){return track(this.name,this.values)}});
+  const source={name:'Aim_Pistol',duration:1,tracks:[track('mixamorig:RightArm.quaternion',[0,0,0,1]),track('mixamorig:Hips.position',[0,99,0])],clone(){return {...this,tracks:this.tracks.map(t=>t.clone())}}};
+  const q=[0,Math.sin(.4),0,Math.cos(.4)];
+  const result=retargetCombatClip(source,new Map([['mixamorig:RightArm',[0,0,0,1]]]),new Map([['mixamorigRightArm',q]]));
+  assert.equal(result.tracks.length,1);assert.equal(result.tracks[0].name,'mixamorigRightArm.quaternion');
+  result.tracks[0].values.forEach((v,i)=>close(v,q[i]));assert.equal(source.tracks.length,2);
 });
