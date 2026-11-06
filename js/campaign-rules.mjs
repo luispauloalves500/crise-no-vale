@@ -48,6 +48,8 @@ export function normalizeCampaignSave(raw) {
   }
   else f.rescued = !!f.act2Win;
   if (f.act3Choice && f.primDead && f.valvesClosed) f.act3Resolved = true;
+  // Saves que já resolveram o ninho não podem fazer Brandt preso/fugitivo reaparecer no acampamento.
+  if (s.enc.includes('camp-brandt') && (f.brandt || f.nestClear || f.act2Win)) f.cagesReleased=true;
   // O evento antigo abria na chegada; sem a nova flag, rearmar para o gatilho jogável.
   if (!f.cagesReleased) {
     if (s.enc.includes('camp-brandt') && s.st.acampamento) s.st.acampamento={...s.st.acampamento,pending:[]};

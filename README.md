@@ -89,7 +89,7 @@ A auditoria com o mixer e ossos reais mede ângulos e rotações, não apenas va
 - A colisão da grade só sai depois de atingir a altura segura; os dinos nascem **dentro** das jaulas e seguem até um ponto do lado de fora antes de retomar a IA de combate. Não são teletransportados para o corredor.
 - Leva extra além das patrulhas: **Fácil: 2 raptores; Normal: 2 raptores + 1 bruto; Difícil: 3 raptores + 1 bruto**. Vida continua seguindo a dificuldade.
 - **Evento persistente, uma vez por campanha**, salvo em `cagesReleased`. Ao voltar ao cenário, grades continuam abertas e não surge outra leva. Sobreviventes dessa leva mantêm HP e destino de saída; mortos não voltam. Patrulhas ambientais continuam renovando como antes.
-- Saves anteriores sem a nova flag rearmam o evento e eliminam a antiga abertura automática/fila do Brandt; inventário e itens coletados são preservados. Novo jogo fecha novamente as grades, inclusive se o mapa estava em cache.
+- Saves anteriores sem a nova flag rearmam o evento e eliminam a antiga abertura automática/fila do Brandt; inventário e itens coletados são preservados. Exceção: se o ninho/Brandt já foi resolvido e o evento antigo estava registrado, as grades continuam abertas, para não fazer Brandt preso ou fugitivo reaparecer no acampamento. Novo jogo fecha novamente as grades, inclusive se o mapa estava em cache.
 
 ## Auditoria de coerência desta revisão
 
@@ -117,7 +117,7 @@ node --test tests/*.test.mjs
 
 Os módulos exigem HTTP (não `file://`). Three.js/addons vêm do jsDelivr via importmap e exigem conexão; bloom tem fallback.
 
-A suíte tem **112 testes**, incluindo sequência completa dos três atos nos dois caminhos finais, portas por ato, travas, saves antigos/misturados, isolamento de mapas/preload, resgate opcional, dificuldade, jaulas persistentes, keyframes da recarga e montagem do artefato Pages. A simulação executa o diretor real em VM, com renderização, inimigos e entrada simulados: **não é uma partida humana nem uma prova de balanceamento de combate**.
+A suíte tem **113 testes**, incluindo sequência completa dos três atos nos dois caminhos finais, portas por ato, travas, saves antigos/misturados, isolamento de mapas/preload, resgate opcional, dificuldade, jaulas persistentes, keyframes da recarga e montagem do artefato Pages. A simulação executa o diretor real em VM, com renderização, inimigos e entrada simulados: **não é uma partida humana nem uma prova de balanceamento de combate**.
 
 Auditorias CPU adicionais reproduzíveis, com o Three da mesma versão, sem instalar dependências no projeto:
 

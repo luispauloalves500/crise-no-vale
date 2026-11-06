@@ -29,3 +29,8 @@ test('migração de jaulas antigas remove a abertura automática e fila antiga, 
  const s=normalizeCampaignSave({area:'acampamento',flags:{},enc:['camp-brandt'],st:{acampamento:{taken:['p8med'],pending:[{type:'raptor',t:3}]}}});
  assert.equal(s.enc.includes('camp-brandt'),false);assert.deepEqual(s.st.acampamento.pending,[]);assert.deepEqual(s.st.acampamento.taken,['p8med']);
 });
+
+test('save legado posterior ao ninho preserva jaulas abertas e não faz Brandt preso reaparecer',()=>{
+ const s=normalizeCampaignSave({v:7,area:'acampamento',flags:{brandt:'caught',nestClear:true},enc:['camp-brandt']});
+ assert.equal(s.flags.cagesReleased,true);assert.equal(s.enc.includes('camp-brandt'),true);assert.equal(s.flags.brandt,'caught');
+});
