@@ -18,7 +18,7 @@ test('hitbox de projétil gira/translada junto da instância',()=>{
 });
 test('HUD, impactos e cutscene consultam as mesmas dimensões',()=>{
  const read=p=>readFileSync(new URL('../js/'+p,import.meta.url),'utf8');
- assert.match(read('enemies.js'),/dinoBarY\(T\)/);assert.match(read('enemies.js'),/contactShadow.position.y=DINO_FLOOR_CLEARANCE\*\.5\/T.scale/);assert.match(read('combat.js'),/rayDinoHit\(ox,oz,dx,dz,e\)/);assert.match(read('combat.js'),/dinoImpactY\(h.e.cfg\)/);
+ assert.match(read('enemies.js'),/dinoBarY\(T\)/);assert.match(read('enemies.js'),/contactShadow.position.y=DINO_FLOOR_CLEARANCE\*\.5\/T.scale/);assert.match(read('aiming.js'),/dinoDimensions\(enemy.cfg\)/);assert.match(read('aiming.js'),/rayEllipse3D/);assert.match(read('combat.js'),/v2.copy\(h.point\)/);
  assert.match(read('cutscene-timeline.mjs'),/dinoDimensions\(ENEMY_TYPES.origin\)/);assert.doesNotMatch(read('dino-models.js'),/o\.skeleton\.pose\(/);
  assert.match(read('dino-grounding.js'),/root.updateMatrixWorld\(true\)/,'atualizar bindMatrixInverse do SkinnedMesh após reparent/escala');
 });

@@ -1,3 +1,4 @@
+import {abilityOverrides} from './enemy-capabilities.mjs';
 // Fonte única das fronteiras de capítulos e do balanceamento (sem DOM/WebGL).
 export const ACT_AREAS = Object.freeze({
   1: ['porto', 'ruinas', 'lab', 'pantano', 'patio', 'heliponto'],
@@ -82,7 +83,7 @@ export function cageReleaseWave(cages, difficulty) {
   const count=Math.max(1,Math.round(cages.length*difficultyProfile(difficulty).patrols));
   return Array.from({length:count},(_,i)=>{
     const c=cages[i%cages.length],w=c.big?5:3.6,extra=Math.floor(i/cages.length),z=c.z+(extra ? .65 : 0);
-    return {type:c.big?'brute':'raptor',x:c.x,z,delay:.20+i*.35,cageRelease:true,
+    return {...abilityOverrides(c),type:c.type||(c.big?'brute':'raptor'),x:c.x,z,delay:.20+i*.35,cageRelease:true,
       cageExit:{x:c.x+c.face*(w/2+1.9),z}};
   });
 }

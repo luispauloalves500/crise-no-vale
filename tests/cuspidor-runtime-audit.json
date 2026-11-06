@@ -164,6 +164,11 @@
     "fallback": false,
     "reads": 3,
     "aiMarkerSeconds": 0.52,
+    "variantCases": 6,
+    "fanProjectiles": 3,
+    "allSpittersUseDilo": true,
+    "targetConsistency": true,
+    "exclusiveBossActions": true,
     "mouthWorldVerified": true,
     "clipGrounding": true,
     "realFrillSkinDeformation": true,
@@ -175,7 +180,7 @@
   },
   "grounding": {
     "three": "160",
-    "samples": 4214,
+    "samples": 4396,
     "framingChecks": 192,
     "webGL": false,
     "measuredSkinnedVertices": true,
@@ -247,14 +252,14 @@
       },
       {
         "type": "primordio",
-        "width": 3.480000000000001,
-        "height": 7.4886365964017365,
-        "length": 13.959984092997606,
+        "width": 3.48,
+        "height": 7.488636596401735,
+        "length": 13.959984092997603,
         "navigationRadius": 2.4,
-        "contactSamples": 60,
+        "contactSamples": 51,
         "minimumY": [
-          0.011999999999999112,
-          0.012000000000000956
+          0.011999999999998678,
+          0.012000000000001121
         ],
         "resets": 20
       },
@@ -274,8 +279,8 @@
     ]
   },
   "limits": [
-    "CPU/GLTFLoader e render offline; n\u00e3o \u00e9 verifica\u00e7\u00e3o WebGL/navegador",
-    "FPS, GPU, \u00e1udio, celular e combate por uma pessoa n\u00e3o verificados"
+    "CPU/GLTFLoader e render offline; não é verificação WebGL/navegador",
+    "FPS, GPU, áudio, celular e combate por uma pessoa não verificados"
   ],
   "render": "/workspace/cuspidor-preview.png",
   "regression": {
@@ -287,5 +292,175 @@
     "grassMasksStreamingAndSharing": true,
     "fallbackAIInterruptionCases": 6,
     "deterministicRebuildByteIdentical": true
+  },
+  "fallback": {
+    "three": "160",
+    "fallback": true,
+    "reads": 3,
+    "aiMarkerSeconds": 0.52,
+    "variantCases": 6,
+    "fanProjectiles": 3,
+    "allSpittersUseDilo": true,
+    "targetConsistency": true,
+    "exclusiveBossActions": true,
+    "mouthWorldVerified": true,
+    "clipGrounding": false,
+    "realFrillSkinDeformation": false,
+    "springDeflectionMetres": 0,
+    "openingDisplacementMetres": 0,
+    "secondaryGroundingFrames": 0,
+    "interruptionCases": 6,
+    "webGL": false
+  },
+  "modelSelection": {
+    "three": "160",
+    "reads": 3,
+    "stats": {
+      "ready": 3,
+      "failed": 0,
+      "instances": 0
+    },
+    "report": [
+      {
+        "type": "raptor",
+        "kind": "raptor",
+        "clips": 6,
+        "independentSkeletons": true,
+        "sharedGeometryAndTextures": true
+      },
+      {
+        "type": "spitter",
+        "kind": "cuspidor",
+        "clips": 7,
+        "independentSkeletons": true,
+        "sharedGeometryAndTextures": true
+      },
+      {
+        "type": "brute",
+        "kind": "trex",
+        "clips": 6,
+        "independentSkeletons": true,
+        "sharedGeometryAndTextures": true
+      },
+      {
+        "type": "colossus",
+        "kind": "trex",
+        "clips": 6,
+        "independentSkeletons": true,
+        "sharedGeometryAndTextures": true
+      },
+      {
+        "type": "matriarca",
+        "kind": "trex",
+        "clips": 6,
+        "independentSkeletons": true,
+        "sharedGeometryAndTextures": true
+      },
+      {
+        "type": "primordio",
+        "kind": "cuspidor",
+        "clips": 7,
+        "independentSkeletons": true,
+        "sharedGeometryAndTextures": true
+      },
+      {
+        "type": "origin",
+        "kind": "trex",
+        "clips": 6,
+        "independentSkeletons": true,
+        "sharedGeometryAndTextures": true
+      }
+    ]
+  },
+  "sourceAudit": {
+    "areas": 14,
+    "declaredSpawnRecords": 87,
+    "directorTypeReferences": 68,
+    "totalAudited": 155,
+    "spitRecords": 32,
+    "actualTypesWithSpit": [
+      {
+        "type": "spitter",
+        "kind": "cuspidor"
+      },
+      {
+        "type": "primordio",
+        "kind": "cuspidor"
+      }
+    ],
+    "perArea": [
+      {
+        "area": "porto",
+        "spawnRecords": 4,
+        "spitRecords": 0
+      },
+      {
+        "area": "ruinas",
+        "spawnRecords": 8,
+        "spitRecords": 2
+      },
+      {
+        "area": "lab",
+        "spawnRecords": 10,
+        "spitRecords": 4
+      },
+      {
+        "area": "pantano",
+        "spawnRecords": 7,
+        "spitRecords": 2
+      },
+      {
+        "area": "patio",
+        "spawnRecords": 9,
+        "spitRecords": 2
+      },
+      {
+        "area": "heliponto",
+        "spawnRecords": 3,
+        "spitRecords": 0
+      },
+      {
+        "area": "margem",
+        "spawnRecords": 8,
+        "spitRecords": 2
+      },
+      {
+        "area": "acampamento",
+        "spawnRecords": 11,
+        "spitRecords": 1
+      },
+      {
+        "area": "ninho",
+        "spawnRecords": 5,
+        "spitRecords": 1
+      },
+      {
+        "area": "portoanil",
+        "spawnRecords": 8,
+        "spitRecords": 2
+      },
+      {
+        "area": "captacao",
+        "spawnRecords": 4,
+        "spitRecords": 1
+      },
+      {
+        "area": "sede",
+        "spawnRecords": 4,
+        "spitRecords": 2
+      },
+      {
+        "area": "setorzero",
+        "spawnRecords": 4,
+        "spitRecords": 0
+      },
+      {
+        "area": "raiz",
+        "spawnRecords": 2,
+        "spitRecords": 0
+      }
+    ],
+    "scope": "declared ambient, encounters, cages at three difficulties, director type literals; cutscenes reuse live enemies; egg particle spit is NOT attack",
+    "encounterQueueAndCageFlagsVerified": true
   }
 }

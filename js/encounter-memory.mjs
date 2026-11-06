@@ -1,3 +1,4 @@
+import {abilityOverrides} from './enemy-capabilities.mjs';
 // Estado leve dos inimigos entre trocas de área e saves (sem objetos Three.js).
 const validPoint = (p) => p && Number.isFinite(p.x) && Number.isFinite(p.z);
 const validLiving = (e) => e && typeof e.type === 'string' && validPoint(e.pos || e);
@@ -7,7 +8,7 @@ const copyPoint = (p) => validPoint(p) ? { x: p.x, z: p.z } : null;
 export function captureEncounterMemory(enemies = [], queue = []) {
   return {
     living: enemies.filter((e) => !e.dead && !e.remove && validLiving(e)).map((e) => ({
-      type: e.type, x: e.pos.x, z: e.pos.z, yaw: e.yaw,
+      ...abilityOverrides(e), type: e.type, x: e.pos.x, z: e.pos.z, yaw: e.yaw,
       hp: e.hp, ambientIdx: Number.isInteger(e.ambientIdx) ? e.ambientIdx : null,
       home: copyPoint(e.home), alert: !!e.alert,
       alertT: Number.isFinite(e.alertT) ? e.alertT : 0,
@@ -24,7 +25,7 @@ export function restoreEncounterMemory(state = {}, ambient = []) {
   const living = Array.isArray(state.living)
     ? state.living.filter(validLiving).map((e) => ({ ...e, ...(e.cageRelease ? {cageExit:copyPoint(e.cageExit)} : {}) }))
     : ambient.flatMap((e, index) => (state.dead || []).includes(index) ? [] :
-      [{ type: e.type, x: e.x, z: e.z, ambientIdx: index, alert: false }]);
+      [{ ...abilityOverrides(e),type: e.type, x: e.x, z: e.z, ambientIdx: index, alert: false }]);
   const pending = Array.isArray(state.pending)
     ? state.pending.filter((q) => validPending(q) && !q.eventKind).map((q) => ({ ...q })) : [];
   return { living, pending };

@@ -228,7 +228,7 @@ function spawnAreaContents(a, repopulate = false) {
     if (!ENEMY_TYPES[m.type]) continue;
     // Não surgir em cima da chegada ou dentro de obstáculos (inclui saves antigos).
     const relocate = !Number.isFinite(m.x) || !Number.isFinite(m.z) || (repopulate && (Math.hypot(m.x - player.pos.x, m.z - player.pos.z) < 8 || !freeSpot(m.x, m.z, ENEMY_TYPES[m.type].r)));
-    const e = spawnEnemy(m.type, relocate ? undefined : m.x, relocate ? undefined : m.z, { alert: false, ambientIdx: Number.isInteger(m.ambientIdx) ? m.ambientIdx : undefined });
+    const e = spawnEnemy(m.type, relocate ? undefined : m.x, relocate ? undefined : m.z, { ...m,alert: false, ambientIdx: Number.isInteger(m.ambientIdx) ? m.ambientIdx : undefined });
     e.hp = Math.min(e.maxHp, Math.max(1, Number.isFinite(m.hp) ? m.hp : e.maxHp));
     e.lastHp = e.hp; // HP antigo de save não equivale a um novo disparo
     if (Number.isFinite(m.yaw)) e.yaw = m.yaw;
@@ -357,7 +357,7 @@ function fireEncounter(e) {
   });
   if (e.beat && BEAT[e.beat]) BEAT[e.beat](e);
   const wave = e.cages ? cageReleaseWave(D.area.cages, G.difficulty) : e.spawn || [];
-  for (const s of wave) D.queue.push({ t: base + (s.delay || 0), type: s.type, x: s.x, z: s.z, from: s.from, boss: e.boss, fx: s.fx, cageRelease: s.cageRelease, cageExit: s.cageExit });
+  for (const s of wave) D.queue.push({ ...s,t: base + (s.delay || 0),boss: e.boss });
 }
 
 // ---------- v5: momentos roteirizados ----------
@@ -1202,7 +1202,7 @@ export function updateDirector(dt) {
     const q = D.queue[i]; q.t -= dt; if (q.t > 0) continue;
     D.queue.splice(i, 1);
     if (q.kind === 'revisit-cue') { ui.announce(q.message, '#ffb070'); sfx.siren(); sfx.stinger('ambush'); continue; }
-    const e = q.x !== undefined ? spawnEnemy(q.type, q.x, q.z) : spawnEnemy(q.type, undefined, undefined, { from: q.from });
+    const e = q.x !== undefined ? spawnEnemy(q.type, q.x, q.z,q) : spawnEnemy(q.type, undefined, undefined,q);
     if (q.cageRelease) { e.cageRelease=true; e.cageExit=q.cageExit ? {...q.cageExit} : null; }
     if (q.fx === 'egg') { burst(e.pos.x, 0.8, e.pos.z, 'spit', 18, 3); shockwave(e.pos.x, e.pos.z, 1.8, 0x40ff80); sfx.mudBurst(); }
     if (q.fx === 'mud') { burst(e.pos.x, 0.3, e.pos.z, 'dust', 26, 4.5); decal(e.pos.x, e.pos.z, 2.6, 0x1a1408); shockwave(e.pos.x, e.pos.z, 2.2, 0x8a7a50); sfx.mudBurst(); G.shake = Math.max(G.shake, 0.3); }

@@ -5,6 +5,7 @@ import {readFile,writeFile} from 'node:fs/promises';
 import * as THREE from 'three';
 import {loadImage,Image} from '@napi-rs/canvas';
 import {dinoKind,dinoClips} from '../js/dino-animation.mjs';
+import {canSpit} from '../js/enemy-capabilities.mjs';
 import {ENEMY_TYPES} from '../js/config.js';
 globalThis.self=globalThis;globalThis.Image=Image;
 globalThis.ProgressEvent=class{constructor(type,init={}){this.type=type;Object.assign(this,init);}};
@@ -29,7 +30,7 @@ if(process.argv.includes('--failure')){
   assert.notEqual(am.skeleton,bm.skeleton);assert.equal(am.geometry,bm.geometry);assert.notEqual(am.material,bm.material);assert.equal(am.material.map,bm.material.map);assert.ok(am.material.map?.image.width>0,'WebP baseColor não carregado');
   const before=bm.skeleton.bones.map(b=>b.quaternion.toArray());
   const states=[['idle',{},0],['walk',{},1],['run',{},cfg.speed],['attack',{bite:1},0],['hurt',{flashT:1},0],['death',{dead:true},0]];
-  if(cfg.shape==='spitter')states.splice(4,0,['spit',{spitT:.4,spitAction:{time:.55}},0]);
+  if(canSpit(cfg))states.splice(4,0,['spit',{spitT:.4,spitAction:{time:.55}},0]);
   for(const [clip,flags,speed] of states){resetDino(a);for(let i=0;i<24;i++)animateDino(a,{cfg,...flags},.05,speed);assert.equal(a.visual.clip,clip);a.g.updateMatrixWorld(true);am.skeleton.update();for(const bone of am.skeleton.bones)assert.ok(bone.matrixWorld.elements.every(Number.isFinite));}
   assert.deepEqual(bm.skeleton.bones.map(b=>b.quaternion.toArray()),before);
   resetDino(a);assert.equal(a.visual.clip,'idle');assert.equal(a.visual.actions.death.isRunning(),false);

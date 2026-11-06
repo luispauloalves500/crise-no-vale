@@ -1,10 +1,11 @@
-import { rayDinoHit, dinoImpactY, dinoBarY } from './dino-dimensions.mjs';
+import { dinoImpactY, dinoBarY } from './dino-dimensions.mjs';
 import { ammoAmount } from './campaign-rules.mjs';
 // combat.js — disparo, granadas, detecção de acertos, dano/abates, combo e itens (do mapa e drops).
 import * as THREE from 'three';
-import { scene, camera, castWorld, resolve, GLOW } from './world.js';
+import { scene, camera, renderer, boxes, circles, combatWorld, castWorld, GLOW } from './world.js';
 import { PICKUPS, COMBO, PLAYER, GRENADE, INVENTORY, ARMOR, NOISE, EP, AIM } from './config.js';
-import { pad } from './gamepad.js';
+import {createAimSolver} from './aiming.js';
+import {pelletOffsets,grenadeArc,advanceBallistic} from './aim-math.mjs';
 import { quality } from './quality.js';
 import { showPelletVisual } from './effect-budget.mjs';
 import { SETTINGS } from './settings.js';
@@ -16,61 +17,19 @@ import { sfx, roar } from './audio.js';
 import { burst, tracer, decal, explosion, flourish, bloodBurst, impactFx, muzzleFx } from './fx.js';
 import * as ui from './ui.js';
 
-const SHOT_H = 1.25; // altura do tiro: passa por cima de caixas e pedras baixas
 /** Gancho do diretor: item fixo do mapa coletado (id). */
 export const combatEvents = { onWorldPickup: null };
 
-/** Raio 2D contra cenário + inimigos vivos. */
-export function castAll(ox, oz, dx, dz, max) {
-  let best = castWorld(ox, oz, dx, dz, max, SHOT_H), hitE = null;
-  for (const e of enemies) {
-    if (e.dead) continue;
-    const t = rayDinoHit(ox,oz,dx,dz,e);
-    if (t < best) { best = t; hitE = e; }
-  }
-  return { t: best, e: hitE };
+const aimSolver=createAimSolver({camera,enemies,boxes,circles,worldRoot:()=>combatWorld.root,
+  reticleNDC:()=>ui.getReticleNDC(renderer.domElement.getBoundingClientRect())});
+/** Cast 3D, distância euclidiana a partir do cano (inclusive Y). */
+export const castAll=(origin,direction,range)=>aimSolver.cast(origin,direction,range);
+export function aimRay(range=curWeapon().range) {
+  gunTip.updateWorldMatrix(true,false);gunTip.getWorldPosition(v1);return aimSolver.aim(v1,range);
 }
-
-/** Ponto para onde a retícula (centro da tela) aponta, no plano XZ.
- * v11: a direção vem da própria câmera (já com tremor/recuo), então o tiro sai exatamente para onde a retícula está. */
-const camDir = new THREE.Vector3();
-function aimRay() {
-  camera.getWorldDirection(camDir);
-  const l = Math.hypot(camDir.x, camDir.z);
-  const fx = l > 1e-4 ? camDir.x / l : Math.sin(G.yaw), fz = l > 1e-4 ? camDir.z / l : Math.cos(G.yaw);
-  const cx = camera.position.x, cz = camera.position.z;
-  const start = Math.max(0, (player.pos.x - cx) * fx + (player.pos.z - cz) * fz);
-  const hit = castAll(cx + fx * start, cz + fz * start, fx, fz, 45);
-  return { fx, fz, tx: cx + fx * (start + hit.t), tz: cz + fz * (start + hit.t), e: hit.e, t: start + hit.t };
-}
-
-/**
- * v11: assistência leve de mira — só mirando. Procura o inimigo vivo mais próximo do raio da retícula
- * (folga lateral pequena além do corpo, cone estreito, com linha de visão) e devolve o ângulo até o centro dele.
- */
-function assistTarget(base, range) {
-  if (!G.aiming) return null;
-  const slack = pad.connected && pad.aim ? AIM.ASSIST_R_PAD : AIM.ASSIST_R;
-  let best = null, bestMiss = Infinity;
-  for (const e of enemies) {
-    if (e.dead) continue;
-    const dx = e.pos.x - player.pos.x, dz = e.pos.z - player.pos.z, d = Math.hypot(dx, dz);
-    if (d < 1.2 || d > range) continue;
-    const ang = wrapA(Math.atan2(dx, dz) - base);
-    if (Math.abs(ang) > AIM.ASSIST_ANG + Math.atan(e.cfg.r / d)) continue;
-    const miss = d * Math.sin(Math.abs(ang)) - e.cfg.r * 0.8; // distância lateral do raio até a borda do corpo
-    if (miss > slack || miss >= bestMiss) continue;
-    if (castWorld(player.pos.x, player.pos.z, dx / d, dz / d, d, SHOT_H) < d - e.cfg.r) continue; // atrás de parede
-    best = { e, ang, d }; bestMiss = miss;
-  }
-  return best;
-}
-const wrapA = (a) => Math.atan2(Math.sin(a), Math.cos(a));
-/** Distribuição triangular em [-1, 1]: a maioria dos tiros cai perto do centro, a borda continua possível. */
-const tri = () => Math.random() + Math.random() - 1;
 
 const v1 = new THREE.Vector3(), v2 = new THREE.Vector3();
-let autoReloadT = 0, bloom = 0;
+let autoReloadT = 0, bloom = 0, aimHudT=0;
 /** Dispersão atual (rad) da arma na mão — usada no tiro e no tamanho da retícula. */
 export function currentSpread() {
   const w = curWeapon();
@@ -87,23 +46,14 @@ export function fire() {
     return;
   }
   w.mag--; arms.cool = w.rate; G.shots++;
-  const aim = aimRay();
-  let bx = aim.tx - player.pos.x, bz = aim.tz - player.pos.z; const bl = Math.hypot(bx, bz) || 1; bx /= bl; bz /= bl;
-  if (bl < 1.5) { bx = aim.fx; bz = aim.fz; }
-  let base = Math.atan2(bx, bz);
-  const spread = currentSpread();
-  // assistência: com a retícula no alvo, puxa para o centro; perto da borda, encosta o tiro no corpo
-  const as = assistTarget(base, w.range);
-  if (as) base += as.ang * (aim.e === as.e ? AIM.ASSIST_PULL * 0.6 : AIM.ASSIST_PULL);
+  const aim = aimRay(w.range),bx=aim.direction.x,bz=aim.direction.z,spread=currentSpread();
+  // Não há puxão invisível de assistência: o eixo do cone é SEMPRE cano -> ponto da retícula.
   bloom = Math.min(w.bloomMax || 0, bloom + (w.bloom || 0));
-  gunTip.getWorldPosition(v1);
   const dmgBy = new Map();
+  const offsets=pelletOffsets(w.pellets,spread);
   for (let p = 0; p < w.pellets; p++) {
-    // escopeta: leque estratificado (cada chumbo na sua fatia + variação) — padrão consistente, sem buracos grandes
-    const off = w.pellets > 1 ? ((p + 0.5 + (Math.random() - 0.5) * 0.9) / w.pellets - 0.5) * 2 : tri();
-    const a = base + off * spread, dx = Math.sin(a), dz = Math.cos(a);
-    const h = castAll(player.pos.x, player.pos.z, dx, dz, w.range);
-    v2.set(player.pos.x + dx * h.t, h.e ? dinoImpactY(h.e.cfg) : v1.y, player.pos.z + dz * h.t);
+    const h=aimSolver.shot(v1,aim,w.range,offsets[p].x,offsets[p].y),dx=h.direction.x,dz=h.direction.z;
+    v2.copy(h.point);
     const renderPellet = showPelletVisual(p, w.pellets, quality.id);
     if (renderPellet) tracer(v1, v2, w.tracer, w.pellets > 1 ? 0.7 : 1);
     if (h.e) {
@@ -203,12 +153,13 @@ export function throwGrenade() {
   if (player.dead || grenCool > 0) return;
   if (bag.grenades <= 0) { ui.feed('Sem granadas', '#a09070'); return; }
   bag.grenades--; grenCool = GRENADE.COOLDOWN;
-  const fx = Math.sin(G.yaw), fz = Math.cos(G.yaw), up = GRENADE.UP + G.pitch * 8;
+  const aim=aimRay(GRENADE.SPEED*(GRENADE.FUSE-.1)),p=v1.clone();
   const m = new THREE.Mesh(grenGeo, grenMat); m.castShadow = true;
   const blink = new THREE.Sprite(new THREE.SpriteMaterial({ map: GLOW, color: 0xff3020, blending: THREE.AdditiveBlending, transparent: true, depthWrite: false }));
-  blink.scale.setScalar(0.6); m.add(blink);
-  const p = new THREE.Vector3(player.pos.x + fx * 0.6, 1.6, player.pos.z + fz * 0.6); m.position.copy(p); scene.add(m);
-  grenades.push({ m, blink, p, vx: fx * GRENADE.SPEED + player.vx * 0.4, vy: Math.max(2, up), vz: fz * GRENADE.SPEED + player.vz * 0.4, fuse: GRENADE.FUSE });
+  blink.scale.setScalar(0.6); m.add(blink);m.position.copy(p);scene.add(m);
+  const target=aim.point.clone();if(aim.normal)target.addScaledVector(aim.normal,.14);
+  const arc=grenadeArc(p,target,{speed:GRENADE.SPEED,gravity:GRENADE.GRAV,fuse:GRENADE.FUSE});
+  grenades.push({m,blink,p,...arc,fuse:GRENADE.FUSE});
   sfx.swap(); ui.feed('Granada!', '#70c0ff');
 }
 function explode(g) {
@@ -237,14 +188,11 @@ function updateGrenades(dt) {
   grenCool -= dt;
   for (let i = grenades.length - 1; i >= 0; i--) {
     const g = grenades[i]; g.fuse -= dt;
-    g.vy -= GRENADE.GRAV * dt;
-    g.p.x += g.vx * dt; g.p.z += g.vz * dt; g.p.y += g.vy * dt;
+    const previous=g.p.clone();advanceBallistic(g.p,g,dt,GRENADE.GRAV);
+    // Segmentos 3D também bloqueiam teto/parede acima dos 2,2 m antigos.
+    const travel=g.p.distanceTo(previous);
+    if(travel>1e-6){const hit=aimSolver.cast(previous,g.p.clone().sub(previous).normalize(),travel,false);if(hit.kind==='world'){const n=hit.normal||new THREE.Vector3(0,1,0),velocity=new THREE.Vector3(g.vx,g.vy,g.vz),dot=velocity.dot(n);g.p.copy(hit.point).addScaledVector(n,.15);if(dot<0)velocity.addScaledVector(n,-1.35*dot);g.vx=velocity.x;g.vy=velocity.y;g.vz=velocity.z;if(Math.abs(n.y)>.5){g.vx*=.6;g.vz*=.6;}}}
     if (g.p.y < 0.14) { g.p.y = 0.14; g.vy = -g.vy * 0.35; g.vx *= 0.6; g.vz *= 0.6; if (Math.abs(g.vy) > 1) sfx.tick(); }
-    const px = g.p.x, pz = g.p.z;
-    if (g.p.y < 2.2 && resolve(g.p, 0.15)) { // ricocheteia em paredes
-      const nx = g.p.x - px, nz = g.p.z - pz;
-      if (Math.abs(nx) > Math.abs(nz)) g.vx = -g.vx * 0.4; else g.vz = -g.vz * 0.4;
-    }
     g.m.position.copy(g.p); g.m.rotation.x += dt * 10;
     g.blink.visible = Math.floor(g.fuse * (g.fuse < 0.5 ? 16 : 6)) % 2 === 0;
     if (g.fuse <= 0) { explode(g); grenades.splice(i, 1); }
@@ -367,16 +315,15 @@ function updatePickups(dt) {
 export function updateCombat(dt, freezeCombo = false) {
   if (autoReloadT > 0) { autoReloadT -= dt; if (autoReloadT <= 0 && G.state === 'play') startReload(); }
   if (!freezeCombo && G.comboT > 0) { G.comboT -= dt; if (G.comboT <= 0) G.combo = 0; }
-  // v11: dispersão volta sozinha; retícula fica vermelha também quando a assistência pegaria o alvo
+  // v11: dispersão volta sozinha; retícula fica vermelha só quando o traçado real do cano alcança o alvo
   bloom *= Math.exp(-(curWeapon().bloomRec || 5) * dt);
   if (G.state === 'play') {
-    const ar = aimRay(); let on = !!ar.e;
-    if (!on && G.aiming) on = !!assistTarget(Math.atan2(ar.tx - player.pos.x, ar.tz - player.pos.z), curWeapon().range);
-    ui.setCrossEnemy(on);
+    // Sinalização visual a 30 Hz; fire() sempre recalcula a mira no próprio quadro.
+    aimHudT-=dt;if(aimHudT<=0){aimHudT=1/30;const ar=aimRay();ui.setCrossEnemy(!!aimSolver.shot(v1,ar,curWeapon().range).e);}
     // retícula do tamanho real da dispersão (px na tela = ângulo / tan(meio FOV) × meia altura)
     ui.setCrossGap(currentSpread() / Math.tan(camera.fov * Math.PI / 360) * innerHeight * 0.5);
-  } else ui.setCrossEnemy(false);
+  } else {aimHudT=0;ui.setCrossEnemy(false);}
   updateGrenades(dt);
   updatePickups(dt);
 }
-export function resetCombat() { autoReloadT = 0; bloom = 0; grenCool = 0; G.combo = 0; G.comboT = 0; clearGrenades(); }
+export function resetCombat() { autoReloadT = 0; bloom = 0; aimHudT=0; grenCool = 0; G.combo = 0; G.comboT = 0; clearGrenades(); }

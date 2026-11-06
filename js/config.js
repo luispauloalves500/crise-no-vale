@@ -91,7 +91,7 @@ export const INVENTORY = { MED_MAX: 4, MED_START: 1 };
 export const ENEMY_TYPES = {
   raptor:  { name: 'Raptor',   shape: 'raptor', hp: 55,  speed: 6.6, dmg: 12, r: 0.75, scale: 1.0,  score: 100, ep: 10, aggro: 16,
              color: 0x9a6a30, belly: 0xd8b880, stripe: 0x3a2412, eye: 0xffdd33, radar: '#ffa040' },
-  spitter: { name: 'Cuspidor', shape: 'spitter', hp: 45,  speed: 3.6, dmg: 9,  r: 0.75, scale: 1.05, score: 150, ep: 15, aggro: 20,
+  spitter: { name: 'Dilofossauro Cuspidor', shape: 'spitter', spit:true, hp: 45,  speed: 3.6, dmg: 9,  r: 0.75, scale: 1.05, score: 150, ep: 15, aggro: 20,
              color: 0x3f7a35, belly: 0xb8d870, stripe: 0x1d3a18, eye: 0xff5522, frill: 0xff7a20, radar: '#8fff60' },
   brute:   { name: 'Bruto',    shape: 'brute', hp: 300, speed: 2.7, dmg: 28, r: 1.7,  scale: 2.1,  score: 500, ep: 60, aggro: 22,
              color: 0x6a2c28, belly: 0xa88468, stripe: 0x2a1210, eye: 0xff2222, horn: 0xe8dcc0, radar: '#ff3030',

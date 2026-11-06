@@ -124,6 +124,7 @@ for (const b of document.querySelectorAll('[data-difficulty]')) b.onclick = () =
 refreshDifficulty();
 
 // ---------- entrada ----------
+let grenadeRequested=false,frameCameraReady=false;
 const inputHandlers = {
   onKey(code) {
     if(G.state==='cutscene'){if(code==='Escape'||code==='Enter')skipCutscene();return;}
@@ -149,7 +150,7 @@ const inputHandlers = {
       if (code === 'KeyQ') cycleWeapon(1);
       if (code === 'KeyE') { if (ui.mapOpen()) ui.toggleMap(false); else interact(); }
       if (code === 'KeyJ') { if (ui.mapOpen()) ui.toggleMap(false); openArchive(); }
-      if (code === 'KeyG') throwGrenade();
+      if (code === 'KeyG') grenadeRequested=true;
       if (code === 'KeyH') useMed();
       if (code === 'Tab') ui.toggleMap(!ui.mapOpen());
       if (code === 'KeyV') { G.shoulder *= -1; ui.feed(ui.STR.shoulder(G.shoulder), '#cde'); }
@@ -208,7 +209,7 @@ atmo.onThunder = (delay) => sfx.thunder(delay);
 
 // ---------- loop ----------
 const clock = new THREE.Clock();
-function update(dt) {
+function update(dt,cameraDt=dt) {
   G.time += dt;
   updateWorld(dt);
   atualizarVento(dt,SETTINGS.reducedMotion);
@@ -219,6 +220,9 @@ function update(dt) {
     // Durante o fade nenhum ator ou projétil continua avançando fora da tela.
     if (!D.trans) {
       updatePlayer(dt);
+      // A câmera/pose deste frame são avaliadas antes de consumir disparos e granadas.
+      updateCamera(cameraDt);frameCameraReady=true;
+      if(grenadeRequested){grenadeRequested=false;if(G.state==='play')throwGrenade();}
       if (G.state === 'play' && (mouse.down || keys.Space || pad.fire)) fire();
       updateEnemies(dt);
       updateSurvivor(dt);
@@ -241,13 +245,14 @@ function loop() {
   let udt = dt;
   if (G.hitstopCd > 0) G.hitstopCd -= dt;
   if (G.hitstop > 0) { G.hitstop -= dt; if (G.state === 'play') udt = dt * 0.06; }
-  if (G.state !== 'pause') update(udt);
+  frameCameraReady=false;if(G.state!=='play'||D.trans)grenadeRequested=false;
+  if (G.state !== 'pause') update(udt,dt);
   // v5: áudio — ambiente por área com crossfade; abafa durante pausa e cartões de história
   G.surface = D.area ? D.area.id : '';
   const inGame = G.state !== 'menu' && G.state !== 'loading' && D.area;
   if (inGame) { const [k, m] = ambienceNow(); setAmbience(k, m); } else setAmbience('menu');
   setMuffle(G.state === 'pause' || G.state === 'story' || G.state === 'terminal' || G.state === 'archive');
-  if (G.state === 'menu' || story.cinematic()) menuCamera(dt); else if (G.state !== 'pause' && G.state !== 'cutscene') updateCamera(dt);
+  if (G.state === 'menu' || story.cinematic()) menuCamera(dt); else if (!frameCameraReady && G.state !== 'pause' && G.state !== 'cutscene') updateCamera(dt);
   // Plano fixo da travessia enquadra a abertura, a passagem e o fechamento.
   if (G.state === 'play' && D.trans?.shot) {
     const s = D.trans.shot;

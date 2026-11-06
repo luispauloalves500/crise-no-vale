@@ -244,7 +244,7 @@
   },
   "after": {
     "three": "160",
-    "samples": 4032,
+    "samples": 4396,
     "framingChecks": 192,
     "webGL": false,
     "measuredSkinnedVertices": true,
@@ -264,14 +264,14 @@
       },
       {
         "type": "spitter",
-        "width": 0.882,
+        "width": 0.8820000000000003,
         "height": 2.5426054529202147,
-        "length": 4.394250000391154,
+        "length": 4.394250000391155,
         "navigationRadius": 0.75,
-        "contactSamples": 47,
+        "contactSamples": 51,
         "minimumY": [
-          0.01199999999999967,
-          0.01200000000000036
+          0.011999999999999672,
+          0.012000000000000483
         ],
         "resets": 20
       },
@@ -316,14 +316,14 @@
       },
       {
         "type": "primordio",
-        "width": 3.480000000000001,
-        "height": 7.4886365964017365,
-        "length": 13.959984092997606,
+        "width": 3.48,
+        "height": 7.488636596401735,
+        "length": 13.959984092997603,
         "navigationRadius": 2.4,
-        "contactSamples": 60,
+        "contactSamples": 51,
         "minimumY": [
-          0.011999999999999112,
-          0.012000000000000956
+          0.011999999999998678,
+          0.012000000000001121
         ],
         "resets": 20
       },

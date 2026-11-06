@@ -1,0 +1,124 @@
+{
+  "baseCommit": "45ff70d4abc94eae36ada9f85052dd36a0343c12",
+  "runtime": {
+    "three": "160",
+    "projectionCases": 34,
+    "enemyCases": 9,
+    "weaponCases": 18,
+    "grenadeCases": 4,
+    "maxProjectionError": 7.71185559270127e-16,
+    "realCombatModule": true,
+    "actualReticleOffsets": true,
+    "worldGeometryRaycast": true,
+    "muzzleOcclusion": true,
+    "webGL": false
+  },
+  "unitTests": 209,
+  "sourceEnemyAudit": {
+    "areas": 14,
+    "declaredSpawnRecords": 87,
+    "directorTypeReferences": 68,
+    "totalAudited": 155,
+    "spitRecords": 32,
+    "actualTypesWithSpit": [
+      {
+        "type": "spitter",
+        "kind": "cuspidor"
+      },
+      {
+        "type": "primordio",
+        "kind": "cuspidor"
+      }
+    ],
+    "perArea": [
+      {
+        "area": "porto",
+        "spawnRecords": 4,
+        "spitRecords": 0
+      },
+      {
+        "area": "ruinas",
+        "spawnRecords": 8,
+        "spitRecords": 2
+      },
+      {
+        "area": "lab",
+        "spawnRecords": 10,
+        "spitRecords": 4
+      },
+      {
+        "area": "pantano",
+        "spawnRecords": 7,
+        "spitRecords": 2
+      },
+      {
+        "area": "patio",
+        "spawnRecords": 9,
+        "spitRecords": 2
+      },
+      {
+        "area": "heliponto",
+        "spawnRecords": 3,
+        "spitRecords": 0
+      },
+      {
+        "area": "margem",
+        "spawnRecords": 8,
+        "spitRecords": 2
+      },
+      {
+        "area": "acampamento",
+        "spawnRecords": 11,
+        "spitRecords": 1
+      },
+      {
+        "area": "ninho",
+        "spawnRecords": 5,
+        "spitRecords": 1
+      },
+      {
+        "area": "portoanil",
+        "spawnRecords": 8,
+        "spitRecords": 2
+      },
+      {
+        "area": "captacao",
+        "spawnRecords": 4,
+        "spitRecords": 1
+      },
+      {
+        "area": "sede",
+        "spawnRecords": 4,
+        "spitRecords": 2
+      },
+      {
+        "area": "setorzero",
+        "spawnRecords": 4,
+        "spitRecords": 0
+      },
+      {
+        "area": "raiz",
+        "spawnRecords": 2,
+        "spitRecords": 0
+      }
+    ],
+    "scope": "declared ambient, encounters, cages at three difficulties, director type literals; cutscenes reuse live enemies; egg particle spit is NOT attack",
+    "encounterQueueAndCageFlagsVerified": true
+  },
+  "regression": {
+    "heroPoseEvaluations": 2904,
+    "geometryAreas": 14,
+    "routes": 73,
+    "cageRoutes": 9,
+    "groundingSamples": 4396,
+    "framingChecks": 192,
+    "grassMaps": 14
+  },
+  "limits": [
+    "CPU Three.js r160; renderer/audio/input simulated; no browser or WebGL",
+    "World: real mesh triangles plus finite navigation colliders; dinos: finite-height oriented historical volumes, not pixel-perfect skinned triangle hits",
+    "No FPS/GPU, physical controller, human gameplay or deployment verification",
+    "No concrete normal-raptor spit AI path was found in base commit; fixed capability selection, acid boss, variants, persistence and pools"
+  ],
+  "publication": "local commit only; no push"
+}

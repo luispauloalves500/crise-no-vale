@@ -2,6 +2,7 @@
 // node --experimental-vm-modules tests/runtime-spitter.mjs [--failure]
 import assert from 'node:assert/strict';import vm from 'node:vm';import {readFile} from 'node:fs/promises';
 import * as THREE from 'three';import {loadImage,Image} from '@napi-rs/canvas';
+import * as capabilities from '../js/enemy-capabilities.mjs';import * as dinoAnimation from '../js/dino-animation.mjs';
 import * as config from '../js/config.js';import * as dims from '../js/dino-dimensions.mjs';import * as action from '../js/spitter-action.mjs';import * as perception from '../js/perception.mjs';import {difficultyProfile} from '../js/campaign-rules.mjs';
 globalThis.self=globalThis;globalThis.Image=Image;globalThis.ProgressEvent=class{constructor(type,init={}){Object.assign(this,init)}};
 globalThis.createImageBitmap=async b=>loadImage(Buffer.from(await b.arrayBuffer()));
@@ -9,14 +10,14 @@ const NR=globalThis.Request,nativeFetch=globalThis.fetch;let reads=0;
 globalThis.Request=class extends NR{constructor(url,opts){super(new URL(url,'https://local.test/'),opts)}};
 globalThis.fetch=async(input,opts)=>{const url=typeof input==='string'?input:input.url;if(!url.startsWith('https://local.test/'))return nativeFetch(input,opts);reads++;if(process.argv.includes('--failure'))return new Response('',{status:404});return new Response(await readFile(new URL('../'+new URL(url).pathname.slice(1),import.meta.url)));};
 const models=await import('../js/dino-models.js'),{posedBounds}=await import('../js/dino-grounding.js');
-const scene=new THREE.Scene(),player={pos:new THREE.Vector3(0,0,11),r:.5,vx:0,vz:0,dead:false},G={time:0,difficulty:'normal',shake:0};let sounds=0,blocked=false,mouthAtFire=null;
+const scene=new THREE.Scene(),player={pos:new THREE.Vector3(0,0,11),r:.5,vx:0,vz:0,dead:false},G={time:0,difficulty:'normal',shake:0};const survivor={following:false,pos:new THREE.Vector3(4,0,1),downT:0,safeT:0};let sounds=0,blocked=false,mouthAtFire=null;
 const noop=()=>{},fx=new Proxy({},{get:()=>noop}),sfx=new Proxy({spit:()=>sounds++},{get:(t,k)=>t[k]||noop});
 const sources={
- 'three':THREE,'./dino-dimensions.mjs':dims,'./dino-models.js':{...models,dinoMouth:(...args)=>{const result=models.dinoMouth(...args);mouthAtFire=result?.clone();return result;}},'./spitter-action.mjs':action,
+ './enemy-capabilities.mjs':capabilities,'./dino-animation.mjs':dinoAnimation,'three':THREE,'./dino-dimensions.mjs':dims,'./dino-models.js':{...models,dinoMouth:(...args)=>{const result=models.dinoMouth(...args);mouthAtFire=result?.clone();return result;}},'./spitter-action.mjs':action,
  './config.js':config,'./perception.mjs':perception,'./campaign-rules.mjs':{difficultyProfile},'./state.js':{G},
  './contact-shadows.js':{actorShadow:()=>new THREE.Group()},
  './world.js':{scene,camera:new THREE.PerspectiveCamera(),resolve:()=>false,castWorld:()=>blocked?0:1000,freeSpot:()=>true,bounds:{minX:-30,maxX:30,minZ:-30,maxZ:30},GLOW:new THREE.Texture(),flashAt:noop,onMaterialsReset:noop},
- './player.js':{player,hurtPlayer:noop},'./npc.js':{survivor:{following:false},hurtSurvivor:noop},'./audio.js':{roar:noop,sfx},
+ './player.js':{player,hurtPlayer:noop},'./npc.js':{survivor,hurtSurvivor:noop},'./audio.js':{roar:noop,sfx},
  './fx.js':Object.fromEntries(['burst','decal','shockwave','telegraph','laneHandle','setLane','hideLane'].map(k=>[k,fx[k]])),
  './utils.js':{rand:(a,b)=>(a+b)/2,lerpAngle:(a,b,t)=>a+Math.atan2(Math.sin(b-a),Math.cos(b-a))*t,noiseTex:()=>{const t=new THREE.Texture();t.userData.bump=new THREE.Texture();return t;}},'./lod.js':{lodLevel:()=>0}
 };
@@ -56,4 +57,16 @@ for(const cancel of ['hurt','stun','death','cinematic','occlusion','player-death
  if(cancel==='cinematic')api.animateCinematicEnemies(1/60);if(cancel==='occlusion')blocked=true;
  for(let i=0;i<75;i++)tick(1/60);assert.equal(sounds,initial,cancel+' disparou após interrupção');
 }
-api.clearEnemies();console.log(JSON.stringify({three:THREE.REVISION,fallback,reads,aiMarkerSeconds:action.SPIT_RELEASE,mouthWorldVerified:true,clipGrounding:!fallback,realFrillSkinDeformation:!fallback,springDeflectionMetres:springDeflection,openingDisplacementMetres:openingDisplacement,secondaryGroundingFrames:fallback?0:360,interruptionCases:6,webGL:false},null,2));
+// Variantes de raptor não compartilham o pool visual do raptor corpo a corpo.
+let variantCases=0,fanProjectiles=0;
+for(const variant of [{spit:true},{acid:true},{ranged:true},{variant:'raptor-spitter'},{abilities:['acid']},{attacks:[{type:'ranged'}]}]){
+ api.clearEnemies();player.dead=false;blocked=false;player.pos.set(0,0,11);const initial=sounds,e=api.spawnEnemy('raptor',0,0,variant);await new Promise(r=>setImmediate(r));e.special=0;survivor.following=true;
+ assert.equal(e.parts.modelKind,'cuspidor');if(!fallback)assert.equal(e.parts.visual.kind,'cuspidor');else assert.ok(e.frill,'fallback da variante precisa de gola, não raptor');
+ for(let i=0;i<75&&sounds===initial;i++)tick(1/60);assert.equal(sounds,initial+1,'variante não cuspiu');assert.equal(e.lastSeen.x,player.pos.x);assert.equal(e.lastSeen.z,player.pos.z);survivor.following=false;if(!fallback)assert.equal(e.parts.visual.clip,'spit');variantCases++;
+}
+api.clearEnemies();const melee=api.spawnEnemy('raptor',0,0);await new Promise(r=>setImmediate(r));assert.equal(melee.parts.modelKind,'raptor');if(!fallback)assert.equal(melee.parts.visual.kind,'raptor');
+api.clearEnemies();player.pos.set(0,0,14);const initial=sounds,boss=api.spawnEnemy('primordio',0,0);await new Promise(r=>setImmediate(r));boss.acidCd=0;boss.special=10;boss.stompCd=10;
+assert.equal(boss.parts.modelKind,'cuspidor');if(!fallback)assert.equal(boss.parts.visual.kind,'cuspidor');
+for(let i=0;i<75&&sounds===initial;i++)tick(1/60);assert.equal(sounds,initial+3);fanProjectiles=api.spits.length;assert.equal(fanProjectiles,3);if(!fallback){assert.equal(boss.parts.visual.clip,'spit');assert.ok(Math.abs(boss.parts.visual.actions.spit.time-action.SPIT_RELEASE)<1e-6);}
+api.clearEnemies();const preparing=api.spawnEnemy('primordio',0,0);await new Promise(r=>setImmediate(r));preparing.acidCd=0;preparing.special=0;preparing.stompCd=10;tick(1/60);assert.ok(preparing.windup>0);assert.equal(preparing.spitT,0,'investida e cuspe não podem começar juntos');
+api.clearEnemies();console.log(JSON.stringify({three:THREE.REVISION,fallback,reads,aiMarkerSeconds:action.SPIT_RELEASE,variantCases,fanProjectiles,allSpittersUseDilo:true,targetConsistency:true,exclusiveBossActions:true,mouthWorldVerified:true,clipGrounding:!fallback,realFrillSkinDeformation:!fallback,springDeflectionMetres:springDeflection,openingDisplacementMetres:openingDisplacement,secondaryGroundingFrames:fallback?0:360,interruptionCases:6,webGL:false},null,2));

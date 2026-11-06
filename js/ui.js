@@ -1,4 +1,5 @@
 // ui.js — HUD, menus, radar e textos em português.
+import {reticleToNDC} from './aim-math.mjs';
 import * as THREE from 'three';
 import { $, wrapAngle } from './utils.js';
 import { G } from './state.js';
@@ -48,6 +49,11 @@ const el = {};
   'mapOv', 'bigmap', 'fade', 'pauseObj', 'score', 'ep', 'combo', 'cross', 'hitmark', 'dmgDir', 'floaters',
   'banner', 'bTitle', 'bSub', 'announce', 'countdown', 'feed', 'vign', 'splat', 'flashScreen', 'endTitle', 'endText', 'radar', 'obj2', 'logs', 'haze', 'powerFlash', 'speech'].forEach((id) => { el[id] = $(id); });
 export { el };
+/** Lê a posição CSS REAL do centro da retícula, inclusive translate/sway e canvas deslocado. */
+export function getReticleNDC(viewport) {
+  if(!el.cross?.getBoundingClientRect || el.cross.getClientRects?.().length===0)return {x:0,y:0};
+  return reticleToNDC(el.cross.getBoundingClientRect(),viewport);
+}
 
 export function initUI(hasSave) {
   if (el.loadErr && el.loadErr.isConnected) el.loadErr.remove();

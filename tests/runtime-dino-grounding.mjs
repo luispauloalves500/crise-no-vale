@@ -5,6 +5,7 @@ import {readFile,writeFile} from 'node:fs/promises';
 import * as THREE from 'three';
 import {loadImage,Image} from '@napi-rs/canvas';
 import {dinoClips,dinoKind} from '../js/dino-animation.mjs';
+import {canSpit} from '../js/enemy-capabilities.mjs';
 import {ENEMY_TYPES} from '../js/config.js';
 globalThis.self=globalThis;globalThis.Image=Image;
 globalThis.ProgressEvent=class{constructor(type,init={}){this.type=type;Object.assign(this,init);}};
@@ -34,7 +35,7 @@ for(const [type,cfg] of Object.entries(ENEMY_TYPES)) {
  }
  resetDino(p);
  for(const [flags,speed]of [[{},0],[{},cfg.speed*.4],[{},cfg.speed],[{bite:1},0],[{flashT:1},0],[{},cfg.speed],[{dead:true},0]])for(let i=0;i<30;i++){animateDino(p,{cfg,...flags},1/60,speed);check();}
- if(type==='spitter')for(let i=0;i<=120;i++){animateDino(p,{cfg,spitT:.95-i/120*.95,spitRelease:i===120,spitAction:{time:i/120*.95}},1/120,Math.sin(i/15)*2+2);check();}
+ if(canSpit(cfg))for(let i=0;i<=120;i++){animateDino(p,{cfg,spitT:.95-i/120*.95,spitRelease:i===120,spitAction:{time:i/120*.95}},1/120,Math.sin(i/15)*2+2);check();}
  for(let i=0;i<20;i++){resetDino(p);v.actions.idle.time=.4;v.mixer.update(0);v.ground();assert.ok(Math.abs(posedBounds(v.root).getSize(new THREE.Vector3()).y-expected.height)<1e-4,'pool encolheu');}
  if(type==='origin')for(const key of sceneScript('tyrant',{x:0,z:-10}).keys)for(let angle=0;angle<8;angle++) {
   const camera=new THREE.PerspectiveCamera(key.fov,16/9,.1,150);camera.position.fromArray(key.pos);camera.lookAt(...key.look);camera.updateMatrixWorld(true);

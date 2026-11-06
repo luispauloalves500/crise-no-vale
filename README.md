@@ -168,7 +168,7 @@ node --test tests/*.test.mjs
 
 Os módulos exigem HTTP (não `file://`). Three.js/addons vêm do jsDelivr via importmap e exigem conexão; bloom tem fallback.
 
-A suíte tem **186 testes**, incluindo sequência completa dos quatro atos nas três dificuldades e nas quatro combinações de decisões, portas por ato, travas, saves antigos/misturados, isolamento de mapas/preload, resgate opcional, dificuldade, jaulas persistentes, keyframes da recarga e montagem do artefato Pages. A simulação executa o diretor real em VM, com renderização, inimigos e entrada simulados: **não é uma partida humana nem uma prova de balanceamento de combate**.
+A suíte tem **209 testes**, incluindo sequência completa dos quatro atos nas três dificuldades e nas quatro combinações de decisões, portas por ato, travas, saves antigos/misturados, isolamento de mapas/preload, resgate opcional, dificuldade, jaulas persistentes, keyframes da recarga e montagem do artefato Pages. A simulação executa o diretor real em VM, com renderização, inimigos e entrada simulados: **não é uma partida humana nem uma prova de balanceamento de combate**.
 
 Auditorias CPU adicionais reproduzíveis, com o Three da mesma versão, sem instalar dependências no projeto:
 
@@ -211,7 +211,7 @@ Os modelos existentes estão em `assets/`. Fontes não carregadas ficam em `asse
 ## Raptor e T-rex fornecidos pelo jogador
 
 - `assets/models/raptor.glb` (943.168 bytes) e `trex.glb` (964.104 bytes), cada um com seis clipes esqueléticos: idle, walk, run, attack, hurt, death. Meshopt + texturas WebP 1024², cerca de 10,5 mil triângulos por espécie. Os originais não tinham clipes; os ciclos foram gerados no próprio rig.
-- Patrulhas comuns usam raptor; o Cuspidor usa o GLB próprio descrito abaixo. Brutos, Colosso, Matriarca, Primórdio e Tirano Matriz usam T-rex, com dimensões calibradas ao procedural de `24d7e1e` e balanceamento por tipo preservado. O raio de navegação considera o tronco; projéteis usam uma elipse orientada que também cobre cabeça/cauda.
+- Patrulhas de corpo a corpo usam raptor; **qualquer atacante de cuspe/ácido usa o dilofossauro**, inclusive Primórdio e variantes de raptor com habilidade à distância. Brutos, Colosso, Matriarca e Tirano Matriz sem ácido usam T-rex, com dimensões calibradas ao procedural de `24d7e1e` e balanceamento por tipo preservado. O raio de navegação considera o tronco; projéteis usam uma elipse orientada que também cobre cabeça/cauda.
 - GLTFLoader + MeshoptDecoder r160, template em cache; SkeletonUtils.clone e AnimationMixer independentes. Geometria/texturas compartilhadas, materiais privados para flash de dano. Animação dirigida pelo estado da IA e deslocamento real; ataques/dano/morte são one-shots, morte sem a queda procedural duplicada. Pool restaura pose e ações; descarte invalida callbacks e libera esqueleto/materiais privados. Download/decodificação falhos mantêm o dinossauro procedural, com uma tentativa por espécie na sessão.
 - Teste real do adaptador, WebP, loader, clones, seis/sete estados, reset/descarte/callback tardio e fallback sem tempestade de 404:
 
@@ -250,8 +250,8 @@ O Tirano Matriz não existia em `24d7e1e`: usa a mesma fórmula procedural do br
 ### Apoio e integração
 
 - Pré-cálculo por espécie de **47/51/60 vértices de apoio** (raptor/cuspidor/T-rex) de todos os clipes, inclusive cuspir; por instância, só esses contatos são atualizados após o mixer. Não há varredura de 14 mil vértices por frame. Folga de **1,2 cm** acima do piso local, compensada pela escala da instância. A sombra de contato foi baixada para 6 mm (não fica acima das solas ao multiplicar a escala). Na morte, os contatos incluem o corpo; retirado o afundamento proposital antes do descarte.
-- **4.214 poses completas/transições** medidas na CPU, mais **20 resets de pool por tipo**: a menor coordenada da malha ficou em **y=0,012 m**, sem encolher após reuso. Verificados também translação, rotação, piso elevado, geometria/texturas compartilhadas e esqueletos independentes.
-- **Navegação/colisão horizontal mantém os raios antigos**, para não bloquear portas/rotas. **Projéteis continuam sendo aproximações 2D**, agora com elipse orientada de cabeça a cauda; não se afirma colisão 3D por triângulo. Impactos e barras/números usam a altura calibrada. Trilhos da aparição do Tirano enquadram sua altura/comprimento novos, com 192 projeções CPU dentro da área útil do letterbox (16:9). O ponto inicial dele foi recuado para o centro norte (z=-10), para a cauda não nascer atravessando a parede.
+- **4.396 poses completas/transições** medidas na CPU, mais **20 resets de pool por tipo**: a menor coordenada da malha ficou em **y=0,012 m**, sem encolher após reuso. Verificados também translação, rotação, piso elevado, geometria/texturas compartilhadas e esqueletos independentes.
+- **Navegação/colisão horizontal mantém os raios antigos**, para não bloquear portas/rotas. **Tiros usam volumes 3D de altura finita**, com elipse orientada de cabeça a cauda e dimensões históricas; não são colisões pixel-perfect com a pele animada. O cenário usa também raycast de triângulos das malhas ativas. Impactos usam o ponto 3D real; barras/números usam a altura calibrada. Trilhos da aparição do Tirano enquadram sua altura/comprimento novos, com 192 projeções CPU dentro da área útil do letterbox (16:9). O ponto inicial dele foi recuado para o centro norte (z=-10), para a cauda não nascer atravessando a parede.
 
 ```bash
 # Dependências opcionais das auditorias CPU reais
@@ -267,11 +267,11 @@ THREE_ROOT=./node_modules/three node tests/runtime-animation.mjs
 
 ## Cuspidor — dilofossauro com gola móvel
 
-- Substitui **somente o Cuspidor** (`spitter`) pelo modelo fornecido pelo usuário: dinossauro estilizado semelhante ao dilofossauro, com gola colorida, não cabelo. Original: **2.572.084 bytes**, um mesh/skin, **90 ossos genéricos e nenhum clipe**. Arquivo de jogo `assets/models/cuspidor.glb`: **1.170.588 bytes** (−54,5%), **10.433 triângulos**, Meshopt, quantização e três texturas WebP 1024². Proveniência e hashes em `assets/models/cuspidor-audit.json`; licença/autoria de terceiros não foram verificadas.
+- Substitui **todo inimigo com cuspe/ácido** (`spitter`, Primórdio e variantes com essas habilidades) pelo modelo fornecido pelo usuário: dinossauro estilizado semelhante ao dilofossauro, com gola colorida, não cabelo. Original: **2.572.084 bytes**, um mesh/skin, **90 ossos genéricos e nenhum clipe**. Arquivo de jogo `assets/models/cuspidor.glb`: **1.170.588 bytes** (−54,5%), **10.433 triângulos**, Meshopt, quantização e três texturas WebP 1024². Proveniência e hashes em `assets/models/cuspidor-audit.json`; licença/autoria de terceiros não foram verificadas.
 - Sete clipes esqueléticos **criados proceduralmente no rig** e embutidos no GLB: **idle, walk, run, attack, spit, hurt, death**. `SkeletonUtils.clone`, mixer e materiais privados por instância; geometria/texturas compartilhadas. GLB inválido/404 mantém o procedural e não repete downloads por spawn.
 - O rig original não possuía ossos exclusivos para a gola: foram adicionadas **seis hastes** (dobradiças esquerda/direita + pontas superiores/inferiores), ponderando **6.323 vértices** com transição suave na base; mais um osso de mandíbula (**97 juntas** no total). Os clipes recolhem parcialmente a gola no repouso e a abrem no ataque/cuspe. Uma **mola amortecida por instância**, depois do mixer, acrescenta atraso por aceleração/curvas e balanço das pontas ao andar/correr. Sem shader novo/draw calls extras; reuso do pool zera a inércia. Na morte prevalece a pose de queda, sem mola residual.
 - **Dimensões mantidas** no idle deformado a 0,4 s: **2,542605 m de altura × 4,394250 m de comprimento × 0,882 m de largura**, raio de navegação **0,75 m**. Medição de vértices skinned e os 51 contatos pré-calculados conservam o apoio em **y=0,012 m** nas sete animações, misturas, chão elevado e reuso. Barra de vida, elipse de tiros e enquadramento continuam usando o mesmo perfil histórico; a abertura da gola permanece dentro do envelope lateral de combate.
-- **Cuspe sincronizado:** um único relógio da IA posiciona o clipe `spit` (0,95 s). Evento único em **0,52 s**, já com mandíbula/gola abertas: avalia o socket **`SpitSocket`** depois do mixer e do apoio, em coordenadas mundiais. O ácido sai da boca e desce continuamente até o torso do alvo, sem saltar para uma altura fixa no quadro seguinte. Dano, stun, morte, cutscene ou morte da jogadora interrompem a preparação; perda de visão/parede bloqueia a emissão. Cutscenes animam os dinos sem atacar. O fallback conserva esse relógio e usa o bico procedural. O cuspe em leque do Primórdio continua disponível.
+- **Cuspe sincronizado:** um único relógio da IA posiciona o clipe `spit` (0,95 s). Evento único em **0,52 s**, já com mandíbula/gola abertas: avalia o socket **`SpitSocket`** depois do mixer e do apoio, em coordenadas mundiais. O ácido sai da boca e desce continuamente até o torso do alvo, sem saltar para uma altura fixa no quadro seguinte. Dano, stun, morte, cutscene ou morte da jogadora interrompem a preparação; perda de visão/parede bloqueia a emissão. Cutscenes animam os dinos sem atacar. O fallback conserva esse relógio e usa o bico procedural. O leque de três projéteis do Primórdio usa o mesmo marcador, socket e GLB Dilo, sem sobrepor a preparação da investida.
 
 ### Testes específicos e render
 
@@ -285,7 +285,7 @@ node --experimental-vm-modules tests/runtime-spitter.mjs
 node --experimental-vm-modules tests/runtime-spitter.mjs --failure
 ```
 
-O último teste executa **a IA real de `enemies.js`** em um mundo/áudio simulados, com loader, decoder WebP, mixer e malhas reais: evento único, coordenadas da boca após escala/rotação/translação, deformação efetiva da gola por mola, resets e seis tipos de interrupção, também sem GLB. Relatório em `tests/cuspidor-runtime-audit.json`. As 4.214 poses do teste de apoio incluem 61 amostras do novo clipe e 121 frames com mola/cuspe; há mais 360 frames específicos da gola dinâmica. Regressões de heroínas, grama e rotas seguem disponíveis.
+O último teste executa **a IA real de `enemies.js`** em um mundo/áudio simulados, com loader, decoder WebP, mixer e malhas reais: evento único, coordenadas da boca após escala/rotação/translação, deformação efetiva da gola por mola, resets e seis tipos de interrupção, também sem GLB. Relatório em `tests/cuspidor-runtime-audit.json`. As 4.396 poses do teste de apoio incluem o clipe e 121 frames com mola/cuspe para **ambos** os tipos cuspidores; há mais 360 frames específicos da gola dinâmica. Regressões de heroínas, grama e rotas seguem disponíveis.
 
 Autoria reproduzível (dependências opcionais de ferramentas, não carregadas pelo jogo):
 
@@ -296,3 +296,42 @@ node tools/build-cuspidor.mjs /caminho/original.glb /diretorio/saida
 ```
 
 Render offline salvo no box em **`/workspace/cuspidor-preview.png`**, com idle e frame de cuspe usando a escala do jogo. Foi inspecionado como imagem estática de CPU, **não captura do navegador**. Não foram verificados WebGL/deformação em GPU, animação em movimento pela câmera real, composição final das cutscenes, FPS, áudio, celular ou balanceamento humano. Esta entrega é **commit local, sem push/deploy**.
+
+## Correção: espécie por habilidade e tiros na retícula
+
+### Qual inimigo é Dilo
+
+Em `45ff70d`, o `spitter` comum **já** carregava Dilo; não foi encontrado um caminho de IA em que o raptor comum corpo a corpo cuspisse. Havia, porém, seleção visual baseada em `boss/shape`, não na habilidade: o **Primórdio lançava ácido mas recebia T-rex**. Flags de variantes não participavam dessa seleção, podiam desaparecer nos spawns/saves e o pool era separado apenas pelo tipo.
+
+Agora `enemy-capabilities.mjs` é a política compartilhada por modelo, IA, fallback e persistência: `spit`, `acid`, `ranged`, variante/modo de ataque e listas de habilidades/ataques escolhem **sempre `cuspidor.glb`**, antes da regra de chefe. Raptores sem cuspe continuam com `raptor.glb`. Pool separado por tipo **e espécie visual** impede reaproveitar uma malha corpo a corpo numa variante cuspidora. Flags sobrevivem a patrulhas, filas, restauração e save; cutscenes usam esses mesmos atores. A partícula verde de eclosão (`fx: egg`) não é um ataque, por isso não transforma filhotes de raptor corpo a corpo em Dilo.
+
+Cada inimigo mantém **seu próprio perfil de tamanho**, HP, raio e barra: Cuspidor **2,543 × 4,394 m**; Primórdio **7,489 × 13,960 m** (altura × comprimento). Variante de raptor conserva **2,126 × 4,730 m**. O apoio continua em 1,2 cm. Nenhum GLB foi refeito nesta revisão. A auditoria cobre 14 mapas, 87 registros declarados de patrulha/encontro/jaula (jaulas nas três dificuldades) e 68 referências de tipo do diretor; das 155 referências, 32 são configurações com cuspe. A IA real testa seis variantes, o leque do chefe, alvo consistente, ações exclusivas, pool e fallback.
+
+### Por que o tiro não acompanhava a mira
+
+O cálculo anterior achatava a direção da câmera no plano XZ, ignorando pitch e a posição CSS da retícula. O cast começava no jogador, usava altura fixa e ainda podia receber um puxão invisível de assistência. Disparos/granadas eram consumidos antes da atualização atual da câmera.
+
+- A câmera e a pose são avaliadas antes do gatilho. A tecla/botão de granada enfileira a ação para esse quadro.
+- `getReticleNDC` lê o centro real de `getBoundingClientRect()` da retícula relativo ao canvas: funciona com deslocamento CSS/sway, canvas deslocado/redimensionado e proporções diferentes.
+- `Raycaster.setFromCamera` encontra o primeiro alvo/cenário ou o ponto de alcance. O tiro parte **do cano até esse ponto em XYZ**; uma segunda consulta impede atravessar a cobertura junto à arma. Alcance é medido do cano.
+- Pistola e SMG preservam dispersão/bloom em torno desse eixo; a escopeta usa um **cone 3D de pares opostos**, inclusive no subconjunto de tracers. Traço, impacto e dano compartilham a mesma interseção, sem puxão independente para outro alvo.
+- Granadas calculam o arco até o ponto mirado, dentro da velocidade/pavio e limite de subida; alvos inalcançáveis são limitados no mesmo rumo. Não há deriva lateral adicionada pelo movimento do jogador. Integração balística consistente entre passos e segmentos 3D contra paredes/tetos preservam os ricochetes.
+- O mundo consultado é só o mapa ativo; grama, sombras e FX transparentes são ignorados. Dinos usam volumes 3D históricos, não teste caro de todos os vértices skinned por disparo. A sinalização vermelha do HUD tem orçamento de 30 Hz; cada disparo recalcula a mira no próprio quadro, sem reutilizar alvo em cache.
+
+### Reproduzir a validação
+
+```bash
+node --test tests/*.test.mjs
+# Auditorias opcionais: Three r160 e WebP, sem navegador
+npm install --no-save three@0.160.0 @napi-rs/canvas
+node --experimental-vm-modules tests/runtime-aim.mjs
+node --experimental-vm-modules tests/runtime-spitter.mjs
+node --experimental-vm-modules tests/runtime-spitter.mjs --failure
+node tests/runtime-dinos.mjs
+node tests/runtime-dinos.mjs --failure
+node tests/runtime-dino-grounding.mjs
+```
+
+**209 testes** passaram. Three r160 + módulo real `combat.js` em VM: **34 casos de projeção/oclusão/alcance/instâncias, 9 de inimigos, 18 de armas e 4 de granadas**, com retículas laterais/altas/baixas, FOVs 46/65 e telas 16:9, 9:16 e 2,2:1. Erro máximo de reprojeção sem dispersão: **7,8 × 10⁻¹⁶ NDC**. Testados também dano fora do centro, céu sem dano falso no XZ, cobertura junto ao cano, portas movidas e ricochete em teto/parede altos. Relatórios: `tests/aim-runtime-audit.json` e `tests/cuspidor-runtime-audit.json`.
+
+Regressões CPU: 4.396 poses de dinossauros, 192 enquadramentos do Tirano, 2.904 avaliações de Jill/Marina, 14 mapas/73 rotas/9 saídas de jaulas e grama/streaming. **Não houve teste visual em navegador/WebGL, de FPS/GPU, áudio, controle físico ou partida humana.** O motivo de um cliente ainda mostrar raptor em `45ff70d` não pôde ser estabelecido por esses testes; não se afirma causa de cache/deploy. **Commit local apenas; nenhum push ou deploy nesta entrega.**

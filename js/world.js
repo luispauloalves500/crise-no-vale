@@ -85,6 +85,8 @@ export function bossGlow(pos, k = 1) {
 // ---------- colisores da área atual ----------
 /** @type {{minX:number,maxX:number,minZ:number,maxZ:number,h:number}[]} */
 export const boxes = [];
+// Raiz exclusiva do cenário ativo: tiros não atingem jogador, FX, pickups ou mapas em cache.
+export const combatWorld = {root:null};
 /** @type {{x:number,z:number,r:number,h:number}[]} */
 export const circles = [];
 /** Limites retangulares da área atual (mutável). */
@@ -618,7 +620,7 @@ export function setPower(on) {
  */
 export function activateArea(area, prev) {
   if (prev) prev.ctx.group.visible = false;
-  area.ctx.group.visible = true;
+  area.ctx.group.visible = true;combatWorld.root=area.ctx.group;
   boxes.length = 0; boxes.push(...area.ctx.boxes);
   circles.length = 0; circles.push(...area.ctx.circles);
   water.length = 0; water.push(...area.ctx.water);

@@ -45,7 +45,7 @@ export function attachDino(P, cfg) {
       const a=actions[clip.name]=mixer.clipAction(clip);
       if (['attack','spit','hurt','death'].includes(clip.name)) { a.setLoop(THREE.LoopOnce,1); a.clampWhenFinished=true; }
     }
-    P.visual = {root,holder,mixer,actions,mats,skeletons,rest,frill:createFrillDynamics(root,THREE),mouth:root.getObjectByName('SpitSocket'),dimensions:dinoDimensions(cfg),ground:createDinoGrounder(root,holder,P.g,t.contacts),contacts:t.contacts.reduce((n,c)=>n+c.length,0),clip:null,lock:0};
+    P.visual = {kind:dinoKind(cfg),root,holder,mixer,actions,mats,skeletons,rest,frill:createFrillDynamics(root,THREE),mouth:root.getObjectByName('SpitSocket'),dimensions:dinoDimensions(cfg),ground:createDinoGrounder(root,holder,P.g,t.contacts),contacts:t.contacts.reduce((n,c)=>n+c.length,0),clip:null,lock:0};
     resetDino(P); dinoModelStats.instances++;
   });
 }
