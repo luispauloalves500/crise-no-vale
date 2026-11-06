@@ -4,6 +4,7 @@ import { activateArea, bounds, boxes, castWorld, setDoorLight, setPower, atmo, s
 import { WORLD, SCORE, PLAYER, EP, ENEMY_TYPES } from './config.js';
 import { captureEncounterMemory, restoreEncounterMemory } from './encounter-memory.mjs';
 import { canAccessRecord, canSeeRecord } from './archive-model.mjs';
+import { actOf, currentAct, canTravel, canStartAct3, canFinishCampaign, normalizeCampaignSave, difficultyProfile, patrolComposition } from './campaign-rules.mjs';
 import { G, writeSave, readSave, addEp, readAct3, writeAct3 } from './state.js';
 import { normalizeStreak, finishStreak } from './clean-streak.mjs';
 import { findEscortPath } from './escort-nav.mjs';
@@ -17,7 +18,7 @@ import { quality, onQuality } from './quality.js';
 import { createShaderWarmup, compileShaderVariants } from './shader-warmup.mjs';
 import { post } from './post.js';
 import { idle } from './idle.js';
-import { player, pg, placePlayer, snapshotBag, restoreBag, resetPlayer, animateDoorWalk, animateBoarding, weapons } from './player.js';
+import { player, pg, placePlayer, snapshotBag, restoreBag, resetPlayer, animateDoorWalk, weapons } from './player.js';
 import { openTerminal } from './shop.js';
 import { enemies, spawnEnemy, clearEnemies, enemyEvents, makeNoise } from './enemies.js';
 import { spawnPickup, clearPickups, combatEvents, resetCombat } from './combat.js';
@@ -74,7 +75,9 @@ function powerLampsOn(snap) {
 /** Trava da porta: true = bloqueada. */
 export function isLocked(areaId, doorId) {
   const d = AREA[areaId].doors.find((x) => x.id === doorId);
-  if (!d || !d.lock) return false;
+  if (!d) return true;
+  if (!canTravel(areaId, d.to, F)) return true;
+  if (!d.lock) return false;
   if (d.lock === 'power') return !F.power;
   if (d.lock === 'heliCode') return !F.heliCode;
   if (d.lock === 'bossLock') return !!F.bossFight;
@@ -109,6 +112,7 @@ function objectiveDone(msg) {
 // ---------- objetivo atual (derivado das flags) ----------
 function objective() {
   if (F.act3) return objectiveAct3();
+  if (F.act2) return objectiveAct2();
   if (!D.visited.has('lab')) return ['Atravesse as ruínas até o laboratório (norte)', 'lab'];
   if (!F.power) return ['Restaure a energia — gerador no pântano (oeste do laboratório)', 'pantano'];
   if (!D.visited.has('patio')) return ['Volte ao laboratório e passe pelo portão norte', 'patio'];
@@ -116,13 +120,12 @@ function objective() {
   if (!F.heliCode) return [`Escolte a ${survivor.name} até o terminal de controle (nordeste)`, 'patio'];
   if (!D.visited.has('heliponto')) return ['Siga pelo portão leste do pátio até o heliponto', 'heliponto'];
   if (!F.bossDead) return ['Derrote o Colosso', 'heliponto'];
-  if (F.act2) return objectiveAct2();
-  if (!D.event || D.event.kind !== 'rescue') return ['E na marca H: embarcar para o Ato 2 — ou siga pela trilha leste', 'heliponto'];
-  return ['Aguente até o helicóptero chegar!', 'heliponto'];
+  return ['Atravesse o portão NORTE do penhasco — concluir Ato 1 e seguir o rio', 'heliponto'];
 }
 /** v7: cadeia de objetivos do Ato 2 (rio abaixo atrás do Brandt). */
 function objectiveAct2() {
   const ev = D.event && D.event.kind;
+  if (F.act2Win) return ['ATO 2 CONCLUÍDO — espere o pouso e aperte E junto ao piloto para carregar o Ato 3', 'ninho'];
   if (!D.visited.has('acampamento')) return ['Siga o Brandt rio abaixo até o acampamento Tellus-2', 'acampamento'];
   if (!F.campGate) return ev === 'hack' ? ['Proteja o terminal enquanto a senha é quebrada!', 'acampamento'] : ['Quebre a senha do portão sul no terminal vermelho', 'acampamento'];
   if (!D.visited.has('ninho')) return ['Persiga o Brandt pelo portão sul até o ninho', 'ninho'];
@@ -131,7 +134,6 @@ function objectiveAct2() {
   if (ev === 'charges') return ['Proteja as cargas enquanto elas armam!', 'ninho'];
   if (D.fuse > 0) return ['Afaste-se do ninho! Detonação em ' + Math.ceil(D.fuse) + ' s', 'ninho'];
   if (!F.brandt) return ['Prenda o Brandt no cais antes que o barco ligue', 'ninho'];
-  if (F.act2Win) return ['Escolha: E na marca H — voar para casa · E junto ao piloto — Porto Anil (Ato 3)', 'ninho'];
   if (!F.nestDestroyed) return [F.brandt === 'escaped' ? 'Brandt fugiu — plante cargas (opcional) ou aperte E na marca H' : 'Brandt capturado — plante cargas (opcional) ou aperte E na marca H', 'ninho'];
   return ['Aperte E na marca H da clareira para chamar o Garça-1', 'ninho'];
 }
@@ -139,7 +141,7 @@ function objectiveAct2() {
 /** v11: cadeia de objetivos do Ato 3 (Porto Anil → captação → sede). */
 function objectiveAct3() {
   const ev = D.event && D.event.kind;
-  if (F.act3Win) return ['Fuja da sede!', 'sede'];
+  if (F.act3Resolved) return ['Volte ao cais de Porto Anil e aperte E no ponto de extração — fim da campanha', 'portoanil'];
   if (!D.visited.has('captacao')) return ['Atravesse Porto Anil até a captação de água (portão norte)', 'captacao'];
   if (!F.valvesClosed) return ev === 'flood' ? ['Defenda o painel enquanto as comportas fecham!', 'captacao'] : ['Feche as comportas no painel laranja da captação', 'captacao'];
   if (!D.visited.has('sede')) return ['Desça pela escotilha norte até a sede da Tellus', 'sede'];
@@ -163,10 +165,14 @@ function spawnAreaContents(a, repopulate = false) {
     memory.living = [...a.ambient.map((m, ambientIdx) => ({ ...m, ambientIdx })), ...bosses];
     s.dead = [];
   }
+  if (repopulate || !s.visited) {
+    const patrols = memory.living.filter(m => !ENEMY_TYPES[m.type]?.boss);
+    memory.living = [...patrolComposition(patrols, G.difficulty), ...memory.living.filter(m => ENEMY_TYPES[m.type]?.boss)];
+  }
   for (const m of memory.living) {
-    if (!ENEMY_TYPES[m.type] || !Number.isFinite(m.x) || !Number.isFinite(m.z)) continue;
+    if (!ENEMY_TYPES[m.type]) continue;
     // Não surgir em cima da chegada ou dentro de obstáculos (inclui saves antigos).
-    const relocate = repopulate && (Math.hypot(m.x - player.pos.x, m.z - player.pos.z) < 8 || !freeSpot(m.x, m.z, ENEMY_TYPES[m.type].r));
+    const relocate = !Number.isFinite(m.x) || !Number.isFinite(m.z) || (repopulate && (Math.hypot(m.x - player.pos.x, m.z - player.pos.z) < 8 || !freeSpot(m.x, m.z, ENEMY_TYPES[m.type].r)));
     const e = spawnEnemy(m.type, relocate ? undefined : m.x, relocate ? undefined : m.z, { alert: false, ambientIdx: Number.isInteger(m.ambientIdx) ? m.ambientIdx : undefined });
     e.hp = Math.min(e.maxHp, Math.max(1, Number.isFinite(m.hp) ? m.hp : e.maxHp));
     e.lastHp = e.hp; // HP antigo de save não equivale a um novo disparo
@@ -182,6 +188,10 @@ function spawnAreaContents(a, repopulate = false) {
   a.pickups.forEach((p) => { if (!s.taken.includes(p.id)) spawnPickup(p.kind, p.x, p.z, { id: p.id, y: p.kind === 'shotgun' ? 1.15 : p.kind === 'crate' ? 0.32 : 0.6 }); });
 }
 function setupSurvivor(a) {
+  if (F.limaRescued || (F.limaAtQuay && a.id === 'patio')) { hideSurvivor(); return; }
+  if (a.id === 'porto' && F.heliCode && !F.limaRescued) {
+    F.limaAtQuay = true; survivor.name = 'Dra. Helena Lima'; resetSurvivor(a.quayPad.x - 7, a.quayPad.z, true); return;
+  }
   if (a.id !== 'patio') { hideSurvivor(); return; }
   survivor.name = a.survivor.name;
   if (F.heliCode) { resetSurvivor(CONTROL_SPOT.x, CONTROL_SPOT.z, true); return; }
@@ -206,6 +216,11 @@ function syncGates(a, instant) {
 /** Entra na área `id`. Vindo por uma porta (doorId da área de destino) ou num ponto fixo (at). */
 export function enterArea(id, doorId, at) {
   const a = AREA[id], prev = D.area;
+  if (!a) return false;
+  if (prev && prev !== a && !canTravel(prev.id, id, F) && !(id === 'portoanil' && F.act3 && canStartAct3({ ...F, act3: false }))) return false;
+  // Não deixar callbacks de falas/cartões ou ondas da área anterior contaminarem a seguinte.
+  if (prev !== a) { timers.length = 0; story.clearSpeech(); }
+  if (id === 'margem' && !F.act2) { F.act1Complete = true; F.act2 = true; F.rescued = false; }
   if (prev) {
     rememberAreaThreats(prev);
     if (prev.id === 'patio' && survivor.visible) D.survivorMemory = snapshotSurvivor();
@@ -216,7 +231,10 @@ export function enterArea(id, doorId, at) {
   // v7: saiu do ninho com o Brandt solto → ele foge de barco
   if (prev && prev.id === 'ninho' && prev !== a && F.nestClear && !F.brandt) brandtEscaped(false);
   D.fuse = 0;
-  activateArea(a, prev && prev !== a && isBuilt(prev) ? prev : null);
+  // startCampaign zera D.area: esconder só prev deixava o cenário antigo sobreposto ao novo.
+  for (const other of AREAS) if (isBuilt(other)) other.ctx.group.visible = false;
+  spots[0].override = null; bossGlow(null);
+  activateArea(a, null);
   D.area = a; G.area = id;
   clearEnemies(); clearPickups(); clearFx(); ui.clearFloaters(); D.queue = []; D.boss = null;
   const p = at || (doorId ? doorArrival(a, doorId) : a.start || doorArrival(a, a.doors[0].id));
@@ -240,13 +258,15 @@ export function enterArea(id, doorId, at) {
   if (F.power) (a.refs.powerLamps || []).forEach((L) => { L.on = true; });
   if (a.refs.heli) { a.refs.heli.group.visible = false; }
   D.heli = null; D.barkT = 10;
+  if (id === 'ninho' && F.act2Win) D.heli = { t: 20, landing: true, land: 1, chopT: 0 };
+  if (id === 'porto' && F.limaAtQuay && !F.limaRescued) setTimeoutGame(1, () => story.say(story.LINES.lima_quay, 'lima_quay', true));
   if (D.lockdown) endLockdown(true);
   // falas de chegada (uma vez por campanha)
   const lines = story.LINES['enter_' + id];
   if (lines && !(id === 'lab' && F.power) && !(id === 'patio' && F.heliCode)) setTimeoutGame(first ? 2.2 : 0.8, () => { if (D.area === a) story.say(lines, 'enter_' + id, true); });
   if (id === 'heliponto' && !F.bossDead && !story.S.said.has('card_boss')) { story.S.said.add('card_boss'); setTimeoutGame(0.9, () => cardWhenFree(story.BEATS.boss)); }
   // v7: primeira vez na margem = começa o Ato 2 (o resgate do penhasco deixa de valer)
-  if (id === 'margem' && !F.act2) { F.act2 = true; ui.banner('ATO 2 — RIO ABAIXO', a.sub, 3.4); setTimeoutGame(0.6, () => cardWhenFree(story.ACT2_INTRO)); }
+  if (id === 'margem' && prev && actOf(prev.id) === 1) { ui.banner('ATO 2 — RIO ABAIXO', a.sub, 3.4); setTimeoutGame(0.6, () => cardWhenFree(story.ACT2_INTRO)); }
   // v11: Ato 3 — faixa de abertura e relógio de contaminação ao chegar na captação
   if (id === 'portoanil' && F.act3 && !F.act3Banner) { F.act3Banner = true; ui.banner('ATO 3 — PORTO ANIL', a.sub, 3.6); }
   if (id === 'captacao' && F.act3 && F.contamT === undefined && !F.valvesClosed) F.contamT = CONTAM_SECONDS;
@@ -255,6 +275,7 @@ export function enterArea(id, doorId, at) {
   // encontros de entrada
   for (const e of a.encounters) if (e.on === 'enter' && (e.revisitFrom ? canTriggerRevisit(e, { from: prev?.id, first, flags: F, fired: D.enc }) : canFire(e, first))) fireEncounter(e);
   D.mapDirty = true;
+  return true;
 }
 function canFire(e, first) {
   if (D.enc.has(e.id)) return false;
@@ -266,6 +287,7 @@ function fireEncounter(e) {
   D.enc.add(e.id);
   if (e.revisitFrom) { D.queue.push(...scheduleRevisit(e)); return; }
   const base = e.delay || 0;
+  if (e.boss && ((D.area.id === 'heliponto' && F.bossDead) || (D.area.id === 'ninho' && F.nestClear) || (D.area.id === 'sede' && F.primDead))) return;
   if (e.boss && D.area.id === 'sede') { F.primFight = true; syncGates(D.area, false); setTimeoutGame(base + 1.5, () => story.say(story.LINES.prim_start, 'prim_start', true)); }
   else if (e.boss && D.area.id === 'ninho') { F.nestFight = true; syncGates(D.area, false); setTimeoutGame(base + 1.5, () => story.say(story.LINES.nest_start, 'nest_start', true)); }
   else if (e.boss) { F.bossFight = true; syncGates(D.area, false); setTimeoutGame(base + 1.5, () => story.say(story.LINES.boss_start, 'boss_start', true)); }
@@ -363,7 +385,8 @@ function startCore(it) {
   story.say(story.LINES.core_start, 'core_start', true);
 }
 function finishAct3(choice) {
-  F.act3Choice = choice; F.act3Win = true; G.score += SCORE.OBJECTIVE * 2; D.objectives++; D.mapDirty = true;
+  if (!F.act3 || !F.act2Win || !F.nestClear || !F.valvesClosed || !F.primDead || F.act3Resolved) return false;
+  F.act3Choice = choice; F.act3Resolved = true; G.score += SCORE.OBJECTIVE * 2; D.objectives++; D.mapDirty = true;
   if (choice === 'destroy') {
     const a = D.area; sfx.explosion(); setTimeoutGame(0.4, () => sfx.explosion());
     flashAt(0, 2, -15, 0xffa040, 320); shockwave(0, -15, 9, 0xffa040); burst(0, 1, -15, 'fire', 40, 6); G.shake = Math.max(G.shake, 1.1);
@@ -371,12 +394,14 @@ function finishAct3(choice) {
     ui.banner('LABORATÓRIO DESTRUÍDO', 'O núcleo do Projeto RAIZ desaba — saia agora', 3.4);
   } else ui.banner('PROVAS NO AR', 'Os arquivos do Conselho chegaram a todas as rádios da costa', 3.4);
   story.say(story.LINES[choice === 'destroy' ? 'core_done' : 'uplink_done'], 'act3_done', true);
-  setTimeoutGame(4.5, () => { if (onWin) onWin(); });
+  // A escolha não teleporta nem termina dentro do bunker: ainda é preciso chegar à extração.
+  D.queue = [];
+  return true;
 }
 /** Monta o objeto de save (mesmo formato de saveGame). */
 function buildSave(areaId, at, flags) {
   return {
-    v: SAVE_V, cleanStreak: { ...G.cleanStreak }, area: areaId, at, ep: G.ep, epTotal: G.epTotal,
+    v: SAVE_V, difficulty: G.difficulty, cleanStreak: { ...G.cleanStreak }, area: areaId, at, ep: G.ep, epTotal: G.epTotal,
     flags: { ...flags, escort: !!flags.escort, bossFight: false, nestFight: false, primFight: false },
     survivor: D.survivorMemory, st: D.st, enc: [...D.enc],
     bag: { ...snapshotBag(), hp: PLAYER.HP }, objectives: D.objectives, story: story.storySave(),
@@ -385,18 +410,45 @@ function buildSave(areaId, at, flags) {
 }
 /** Grava o ponto de partida do Ato 3 (cais de Porto Anil). */
 function act3Checkpoint() {
+  if (!F.act2Win || !F.nestClear) return false;
   const s0 = AREA.portoanil.start;
   return writeAct3(buildSave('portoanil', { ...s0 }, { ...F, act3: true }));
 }
 /** Escolha depois do resgate do Ato 2: o Garça-1 leva a Marina até Porto Anil. */
 function startAct3() {
-  if (F.act3) return;
-  F.act3 = true; D.mapDirty = true; story.clearSpeech();
-  act3Checkpoint();
-  cardWhenFree(story.ACT3_INTRO, () => {
+  if (!canStartAct3(F) || D.trans || D.event || D.area?.id !== 'ninho' || (D.heli?.land || 0) < 1) return false;
+  if (!act3Checkpoint()) ui.feed('Não foi possível gravar o checkpoint do Ato 3. O jogo continuará nesta sessão.', '#ffb070');
+  const T = D.trans = { kind: 'chapter', t: 0, ready: false, switched: false, destination: AREA.portoanil };
+  G.transitioning = true; clearInput(); story.clearSpeech();
+  requestAnimationFrame(() => setTimeout(() => {
+    if (D.trans !== T) return;
+    try {
+      if (!isBuilt(T.destination)) buildArea(T.destination);
+      let settled = false;
+      const done = () => { if (!settled && D.trans === T) { settled = true; T.ready = true; } };
+      setTimeout(done, 2500); shaderWarmup.request(T.destination).then(done, done);
+    } catch (e) { T.error = e; }
+  }, 0));
+  return true;
+}
+function updateChapterTransition(dt) {
+  const T = D.trans;
+  if (T.error) { D.trans = null; G.transitioning = false; ui.setFade(0); ui.feed('Falha ao carregar Porto Anil. Fale com o piloto para tentar novamente.', '#ff8a70'); return; }
+  T.t += dt;
+  if (!T.switched) {
+    ui.setFade(Math.min(1, T.t / 0.6));
+    if (T.t < 0.6 || !T.ready) return;
+    F.act3 = true; F.act3Banner = false;
     enterArea('portoanil'); streamAround(D.area);
-    writeSave(buildSave('portoanil', { ...AREA.portoanil.start }, F)); ui.setHasSave(true);
-  });
+    if (!writeSave(buildSave('portoanil', { ...AREA.portoanil.start }, F))) ui.feed('Não foi possível salvar a chegada ao Ato 3.', '#ffb070');
+    else ui.setHasSave(true);
+    T.switched = true; T.t = 0;
+  } else {
+    ui.setFade(Math.max(0, 1 - T.t / 0.6));
+    if (T.t < 0.6) return;
+    D.trans = null; G.transitioning = false; ui.setFade(0); clearInput();
+    story.showCard(story.ACT3_INTRO);
+  }
 }
 // ---------- v7: o Brandt e as jaulas ----------
 function setupBrandt(a) {
@@ -526,7 +578,7 @@ export function skipPassage() {
 }
 function updateTransition(dt) {
   const T = D.trans;
-  if (T.kind === 'boarding') { updateBoarding(dt); return; }
+  if (T.kind === 'chapter') { updateChapterTransition(dt); return; }
   if (T.sceneActive) {
     const progress = advancePassage(T.sceneTime, dt, T.scene.duration);
     T.sceneTime = progress.time;
@@ -572,18 +624,29 @@ onQuality(() => {
   if (G.state !== 'loading') streamAround(D.area);
 });
 export function warmArea(a, shaders = true) {
+  if (!a || actOf(a.id) !== currentAct(F)) return;
   if (isBuilt(a)) { if (shaders && G.state !== 'loading') shaderWarmup.request(a); return; }
   idle(() => {
+    if (actOf(a.id) !== currentAct(F)) return; // tarefa ociosa de um ato já encerrado
     if (!isBuilt(a)) { buildArea(a); streamStats.bgBuilds++; }
     if (shaders && G.state !== 'loading') shaderWarmup.request(a);
   }, 'build-' + a.id);
 }
 export function streamAround(a) {
   if (!a) return;
-  const keep = new Set([a, ...neighbors(a)]);
+  const act = actOf(a.id);
+  const allowed = AREAS.filter(x => actOf(x.id) === act);
+  const keep = new Set(quality.p.stream ? [a, ...neighbors(a).filter(x => actOf(x.id) === act)] : allowed);
   for (const n of keep) warmArea(n);
-  if (!quality.p.stream) { AREAS.forEach((x) => warmArea(x)); return; }
-  for (const x of AREAS) if (!keep.has(x) && isBuilt(x) && !shaderWarmup.isBusy(x)) { unloadArea(x); streamStats.unloads++; }
+  for (const x of AREAS) if (!keep.has(x) && isBuilt(x)) {
+    x.ctx.group.visible = false;
+    if (!shaderWarmup.isBusy(x)) { unloadArea(x); streamStats.unloads++; }
+    else {
+      const ctx = x.ctx;
+      const retire = () => { if (D.area !== x && actOf(x.id) !== currentAct(F) && x.ctx === ctx && !shaderWarmup.isBusy(x)) { unloadArea(x); streamStats.unloads++; } };
+      shaderWarmup.request(x).then(retire, retire);
+    }
+  }
 }
 // reconstruiu: reaplica estado da campanha que mora nos objetos 3D
 onAreaBuilt((a) => {
@@ -614,6 +677,8 @@ function checkDoors(dt) {
   for (const d of D.area.doors) if (nearDoor(d, 0)) { pushBack(d); return; }
 }
 function doorBlocked(d) {
+  if (actOf(d.to) !== currentAct(F) && !canTravel(D.area.id, d.to, F)) return 'Ato anterior encerrado — prossiga para o objetivo deste ato';
+  if (D.event && ['rescue', 'npcRescue', 'npcBoard', 'npcDepart'].includes(D.event.kind)) return 'Aguarde o resgate terminar';
   if (isLocked(D.area.id, d.id)) return LOCK_MSG[d.lock] || 'Porta bloqueada';
   if (D.event && D.event.kind === 'gen') return 'Termine de ligar o gerador!';
   if (D.event && D.event.kind === 'code') return 'Espere a Dra. Lima terminar o código!';
@@ -679,6 +744,18 @@ function startHack(term) {
 }
 function updateEvent(dt) {
   const E = D.event; if (!E) return;
+  if (E.kind === 'npcBoard') {
+    if ((D.heli?.land || 0) < 1) return;
+    survivor.goal = { x: D.area.quayPad.x - 1.9, z: D.area.quayPad.z + 0.25 };
+    if (survivor.downT > 0 || Math.hypot(survivor.pos.x - survivor.goal.x, survivor.pos.z - survivor.goal.z) > 0.8) return;
+    hideSurvivor(); F.limaRescued = true; objectiveDone('Dra. Lima evacuada — Marina continua a missão pelo portão');
+    D.event = { kind: 'npcDepart', t: 0 }; return;
+  }
+  if (E.kind === 'npcDepart') {
+    E.t += dt; if (D.heli) D.heli.departure = Math.min(1, E.t / 3);
+    if (E.t >= 3) { D.event = null; spots[0].override = null; D.area.refs.heli.group.visible = false; D.heli = null; }
+    return;
+  }
   if (E.ep0 === undefined) { E.ep0 = G.epTotal; E.dmg0 = G.dmgTaken || 0; } // v10: referência do bônus "sem dano"
   const near = Math.hypot(player.pos.x - E.x, player.pos.z - E.z) < E.range;
   if (near || E.kind === 'code') E.t += dt;
@@ -687,7 +764,7 @@ function updateEvent(dt) {
     const W = (E.waves || WAVES[E.kind])[E.bi++];
     W.forEach((s) => D.queue.push({ ...s, t: s.delay || 0, eventKind: E.kind }));
   }
-  if (E.kind === 'rescue') {
+  if (E.kind === 'rescue' || E.kind === 'npcRescue') {
     if (!E.s1 && E.t > 4) { E.s1 = true; story.say(story.LINES[E.lines ? E.lines[0] : 'rescue_mid']); }
     if (!E.s2 && E.t > E.dur - 5.5) { E.s2 = true; story.say(story.LINES[E.lines ? E.lines[1] : 'rescue_near']); }
   }
@@ -720,16 +797,20 @@ function updateEvent(dt) {
   } else if (E.kind === 'charges') {
     D.fuse = 6; sfx.alarm();
     ui.announce('Cargas armadas! Afaste-se do ninho — 6 s', '#ff6050');
+  } else if (E.kind === 'npcRescue') {
+    D.event = { kind: 'npcBoard', t: 0 };
+    if (D.heli) { D.heli.landing = true; D.heli.heading = 0; }
   } else if (E.kind === 'rescue') {
     const nestArea = D.area.id === 'ninho';
-    if (nestArea) { F.act2Win = true; if (!F.brandt) F.brandt = 'escaped'; }
+    if (nestArea && F.nestClear) { F.act2Win = true; F.limaRescued = true; if (!F.brandt) F.brandt = 'escaped'; }
     F.rescued = true; G.score += SCORE.OBJECTIVE * 2; D.objectives++;
     if (D.heli) D.heli.landing = true;
     // v11: no ninho o Garça-1 pousa e o jogador ESCOLHE: voar para casa (final do Ato 2) ou Porto Anil (Ato 3)
     if (nestArea) {
-      ui.banner('O GARÇA-1 POUSOU', 'E na marca H: voar para casa · E junto ao piloto: Porto Anil', 4.5);
+      act3Checkpoint();
+      ui.banner('ATO 2 CONCLUÍDO', 'Espere o pouso; E junto ao piloto carrega Porto Anil (Ato 3)', 4.5);
       story.say(story.LINES.act3_offer, 'act3_offer', true); D.mapDirty = true;
-    } else startBoarding();
+    }
   } else if (E.kind === 'flood') {
     F.valvesClosed = true; if (F.contamT > 0) F.contamOk = true;
     floodGateLook(D.area); syncGates(D.area, false); sfx.slam(); G.shake = Math.max(G.shake, 0.4);
@@ -743,19 +824,18 @@ function updateEvent(dt) {
 /** Inicia a extração apenas por interação explícita com o sinalizador da marca H. */
 function startRescue() {
   const a = D.area;
-  if (!a || D.trans || D.event || F.rescued) return false;
-  const nest = a.id === 'ninho';
-  if (nest ? (!F.nestClear || D.fuse > 0) : (a.id !== 'heliponto' || !F.bossDead || F.act2)) return false;
-  const h = a.helipad;
+  if (!a || D.trans || D.event) return false;
+  const nest = a.id === 'ninho', npc = a.id === 'porto' && F.heliCode && !F.limaRescued;
+  if (!npc && !(nest && F.act2 && F.nestClear && !F.act2Win && D.fuse <= 0)) return false;
+  const h = npc ? a.quayPad : a.helipad;
   if (!h || Math.hypot(player.pos.x - h.x, player.pos.z - h.z) > h.r) return false;
-  D.event = { kind: 'rescue', t: 0, dur: 14, bursts: [1, 5, 9], bi: 0, x: h.x, z: h.z, range: h.r + 3, warnT: 0 };
-  if (nest) Object.assign(D.event, { waves: RESCUE2_WAVES, warn: 'Volte para a marca H da clareira!', lines: ['rescue2_mid', 'rescue_near'] });
-  sfx.alarm(); ui.announce('Sinalizador acionado! Aguente até o helicóptero chegar', '#ffe070');
+  D.event = { kind: npc ? 'npcRescue' : 'rescue', t: 0, dur: 14, bursts: [1, 5, 9], bi: 0, x: h.x, z: h.z, range: h.r + 3, warnT: 0,
+    waves: nest ? RESCUE2_WAVES : RESCUE_WAVES, warn: 'Proteja a zona de resgate!', lines: [nest ? 'rescue2_mid' : 'rescue_mid', 'rescue_near'] };
+  sfx.alarm(); ui.announce(npc ? 'Evacuação da Dra. Lima — Marina permanece no vale' : 'Resgate do ninho — concluir Ato 2', '#ffe070');
   flashAt(h.x, 1, h.z, 0xff3020, 160);
-  story.say(story.LINES[nest ? 'rescue2_start' : 'rescue_start'], nest ? 'rescue2_start' : 'rescue_start', true);
-  if (a.refs.heli) D.heli = { t: 0, landing: false, chopT: 0 };
-  D.mapDirty = true;
-  return true;
+  story.say(story.LINES[nest ? 'rescue2_start' : 'rescue_start'], null, true);
+  if (a.refs.heli) D.heli = { t: 0, landing: false, chopT: 0, heading: 0 };
+  D.mapDirty = true; return true;
 }
 
 // ---------- interação (tecla E) ----------
@@ -766,10 +846,10 @@ function interactables() {
   if (a.id === 'patio' && survivor.visible && !survivor.following && !F.heliCode) out.push({ kind: 'survivor', x: survivor.pos.x, z: survivor.pos.z });
   if (a.id === 'patio' && survivor.visible && F.heliCode && !D.event) out.push({ kind: 'talk', x: survivor.pos.x, z: survivor.pos.z });
   for (const l of a.refs.logs || []) out.push({ kind: 'log', x: l.x, z: l.z, l });
-  // A extração é uma decisão: primeiro interaja com a marca H (o rio continua opcional).
-  if (!D.event && !F.rescued && a.helipad && ((a.id === 'heliponto' && F.bossDead && !F.act2) || (a.id === 'ninho' && F.nestClear && D.fuse <= 0))) {
-    out.push({ kind: 'rescue', x: a.helipad.x, z: a.helipad.z, near: a.helipad.r });
+  if (!D.event && ((a.id === 'porto' && F.heliCode && !F.limaRescued) || (a.id === 'ninho' && F.nestClear && !F.act2Win && D.fuse <= 0))) {
+    const h = a.quayPad || a.helipad; out.push({ kind: 'rescue', x: h.x, z: h.z, near: h.r });
   }
+  if (a.id === 'portoanil' && F.act3Resolved && !F.act3Win) out.push({ kind: 'finalEvac', x: a.start.x, z: a.start.z, near: 3 });
   // v6: segredo — depois de ler o rádio da Tellus-2 (log9), dá para transmitir as provas no canal aberto
   if (a.id === 'heliponto' && story.S.logs.has('log9') && !F.broadcast) {
     const l = (a.refs.logs || []).find((x) => x.id === 'log9');
@@ -781,8 +861,7 @@ function interactables() {
     if (!F.nestDestroyed && !D.event && !(D.fuse > 0)) out.push({ kind: 'charges', x: a.nest.x, z: a.nest.z - 3.4 });
   }
   // v11: escolha depois do resgate do Ato 2 (helicóptero pousado)
-  if (a.id === 'ninho' && F.act2Win && !F.act3 && !D.event && a.helipad) {
-    out.push({ kind: 'flyhome', x: a.helipad.x, z: a.helipad.z, near: a.helipad.r - 0.6 });
+  if (a.id === 'ninho' && canStartAct3(F) && !D.event && a.helipad && (D.heli?.land || 0) >= 1) {
     out.push({ kind: 'act3go', x: a.helipad.x + 4.2, z: a.helipad.z + 2.6 });
   }
   if (a.id === 'sede' && F.primDead && !F.act3Choice && !D.event && a.core) out.push({ kind: 'core', x: a.core.x, z: a.core.z + 2 });
@@ -820,10 +899,10 @@ function promptFor(it) {
       if (F.campGate) return { text: 'Portão sul liberado', locked: true };
       if (D.event) return { text: 'Quebrando a senha...', locked: true };
       return { text: 'Quebrar a senha do portão sul (o alarme atrai a matilha)' };
-    case 'rescue': return { text: D.area.id === 'ninho' ? 'Acionar sinalizador — concluir o Ato 2' : 'Acionar sinalizador — encerrar o Ato 1', urgent: true };
+    case 'rescue': return { text: D.area.id === 'ninho' ? 'Acionar sinalizador — concluir o Ato 2' : 'Evacuar a Dra. Lima (Marina continua pelo portão)', urgent: true };
+    case 'finalEvac': return { text: 'Embarcar no Garça-1 — FIM DA CAMPANHA', urgent: true };
     case 'arrest': return { text: '⛓ Prender Otávio Brandt', urgent: true };
     case 'charges': return { text: '💣 Plantar cargas no ninho (opcional)' };
-    case 'flyhome': return { text: '🚁 Voar para casa — encerrar no Ato 2', urgent: true };
     case 'act3go': return { text: '🚁 Pedir ao piloto: Porto Anil — a captação (Ato 3)', urgent: true };
     case 'valves':
       if (F.valvesClosed) return { text: 'Comportas fechadas', locked: true };
@@ -868,7 +947,7 @@ export function interact() {
   else if (it.kind === 'hack' && !F.campGate && !D.event) startHack(it);
   else if (it.kind === 'arrest' && !F.brandt) arrestBrandt();
   else if (it.kind === 'charges' && !F.nestDestroyed && !D.event) startCharges(it);
-  else if (it.kind === 'flyhome' && !F.act3) { act3Checkpoint(); if (onWin) onWin(); }
+  else if (it.kind === 'finalEvac' && canFinishCampaign(F)) { F.act3Win = true; clearEnemies(); D.queue = []; if (onWin) onWin(); }
   else if (it.kind === 'act3go') startAct3();
   else if (it.kind === 'valves' && !F.valvesClosed && !D.event) startFlood(it);
   else if (it.kind === 'uplink' && F.primDead && !F.act3Choice && !D.event) startUplink(it);
@@ -913,7 +992,7 @@ function saveGame(term) {
     // v7: v3 — corrige o save v2, que perdia flags/estado das áreas/encontros (estavam dentro de um comentário)
     // v10: v4 — Pontos de Extinção (ep/epTotal) e upgrades da loja (bag.up)
     // v11: v6 — flags do Ato 3 (act3, valvesClosed, contamT, primDead...). Saves v5 carregam com padrões seguros (ausente = falso).
-    v: SAVE_V, cleanStreak: { ...G.cleanStreak }, area: a.id, at, ep: G.ep, epTotal: G.epTotal,
+    v: SAVE_V, difficulty: G.difficulty, cleanStreak: { ...G.cleanStreak }, area: a.id, at, ep: G.ep, epTotal: G.epTotal,
     flags: { ...F, escort: !!F.escort, bossFight: false, nestFight: false, primFight: false },
     survivor: a.id === 'patio' ? snapshotSurvivor() : D.survivorMemory,
     st: D.st, enc: [...D.enc],
@@ -926,25 +1005,27 @@ function saveGame(term) {
   ui.banner('PROGRESSO SALVO', 'Vida restaurada — ' + a.name, 2.2);
   return true;
 }
-const SAVE_V = 6; // formato compatível; restoreBag migra reservas -1/Infinity para munição finita
-export function hasSave() { return !!readSave(); }
+const SAVE_V = 7; // formato compatível; restoreBag migra reservas -1/Infinity para munição finita
+export function hasSave() { return !!normalizeCampaignSave(readSave()); }
 /** v11: existe ponto de partida do Ato 3? */
-export function hasAct3() { const s = readAct3(); return !!(s && AREA[s.area]); }
+export function hasAct3() { const s = normalizeCampaignSave(readAct3()); return !!(s && actOf(s.area) === 3 && s.flags.act2Win && s.flags.nestClear); }
 
 /** Novo jogo (cais) ou continuar do último terminal. */
 export function startCampaign(fromSave) {
-  const s = fromSave === 'act3' ? readAct3() : fromSave ? readSave() : null;
+  const s = normalizeCampaignSave(fromSave === 'act3' ? readAct3() : fromSave ? readSave() : null);
+  if (s) G.difficulty = s.difficulty;
   clearEnemies(); clearPickups(); clearFx(); resetCombat(); ui.clearFloaters(); ui.clearMessages(); timers.length = 0;
   resetPlayer(); resetCampaign(); D.area = null; G.cleanStreak = normalizeStreak(s && s.cleanStreak);
   Object.assign(G, { score: 0, kills: 0, shots: 0, hits: 0, elapsed: 0, shake: 0, saves: 0, ep: 0, epTotal: 0, dmgTaken: 0 });
-  AREAS.forEach((a) => { if (a.refs && a.refs.powerLamps) a.refs.powerLamps.forEach((L) => { L.on = false; }); });
+  AREAS.forEach((a) => { if (a.ctx) a.ctx.group.visible = false; if (a.refs && a.refs.heli) a.refs.heli.group.visible = false; if (a.refs && a.refs.powerLamps) a.refs.powerLamps.forEach((L) => { L.on = false; }); });
   story.resetStory(s && s.story);
   if (s && !AREA[s.area]) { console.warn('save com área desconhecida — ignorado'); return startCampaign(false); }
   if (s) {
     Object.assign(F, s.flags || {});
     D.survivorMemory = s.survivor || null;
     for (const id in s.st || {}) if (D.st[id]) Object.assign(D.st[id], s.st[id]);
-    (s.enc || []).forEach((x) => D.enc.add(x));
+    const futureEnc = new Set(AREAS.filter(a => actOf(a.id) > currentAct(F)).flatMap(a => a.encounters.map(e => e.id)));
+    (s.enc || []).filter(x => !futureEnc.has(x)).forEach((x) => D.enc.add(x));
     // v11: saves anteriores ao v6 não têm flags do Ato 3 — ausentes valem falso; normaliza o resto
     if (!s.v || s.v < 6) F.primFight = false;
     if (F.contamT !== undefined) F.contamT = Math.max(0, Number(F.contamT) || 0);
@@ -959,7 +1040,8 @@ export function startCampaign(fromSave) {
     Object.assign(G, s.stats);
     G.ep = Math.max(0, s.ep | 0); G.epTotal = Math.max(G.ep, s.epTotal | 0); // saves v1–v3: começam com 0 PE
     setPower(!!F.power); setSideDoor(!!F.power, true);
-    enterArea(s.area, null, s.at);
+    const at = s.at && Number.isFinite(s.at.x) && Number.isFinite(s.at.z) && s.at.x > AREA[s.area].bounds.minX + player.r && s.at.x < AREA[s.area].bounds.maxX - player.r && s.at.z > AREA[s.area].bounds.minZ + player.r && s.at.z < AREA[s.area].bounds.maxZ - player.r ? s.at : null;
+    enterArea(s.area, null, at);
     if (fromSave === 'act3') { F.act3Banner = true; ui.banner('ATO 3 — PORTO ANIL', 'O Garça-1 deixa a Marina no cais da cidade', 3.4); }
     else ui.banner('JOGO CARREGADO', AREA[s.area].name, 2.2);
   } else { setPower(false); setSideDoor(false, true); enterArea('porto'); }
@@ -988,7 +1070,7 @@ enemyEvents.onKilled = (e) => {
   } else if (e.cfg.boss) {
     F.bossFight = false; F.bossDead = true; D.boss = null; syncGates(D.area, false);
     // a matilha foge quando o alfa cai
-    sfx.bossRoar(); ui.banner('COLOSSO ABATIDO', 'E na marca H: helicóptero para o Ato 2 · ou siga pelo portão leste!', 4.2);
+    sfx.bossRoar(); ui.banner('COLOSSO ABATIDO', 'Ato 1: portão NORTE liberado — continue a pé para o rio (Ato 2)', 4.2);
     objectiveDone(); G.score += SCORE.OBJECTIVE;
     bossGlow(null); flashAt(e.pos.x, 2, e.pos.z, 0xff6020, 260); G.shake = Math.max(G.shake, 0.9);
     setTimeoutGame(1.4, () => story.say(story.LINES.boss_dead, 'boss_dead', true));
@@ -1057,7 +1139,7 @@ export function updateDirector(dt) {
   // streaming: chegando perto de um portão cuja área foi descarregada → reconstrói em segundo plano
   if ((D.streamT = (D.streamT || 0) - dt) <= 0) {
     D.streamT = 0.5;
-    for (const d of a.doors) if (!isBuilt(AREA[d.to]) && nearDoor(d, 12)) warmArea(AREA[d.to]);
+    for (const d of a.doors) if (actOf(d.to) === currentAct(F) && !isBuilt(AREA[d.to]) && nearDoor(d, 12)) warmArea(AREA[d.to]);
   }
   // portões animados
   for (const d of a.doors) {
@@ -1130,7 +1212,7 @@ export function updateDirector(dt) {
   const [txt] = objective(); if (txt !== D.lastObj) { D.lastObj = txt; D.mapDirty = true; }
 }
 
-const METER_LBL = { gen: 'ENERGIA', code: 'CÓDIGO DO PORTÃO', rescue: 'RESGATE A CAMINHO', hack: 'SENHA DO PORTÃO', charges: 'CARGAS NO NINHO',
+const METER_LBL = { gen: 'ENERGIA', code: 'CÓDIGO DO PORTÃO', rescue: 'RESGATE A CAMINHO', npcRescue: 'EVACUAÇÃO DA DRA. LIMA', npcBoard: 'EMBARQUE DA DRA. LIMA', npcDepart: 'DECOLAGEM', hack: 'SENHA DO PORTÃO', charges: 'CARGAS NO NINHO',
   flood: 'COMPORTAS', uplink: 'TRANSMISSÃO', core: 'CARGAS NO NÚCLEO' };
 /** Dados do HUD vindos do diretor. */
 export function hudData() {
@@ -1145,9 +1227,11 @@ export function hudData() {
     const b = a.bounds, x = d.side === 'W' ? b.minX : d.side === 'E' ? b.maxX : d.at, z = d.side === 'N' ? b.minZ : d.side === 'S' ? b.maxZ : d.at;
     points.push({ x, z, col: isLocked(a.id, d.id) ? '#ff4040' : '#e0e0e0' });
   }
+  if (a.id === 'portoanil' && F.act3Resolved) points.push({ x: a.start.x, z: a.start.z, col: '#ffe070' });
+  if (a.id === 'porto' && F.heliCode && !F.limaRescued) points.push({ x: a.quayPad.x, z: a.quayPad.z, col: '#ffe070' });
   if (survivor.visible) points.push({ x: survivor.pos.x, z: survivor.pos.z, col: '#60ff90' });
   if (a.core && F.primDead && !F.act3Choice) points.push({ x: a.core.x, z: a.core.z, col: '#ffb040' });
-  if (a.helipad && (a.id === 'ninho' ? F.nestClear : F.bossDead && !F.act2)) points.push({ x: a.helipad.x, z: a.helipad.z, col: '#ffe070' });
+  if (a.helipad && a.id === 'ninho' && F.nestClear) points.push({ x: a.helipad.x, z: a.helipad.z, col: '#ffe070' });
   if (brandt.visible) points.push({ x: brandt.pos.x, z: brandt.pos.z, col: '#ff6a40' });
   if (a.nest && !F.nestDestroyed) points.push({ x: a.nest.x, z: a.nest.z, col: '#40ff80' });
   for (const l of a.refs.logs || []) if (!story.S.logs.has(l.id)) points.push({ x: l.x, z: l.z, col: '#60e0ff' });
@@ -1157,14 +1241,14 @@ export function hudData() {
   if (survivor.visible && survivor.downT > 0) sub = `⚠ ${survivor.name} caída — chegue perto e aperte E`;
   else if (a.id !== target && !D.trans) { const w = pathHint(a.id, target); if (w) sub = sub || w; }
   if (a.id === 'ninho' && F.nestClear && !F.brandt && D.brandtT > 0) sub = `⛓ Brandt no cais (leste) — o barco liga em ${Math.ceil(D.brandtT)} s`;
-  if (F.bossDead && !F.act2 && !F.rescued && a.id === 'heliponto' && !D.event) sub = sub || 'E na marca H: helicóptero para o Ato 2 · portão leste: seguir a pé';
+  if (F.bossDead && !F.act2 && !F.rescued && a.id === 'heliponto' && !D.event) sub = sub || 'Portão norte: seguir para o rio · opcional: evacue a doutora no cais';
   if (F.act3 && !F.valvesClosed && F.contamT > 0) sub = `☣ Contaminação chega à cidade em ${Math.ceil(F.contamT)} s` + (sub ? ' · ' + sub : '');
   else if (F.act3 && F.contaminated && !F.valvesClosed) sub = '☣ A água já desce para a cidade — feche as comportas mesmo assim' + (sub ? ' · ' + sub : '');
   const E = D.event;
   const dirty = D.mapDirty; D.mapDirty = false;
   return {
-    area: a, objective: obj, prompt, boss: D.boss && !D.boss.dead ? D.boss : null,
-    meter: E ? { label: METER_LBL[E.kind] + ' ' + Math.floor(100 * Math.min(1, E.t / E.dur)) + '%', k: Math.min(1, E.t / E.dur) } : null,
+    area: a, objective: `ATO ${currentAct(F)} · ${difficultyProfile(G.difficulty).label} — ${obj}`, prompt, boss: D.boss && !D.boss.dead ? D.boss : null,
+    meter: E ? { label: METER_LBL[E.kind] + (E.dur ? ' ' + Math.floor(100 * Math.min(1, E.t / E.dur)) + '%' : ''), k: E.dur ? Math.min(1, E.t / E.dur) : 1 } : null,
     visited: D.visited, isLocked, markers, points, mapDirty: dirty, sub,
     logs: story.S.logs.size, logsTotal: F.act3 ? story.TOTAL_LOGS : F.act2 ? story.ACT1_LOGS.length + story.ACT2_LOGS.length : story.ACT1_LOGS.length,
   };
@@ -1176,7 +1260,7 @@ const SIDE_PT = { N: 'norte', S: 'sul', E: 'leste', W: 'oeste' };
 function pathHint(from, to) {
   if (!AREA[to]) return '';
   const prev = { [from]: null }, q = [from];
-  while (q.length) { const c = q.shift(); if (c === to) break; for (const d of AREA[c].doors) if (!(d.to in prev)) { prev[d.to] = { c, d }; q.push(d.to); } }
+  while (q.length) { const c = q.shift(); if (c === to) break; for (const d of AREA[c].doors) if (canTravel(c, d.to, F) && !isLocked(c, d.id) && !(d.to in prev)) { prev[d.to] = { c, d }; q.push(d.to); } }
   if (!(to in prev)) return '';
   let n = to; while (prev[n] && prev[n].c !== from) n = prev[n].c;
   const door = prev[n] && prev[n].d; if (!door) return '';
@@ -1211,85 +1295,12 @@ export function endStats() {
     logsTotal: F.act3Win ? story.TOTAL_LOGS : F.act2Win ? story.ACT1_LOGS.length + story.ACT2_LOGS.length : story.ACT1_LOGS.length, ending: story.ending(F), epTotal: G.epTotal,
   };
 }
-// ---------- embarque do Ato 1: aproximação, pouso, porta, degrau e decolagem ----------
-function startBoarding() {
-  const a = D.area, h = a.helipad;
-  if (!a.refs.heli || !D.heli || !h) return;
-  const stage = { x: h.x + 6.5, z: h.z + 2.5 };
-  const route = findEscortPath(player.pos, stage, { bounds: a.bounds, boxes: a.ctx.boxes, circles: a.ctx.circles }, player.r);
-  if (!route.length) {
-    F.rescued = false; ui.feed('Aproxime-se da lateral livre do heliponto e chame o resgate novamente.', '#ffb070'); return;
-  }
-  D.trans = { kind: 'boarding', phase: 'clear-pad', t: 0, route, index: 0,
-    point: { x: pg.position.x, z: pg.position.z, y: 0 }, yaw: G.yaw,
-    shot: { x: h.x + 10, y: 3.6, z: h.z + 8, tx: h.x + 1.3, ty: 1.4, tz: h.z + 1 } };
-  // O helicóptero espera no alto enquanto Marina sai do disco do rotor.
-  D.heli.landing = false; D.heli.heading = 0;
-  G.transitioning = true; clearInput(); story.clearSpeech();
-}
-function updateBoarding(dt) {
-  const T = D.trans, a = D.area, h = a.helipad, H = D.heli, R = a.refs.heli;
-  T.t += dt;
-  const go = (phase) => { T.phase = phase; T.t = 0; };
-  let moving = false, crouch = 0;
-  if (T.phase === 'clear-pad' || T.phase === 'walk-door') {
-    const target = T.route[T.index], dx = target.x - T.point.x, dz = target.z - T.point.z;
-    const d = Math.hypot(dx, dz), step = Math.min(d, dt * 2.2);
-    if (d > 0.001) {
-      T.point.x += dx / d * step; T.point.z += dz / d * step;
-      // Giro contínuo, sem inverter o corpo ao mudar de segmento.
-      const yaw = Math.atan2(dx, dz), delta = Math.atan2(Math.sin(yaw - T.yaw), Math.cos(yaw - T.yaw));
-      T.yaw += delta * Math.min(1, dt * 9); moving = true;
-    }
-    if (d <= step + 0.001 && ++T.index >= T.route.length) {
-      if (T.phase === 'clear-pad') { H.landing = true; go('land'); }
-      else { T.stepFrom = { ...T.point }; go('step-in'); }
-    }
-  } else if (T.phase === 'land') {
-    if ((H.land || 0) >= 1 && T.t > 0.5) {
-      // Porta na lateral direita; caminho contorna a frente, não atravessa a fuselagem.
-      T.route = [{ x: h.x + 3.2, z: h.z + 2.5 }, { x: h.x + 2.1, z: h.z + 0.25 }];
-      T.index = 0; go('walk-door');
-    }
-  } else if (T.phase === 'step-in') {
-    const u = Math.min(1, T.t / 2), e = u * u * (3 - 2 * u);
-    T.point.x = T.stepFrom.x + (h.x + 0.45 - T.stepFrom.x) * e;
-    T.point.z = h.z + 0.25;
-    // Pé no estribo (0,25 m), depois no piso da cabine (0,55 m); tronco sob o batente.
-    T.point.y = u < 0.5 ? Math.sin(u * Math.PI) * 0.25 : 0.25 + (u - 0.5) * 0.6;
-    T.yaw += Math.atan2(Math.sin(-Math.PI / 2 - T.yaw), Math.cos(-Math.PI / 2 - T.yaw)) * Math.min(1, dt * 8);
-    moving = u < 1; crouch = Math.sin(u * Math.PI / 2);
-    if (u >= 1) { go('takeoff'); pg.visible = false; }
-  } else if (T.phase === 'takeoff') {
-    const u = Math.min(1, T.t / 3), e = u * u * (3 - 2 * u);
-    H.departure = e;
-    if (R.boardingDoor) R.boardingDoor.position.z = -1.6 + 1.85 * Math.min(1, T.t / 0.8);
-    ui.setFade(Math.max(0, (u - 0.7) / 0.3));
-    if (u >= 1) {
-      F.act1Rescued = true; F.rescued = false; // o resgate do ninho continua disponível no Ato 2
-      spots[0].override = null; clearInput(); D.trans = null; G.transitioning = false;
-      // A entrada mantém inventário, registros, flags e aciona o cartão do Ato 2 (sem tela de vitória).
-      enterArea('margem'); streamAround(D.area); ui.setFade(0);
-      return;
-    }
-  }
-  if (T.phase !== 'takeoff') animateBoarding(dt, { ...T.point, moving }, T.yaw, crouch);
-  else pg.visible = false; // só oculta quando o corpo inteiro já está dentro da cabine
-  updateHeli(dt);
-  // Enquadramento único pelo lado da porta, recuado só até o primeiro obstáculo.
-  const S = T.shot, dx = 8.7, dz = 7, d = Math.hypot(dx, dz);
-  const clear = Math.min(d, castWorld(S.tx, S.tz, dx / d, dz / d, d, 3.2) - 0.4);
-  S.x = Math.max(a.bounds.minX + 0.6, Math.min(a.bounds.maxX - 0.6, S.tx + dx / d * Math.max(1, clear)));
-  S.z = Math.max(a.bounds.minZ + 0.6, Math.min(a.bounds.maxZ - 0.6, S.tz + dz / d * Math.max(1, clear)));
-  S.ty = 1.4 + (H.departure || 0) * 3;
-}
-
 /** Helicóptero de resgate: chega durante o evento e pousa na vitória (roda também no estado 'win'). */
 export function updateHeli(dt) {
   const H = D.heli, a = D.area; if (!H || !a || !a.refs.heli) return;
-  const R = a.refs.heli, E = D.event, pad = a.helipad;
+  const R = a.refs.heli, E = D.event, pad = a.quayPad || a.helipad;
   H.t += dt;
-  const k = E && E.kind === 'rescue' ? E.t / E.dur : 1;
+  const k = E && ['rescue', 'npcRescue'].includes(E.kind) ? E.t / E.dur : 1;
   if (k < 0.3 && !H.landing) { R.group.visible = false; spots[0].override = null; return; }
   R.group.visible = true;
   const u = Math.min(1, (k - 0.3) / 0.7), e = 1 - Math.pow(1 - u, 2.2);
@@ -1309,7 +1320,7 @@ export function updateHeli(dt) {
   if (y < 9) G.shake = Math.max(G.shake, 0.06);
 }
 /** Atalho de depuração: vai direto para uma área. */
-export function debugGoto(id) { enterArea(id); streamAround(D.area); }
+export function debugGoto(id) { const ok = enterArea(id); if (ok !== false) streamAround(D.area); return ok !== false; }
 /** v7: helpers de teste — liga flags (ex.: {bossDead:true}) e prende/solta o Brandt. */
 export function debugFlags(o) { Object.assign(F, o); if (D.area) syncGates(D.area, false); D.mapDirty = true; return { ...F }; }
 export { SAVE_V };

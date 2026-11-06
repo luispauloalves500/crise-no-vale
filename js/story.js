@@ -170,7 +170,7 @@ export const storySave = () => ({ logs: [...S.logs], said: [...S.said] });
 const R = true; // marca de rádio
 export const LINES = {
   // ---------- v11: Ato 3 ----------
-  act3_offer: [['PILOTO', 'Garça-1 no chão! A doutora já está a bordo. Pra casa, agente?', R],
+  act3_offer: [['PILOTO', 'Ato 2 concluído. A doutora está segura a bordo. Fale comigo ao lado da pista: vamos para Porto Anil.', R],
     ['LIMA', 'Rocha... a câmera da cratera falava da captação de Porto Anil. Se o rio leva isso pra cidade, ninguém lá sabe.', R]],
   enter_portoanil: [['RADIO', '...Defesa Civil de Porto Anil: evacuação dos bairros baixos. Dirijam-se aos ônibus no cais...', R],
     ['ROCHA', 'Sirenes, ônibus vazios... e pegadas de três dedos no asfalto molhado.'],
@@ -210,8 +210,9 @@ export const LINES = {
   boss_start: [['ROCHA', 'Então esse é o Colosso...'], ['LIMA', 'Rocha! Faça ele bater nas paredes — ele fica mais vulnerável!', R]],
   boss_phase1: [['LIMA', 'Ele está chamando a matilha! Cuidado com os flancos!', R]],
   boss_phase2: [['LIMA', 'Ele está fraco, mas furioso! Não pare agora!', R]],
-  boss_dead: [['ROCHA', 'Acabou, grandão.'], ['LIMA', 'Você conseguiu?! Quando decidir sair, acione o sinalizador na marca H. Posso guiá-la pelo rádio do pátio.', R]],
-  rescue_start: [['PILOTO', 'Garça-1 para solo: recebemos o sinalizador. Buscamos você no penhasco e depois a doutora no pátio!', R]],
+  boss_dead: [['ROCHA', 'Acabou, grandão.'], ['LIMA', 'O portão NORTE do penhasco está livre. Siga a trilha até o rio — o Brandt pode estar vivo. O helicóptero é para evacuar feridos, não para abandonar a missão.', R]],
+  lima_quay: [['LIMA', 'Desci pelo corredor de serviço até o cais. Consegue chamar o Garça-1 nesta plataforma? Você continua por terra; eu guio pelo rádio.', R]],
+  rescue_start: [['PILOTO', 'Garça-1 para o cais: vamos evacuar a Dra. Lima. Marina, proteja a plataforma e continue a missão pelo portão norte.', R]],
   rescue_mid: [['PILOTO', 'Muito movimento na mata! Mantenham a pista limpa!', R]],
   rescue_near: [['PILOTO', 'Aproximação final, agente Rocha! Mantenha a zona de pouso livre!', R]],
   lima_down: [['LIMA', 'Ai! Me ajude, eles estão em cima de mim!']],
@@ -243,7 +244,7 @@ export const LINES = {
   brandt_escaped: [['ROCHA', 'Droga! Ele escapou rio abaixo...'], ['LIMA', 'Ainda dá para salvar o resto. Chame o Garça-1!', R]],
   charges: [['ROCHA', 'Cargas da Tellus-2. Hora de usar para alguma coisa boa.']],
   charges_done: [['LIMA', 'Que estrondo! Os ovos... acabou?', R], ['ROCHA', 'Acabou. Porto Anil vai beber água limpa.']],
-  rescue2_start: [['PILOTO', 'Garça-1 rio abaixo! Recebemos o sinalizador da clareira. Depois recolhemos a doutora no pátio!', R]],
+  rescue2_start: [['PILOTO', 'Garça-1 rio abaixo! Recebemos o sinalizador da clareira. A doutora será recolhida antes do pouso no ninho; depois seguimos para Porto Anil.', R]],
   rescue2_mid: [['PILOTO', 'A cratera está fervendo de movimento! Segurem a clareira!', R]],
   log10: [['ROCHA', 'O Brandt sobreviveu à queda... e a Tellus quer ele vivo.']],
   log11: [['ROCHA', '"Nenhuma testemunha." Que gentileza.']],
@@ -350,7 +351,7 @@ export function updateStory(dt) {
 export const INTRO = [
   { kicker: 'VALE VERDE — 03h40', title: 'CRISE NO VALE', text: 'Há três dias, um pedido de socorro saiu da Estação de Pesquisa Vale Verde, uma base isolada da Fundação Tellus no meio da selva. Depois, silêncio.\nA tempestade derrubou as comunicações. Nenhum avião consegue pousar. Mandaram um barco — e mandaram você.' },
   { kicker: 'RÁDIO — CANAL 4', title: 'PEDIDO DE SOCORRO', who: 'Dra. Helena Lima', radio: true, text: '[estática] ...aqui é a Dra. Helena Lima, Vale Verde... a energia caiu, as cercas... eles estão soltos... estou no pátio, perto do heliponto... por favor... [estática]' },
-  { kicker: 'AGENTE MARINA ROCHA', title: 'GRUPO DE RESGATE AMBIENTAL', text: 'O piloto do barco viu olhos brilhando entre as árvores do cais e não esperou nem eu firmar o pé no píer. Agora a única saída é o heliponto, no penhasco ao norte.\nMissão: encontrar a Dra. Lima, descobrir o que aconteceu aqui e chamar o resgate — prefixo Garça-1.' },
+  { kicker: 'AGENTE MARINA ROCHA', title: 'GRUPO DE RESGATE AMBIENTAL', text: 'O piloto do barco viu olhos brilhando entre as árvores do cais e não esperou nem eu firmar o pé no píer. O caminho é o portão norte do cais, pelo corredor das ruínas. A plataforma do cais é só para evacuar sobreviventes.\nMissão: encontrar a Dra. Lima, descobrir o que aconteceu aqui e chamar o resgate — prefixo Garça-1.' },
   { kicker: 'OBJETIVO', title: 'ENTRE NA ESTAÇÃO', text: 'Atravesse as ruínas até o laboratório.\nTerminais verdes salvam o jogo. Tablets com tela azul guardam registros da equipe — aperte E para ler.\nCuidado: barulho atrai a matilha.' },
 ];
 export const BEATS = {
@@ -366,7 +367,7 @@ export const BEATS = {
 };
 /** v7: cartão de abertura do Ato 2 (primeira vez na margem). */
 export const ACT2_INTRO = [
-  { kicker: 'ATO 2', title: 'RIO ABAIXO', text: 'O portão leste dá para uma trilha escorregadia que desce o penhasco até o rio. A Dra. Lima continua na cabine do pátio, guiando você pelo rádio. O Garça-1 pode recolhê-la mais abaixo, numa clareira longe do penhasco.\nNo barro da margem, pegadas de sapato social. O Brandt está vivo — e tem pressa.' },
+  { kicker: 'ATO 2', title: 'RIO ABAIXO', text: 'O portão norte dá para uma trilha que contorna o penhasco e desce até o rio. O Ato 1 terminou; a estação fica para trás, lacrada pela equipe de contenção. A Dra. Lima guia você pelo rádio de uma posição segura. O Garça-1 a recolhe antes do resgate no ninho.\nNo barro da margem, pegadas de sapato social. O Brandt está vivo — e tem pressa.' },
   { kicker: 'OBJETIVO', title: 'ALCANCE O BRANDT', text: 'Siga o rio para o sul: a margem, o acampamento da equipe Tellus-2 e, depois dele, a cratera que eles chamavam de ninho.\nLeia os registros do caminho — há quatro novos — e decida o que fazer com o que restou do Projeto RAIZ.' },
 ];
 /** v11: cartão de abertura do Ato 3 (o Garça-1 leva a Marina até Porto Anil). */
@@ -384,6 +385,7 @@ function epilogueAct3(F) {
   else pages.push({ kicker: 'PORTO ANIL — AMANHECER', title: 'A CIDADE ACORDA', text: 'Os ônibus de evacuação voltam ao cais. A captação reabre dias depois, com técnicos da companhia de água — de uniforme.\nA cidade nunca soube o quanto chegou perto.' });
   const e = ending(F);
   pages.push({ kicker: `FINAL DO ATO 3 • REGISTROS ${S.logs.size}/${TOTAL_LOGS}`, title: e.title, text: e.line + (S.logs.size < TOTAL_LOGS ? '\n(Ainda há registros pelo caminho para completar a história.)' : `\nArquivo completo: todos os ${TOTAL_LOGS} registros.`) });
+  pages.push({ kicker: 'CAMPANHA CONCLUÍDA', title: 'FIM — CRISE NO VALE', text: 'Marina e a Dra. Lima deixaram Porto Anil. A operação foi concluída.\n\nCréditos\nCrise no Vale — criação e desenvolvimento do projeto.\nThree.js r160 e colaboradores — motor gráfico.\nModelos e recursos: consulte assets/originais/LEIA-ME.md e a documentação do projeto.\n\nObrigado por jogar.' });
   return pages;
 }
 /** v7: finais do Ato 2 (resgate na clareira do ninho). */
@@ -435,7 +437,7 @@ export function ending(F = {}) {
   }
   if (F.act2Win) {
     const c = F.brandt === 'caught', b = !!F.nestDestroyed;
-    if (c && b) return { id: 'raiz', title: 'FIM DO PROJETO RAIZ', line: 'Brandt preso e o ninho destruído: o Projeto RAIZ acabou de verdade.' };
+    if (c && b) return { id: 'raiz', title: 'FIM DO PROJETO RAIZ', line: 'Brandt preso e ninho destruído. Falta a sede do Conselho em Porto Anil.' };
     if (c) return { id: 'justica', title: 'JUSTIÇA RIO ABAIXO', line: 'Otávio Brandt foi preso no cais do ninho. Os ovos ficaram para trás.' };
     if (b) return { id: 'cinzas', title: 'CINZAS DO NINHO', line: 'O ninho da Matriarca virou cinzas — mas o Brandt fugiu rio abaixo.' };
     return { id: 'segredos', title: 'O RIO GUARDA SEGREDOS', line: 'Rocha saiu viva da cratera. O Brandt e os ovos, não se sabe.' };

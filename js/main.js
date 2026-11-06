@@ -2,6 +2,7 @@
 // A progressão (áreas, portas, eventos, chefe) fica em director.js.
 import * as THREE from 'three';
 import { renderer, scene, camera, boxes, updateWorld, atmo, bounds } from './world.js';
+import { difficultyId } from './campaign-rules.mjs';
 import { G, saveBest } from './state.js';
 import { initInput, lockPointer, unlockPointer, clearInput, keys, mouse } from './input.js';
 import { initAudio, sfx, toggleMute, isMuted, setAmbience, setMuffle, ambienceState, setVolumes, getVolumes } from './audio.js';
@@ -41,6 +42,7 @@ function startGame(fromSave) {
   if (fromSave === 'act3' ? !hasAct3() : (fromSave && !hasSave())) fromSave = false;
   ui.showScreen('hud'); ui.toggleMap(false); ui.setFade(0);
   setState('play');
+  if (!fromSave) G.difficulty = selectedDifficulty;
   startCampaign(fromSave);
   // novo jogo: introdução (barco, rádio, missão) — clique/Espaço avança, Enter pula
   if (!fromSave) story.showCard(story.INTRO, () => story.say(story.LINES.enter_porto, 'enter_porto'), { full: true, cinematic: true });
@@ -96,6 +98,20 @@ function cycleWeapon(dir) {
   const n = bag.owned.length;
   for (let k = 1; k < n; k++) { const i = (arms.cur + dir * k + n * 4) % n; if (bag.owned[i]) { switchWeapon(i); return; } }
 }
+
+let selectedDifficulty = 'normal';
+try { selectedDifficulty = difficultyId(localStorage.getItem('crise-no-vale-difficulty')); } catch (e) {}
+function refreshDifficulty() {
+  document.querySelectorAll('[data-difficulty]').forEach(b => {
+    const on = b.dataset.difficulty === selectedDifficulty;
+    b.classList.toggle('on', on); b.setAttribute('aria-pressed', String(on));
+  });
+}
+for (const b of document.querySelectorAll('[data-difficulty]')) b.onclick = () => {
+  selectedDifficulty = difficultyId(b.dataset.difficulty); refreshDifficulty();
+  try { localStorage.setItem('crise-no-vale-difficulty', selectedDifficulty); } catch (e) {}
+};
+refreshDifficulty();
 
 // ---------- entrada ----------
 const inputHandlers = {
@@ -291,7 +307,7 @@ async function boot() {
   ui.hideLoading();
   streamAround(D.area); // inicia shaders dos vizinhos após compilar a área inicial
   // continuar: deixa a área do save pronta em segundo plano
-  const sv = readSave(); if (sv && AREA[sv.area]) warmArea(AREA[sv.area]);
+  // O cenário do save será preparado ao continuar; o menu não mistura capítulos.
   bgStatus();
 }
 // linha discreta no menu: quantas áreas já estão prontas

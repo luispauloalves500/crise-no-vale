@@ -3,6 +3,7 @@ import * as THREE from 'three';
 import { $, wrapAngle } from './utils.js';
 import { G } from './state.js';
 import { ENEMY_TYPES, PLAYER, COMBO, INVENTORY, GRENADE } from './config.js';
+import { actOf } from './campaign-rules.mjs';
 import { AREAS, AREA } from './areas.js';
 
 // ---------- textos (PT-BR) ----------
@@ -286,14 +287,15 @@ function drawAreaMap(cv, d, k) {
   const c = cv.getContext('2d'), Wd = cv.width, Ht = cv.height;
   c.clearRect(0, 0, Wd, Ht);
   // v7: centraliza pelo retângulo que contém todas as áreas (o rio do Ato 2 abriu a coluna x=4)
-  const xs = AREAS.map((a) => a.map.x), ys = AREAS.map((a) => a.map.y);
+  const areas = AREAS.filter(a => actOf(a.id) === actOf(d.area.id));
+  const xs = areas.map((a) => a.map.x), ys = areas.map((a) => a.map.y);
   const x0 = Math.min(...xs), x1 = Math.max(...xs), y0 = Math.min(...ys), y1 = Math.max(...ys);
   const cell = Math.min(k === 1 ? 27 : 34 * k, Wd / (x1 - x0 + 1.25), Ht / (y1 - y0 + 1.25));
   const ox = Wd / 2 - (x0 + x1) / 2 * cell, oy = Ht / 2 - (y0 + y1) / 2 * cell;
   const rectOf = (a) => { const w = (a.bounds.maxX - a.bounds.minX) / 48 * cell * 0.62, h = (a.bounds.maxZ - a.bounds.minZ) / 48 * cell * 0.62; return [ox + a.map.x * cell - w / 2, oy + a.map.y * cell - h / 2, w, h]; };
   // ligações
-  for (const a of AREAS) for (const dr of a.doors) {
-    const b = AREA[dr.to]; if (a.id > b.id) continue;
+  for (const a of areas) for (const dr of a.doors) {
+    const b = AREA[dr.to]; if (!areas.includes(b) || a.id > b.id) continue;
     const [ax, ay, aw, ah] = rectOf(a), [bx, by, bw, bh] = rectOf(b);
     const locked = d.isLocked(a.id, dr.id) || d.isLocked(b.id, dr.toDoor);
     c.strokeStyle = locked ? 'rgba(255,80,60,.8)' : 'rgba(200,220,180,.6)'; c.lineWidth = 2 * Math.max(1, k / 2);
@@ -301,7 +303,7 @@ function drawAreaMap(cv, d, k) {
     c.beginPath(); c.moveTo(ax + aw / 2, ay + ah / 2); c.lineTo(bx + bw / 2, by + bh / 2); c.stroke(); c.setLineDash([]);
     if (locked && k > 1) { const mx = (ax + aw / 2 + bx + bw / 2) / 2, my = (ay + ah / 2 + by + bh / 2) / 2; c.fillStyle = '#ff6050'; c.font = `bold ${10 * k}px Trebuchet MS`; c.textAlign = 'center'; c.textBaseline = 'middle'; c.fillText('🔒', mx, my); }
   }
-  for (const a of AREAS) {
+  for (const a of areas) {
     const [x, y, w, h] = rectOf(a), cur = a.id === d.area.id, vis = d.visited.has(a.id);
     c.fillStyle = cur ? 'rgba(40,110,50,.9)' : vis ? 'rgba(30,50,35,.9)' : 'rgba(20,24,22,.85)'; c.fillRect(x, y, w, h);
     c.strokeStyle = cur ? MAPC.cur : vis ? MAPC.visited : MAPC.unknown; c.lineWidth = cur ? 2 : 1; c.strokeRect(x, y, w, h);
