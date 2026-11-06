@@ -118,7 +118,7 @@ export const ENEMY_TYPES = {
     chargeDmg:40,chargeSpeed:17,mass:30,stompR:7,stompDmg:25,stompWind:1.3,windup:1.35,wallStun:3.3,stunGrace:1.4 },
 };
 // Ativar só depois de instalar os GLBs; enquanto isso, nenhum 404 por inimigo.
-export const DINO_VISUALS = Object.freeze({ enabled:true, raptor:'assets/models/raptor.glb', trex:'assets/models/trex.glb' });
+export const DINO_VISUALS = Object.freeze({ enabled:true, raptor:'assets/models/raptor.glb', trex:'assets/models/trex.glb', cuspidor:'assets/models/cuspidor.glb' });
 
 export const PICKUPS = {
   MAX_DROPS: 6,          // drops de inimigos simultâneos (itens do mapa não contam)

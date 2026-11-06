@@ -1,17 +1,17 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {readFileSync} from 'node:fs';
-import { DINO_CLIPS, dinoKind, dinoMotion } from '../js/dino-animation.mjs';
-for(const kind of ['raptor','trex'])test(`${kind}.glb: arquivo otimizado autocontido, skin e seis animações`,()=>{
+import { dinoClips, dinoKind, dinoMotion } from '../js/dino-animation.mjs';
+for(const kind of ['raptor','trex','cuspidor'])test(`${kind}.glb: arquivo otimizado autocontido, skin e animações necessárias`,()=>{
   const raw=readFileSync(new URL(`../assets/models/${kind}.glb`,import.meta.url));
-  assert.equal(raw.readUInt32LE(0),0x46546c67);assert.equal(raw.readUInt32LE(4),2);assert.equal(raw.readUInt32LE(8),raw.length);assert.ok(raw.length<1024*1024);
+  assert.equal(raw.readUInt32LE(0),0x46546c67);assert.equal(raw.readUInt32LE(4),2);assert.equal(raw.readUInt32LE(8),raw.length);assert.ok(raw.length<(kind==='cuspidor'?1.3:1)*1024*1024);
   const json=JSON.parse(raw.subarray(20,20+raw.readUInt32LE(12)).toString());
-  assert.deepEqual(json.animations.map(a=>a.name).sort(),[...DINO_CLIPS].sort());assert.equal(json.skins.length,1);
+  assert.deepEqual(json.animations.map(a=>a.name).sort(),[...dinoClips(kind)].sort());assert.equal(json.skins.length,1);
   assert.ok(json.extensionsRequired.includes('EXT_meshopt_compression'));assert.ok(json.images.every(i=>i.bufferView!==undefined));
   assert.ok(json.animations.every(a=>a.channels.length>10&&a.channels.every(c=>json.nodes[c.target.node])));
 });
-test('política visual: raptor comum/cuspidor; T-rex bruto e todos os chefes',()=>{
-  for(const shape of ['raptor','spitter'])assert.equal(dinoKind({shape}),'raptor');
+test('política visual: raptor comum, cuspidor dedicado; T-rex bruto e todos os chefes',()=>{
+  assert.equal(dinoKind({shape:'raptor'}),'raptor');assert.equal(dinoKind({shape:'spitter'}),'cuspidor');
   assert.equal(dinoKind({shape:'brute'}),'trex');assert.equal(dinoKind({boss:true}),'trex');
 });
 test('IA dirige clipes por deslocamento real e prioridade morte > dano > ataque > locomoção',()=>{

@@ -1,5 +1,6 @@
 import { dinoBarY, dinoImpactY, DINO_FLOOR_CLEARANCE } from './dino-dimensions.mjs';
-import { attachDino, resetDino, animateDino, disposeDino } from './dino-models.js';
+import { attachDino, resetDino, animateDino, disposeDino, dinoMouth } from './dino-models.js';
+import {beginSpit,advanceSpit,SPIT_DURATION,spitTrajectory} from './spitter-action.mjs';
 import { actorShadow } from './contact-shadows.js';
 // enemies.js — construção dos dinossauros (silhuetas distintas), IA (patrulha → alerta → ataque),
 // chefe Colosso, spawn por posição/borda da área e cuspe ácido.
@@ -213,7 +214,7 @@ export function spawnEnemy(type, x, z, opts = {}) {
   const e = Object.assign({ parts }, parts, {
     type, cfg: T, pos: new THREE.Vector3(x, 0, z), home: { x, z }, hp, maxHp: hp,
     yaw: alert ? Math.atan2(player.pos.x - x, player.pos.z - z) : Math.random() * Math.PI * 2,
-    atkCd: 1, special: rand(1, 3), stun: 0, flashT: 0, bite: 0, lunge: 0, spitT: 0, windup: 0, charge: 0, cdx: 0, cdz: 0,
+    atkCd: 1, special: rand(1, 3), stun: 0, flashT: 0, bite: 0, lunge: 0, spitT: 0, spitAction:null, spitRelease:false, windup: 0, charge: 0, cdx: 0, cdz: 0,
     stomp: 0, stompCd: 3, phaseIdx: 0, alert, lastHp: hp, alertT: alert ? AI_MEMORY_SECONDS : 0,
     lastSeen: { x: player.pos.x, z: player.pos.z }, investigate: null,
     dmg0: G.dmgTaken || 0, wanderA: Math.random() * 6.28, ambientIdx: opts.ambientIdx,
@@ -261,25 +262,23 @@ export const aliveCount = () => enemies.reduce((n, e) => n + (e.dead ? 0 : 1), 0
 const spitMat = new THREE.SpriteMaterial({ map: GLOW, color: COLORS.spit, blending: THREE.AdditiveBlending, transparent: true, depthWrite: false });
 const spitFree = [];
 function releaseSpit(s) { scene.remove(s.m); if (spitFree.length < 24) spitFree.push(s.m); }
+const mouthPoint=new THREE.Vector3();
 function spit(e, nx, nz, dist) {
-  const m = spitFree.pop() || new THREE.Sprite(spitMat);
-  m.scale.setScalar(0.8);
-  const hx = e.pos.x + nx * 1.2, hz = e.pos.z + nz * 1.2; m.position.set(hx, 1.8, hz); scene.add(m);
-  // mira com antecipação do movimento do jogador
-  const lead = Math.min(0.9, dist / 12) * 0.6;
-  let tx = player.pos.x + player.vx * lead - hx, tz = player.pos.z + player.vz * lead - hz;
-  const l = Math.hypot(tx, tz) || 1; tx /= l; tz /= l;
-  spits.push({ m, x: hx, z: hz, vx: tx * 12, vz: tz * 12, life: 2.5 }); sfx.spit();
+  const m = spitFree.pop() || new THREE.Sprite(spitMat);m.scale.setScalar(0.8);
+  // Socket avaliado DEPOIS do mixer/apoio deste quadro; fallback continua disponível sem GLB.
+  const mouth=dinoMouth(e.parts,mouthPoint)||mouthPoint.set(e.pos.x+nx*1.2,1.8,e.pos.z+nz*1.2);
+  const shot=spitTrajectory(mouth,player.pos,{x:player.vx,z:player.vz});
+  m.position.set(shot.x,shot.y,shot.z);scene.add(m);spits.push({m,...shot});sfx.spit();
 }
 function updateSpits(dt) {
   for (let i = spits.length - 1; i >= 0; i--) {
-    const s = spits[i]; s.life -= dt; s.x += s.vx * dt; s.z += s.vz * dt;
-    s.m.position.set(s.x, 1.6 + Math.sin(s.life * 8) * 0.08, s.z);
-    if (Math.random() < 0.5) burst(s.x, 1.6, s.z, 'spit', 1, 0.4);
-    let dead = s.life <= 0; const p = { x: s.x, z: s.z }; if (resolve(p, 0.15)) dead = true;
-    if (!dead && Math.hypot(s.x - player.pos.x, s.z - player.pos.z) < player.r + 0.35) { hurtPlayer(10, s.x - s.vx, s.z - s.vz, 3); dead = true; }
+    const s = spits[i]; s.life -= dt; s.x += s.vx * dt; s.z += s.vz * dt; s.y += s.vy * dt;
+    s.m.position.set(s.x, s.y, s.z);
+    if (Math.random() < 0.5) burst(s.x, s.y, s.z, 'spit', 1, 0.4);
+    let dead = s.life <= 0 || s.y<.06; const p = { x: s.x, z: s.z }; if (resolve(p, 0.15)) dead = true;
+    if (!dead && s.y>player.pos.y+.15 && s.y<player.pos.y+2 && Math.hypot(s.x - player.pos.x, s.z - player.pos.z) < player.r + 0.35) { hurtPlayer(10, s.x - s.vx, s.z - s.vz, 3); dead = true; }
     if (dead) {
-      burst(s.x, 1.5, s.z, 'spit', 8, 2.5); decal(s.x, s.z, 0.9, 0x5a9a20); sfx.splat();
+      burst(s.x, Math.max(.06,s.y), s.z, 'spit', 8, 2.5); decal(s.x, s.z, 0.9, 0x5a9a20); sfx.splat();
       releaseSpit(s); spits.splice(i, 1);
     }
   }
@@ -289,6 +288,7 @@ function updateSpits(dt) {
 function updateEnemy(e, dt) {
   const g = e.g, T = e.cfg, t = G.time;
   if (e.dead) {
+    advanceSpit(e.spitAction,0,true);e.spitT=0;e.spitRelease=false;
     e.contactShadow.visible = false;
     if (e.lane) { hideLane(e.lane); e.lane = null; }
     e.deadT += dt; e.bar.visible = false;
@@ -381,12 +381,10 @@ function updateEnemy(e, dt) {
   } else if (e.type === 'spitter') {
     const strafe = Math.sin(t * 0.6 + e.seed) > 0 ? 1 : -1, f = dist > 12 ? 1 : dist < 7 ? -1 : 0;
     mvx = nx * f - nz * strafe * 0.6; mvz = nz * f + nx * strafe * 0.6;
-    if (sees && dist < 18 && e.special <= 0 && e.spitT <= 0) { e.special = rand(2.2, 3.4); e.spitT = 0.55; }
-    if (e.spitT > 0) {
-      e.spitT -= dt; spd *= 0.15;
-      if (e.spitT <= 0 && sees && castWorld(e.pos.x, e.pos.z, nx, nz, dist, 1.5) >= dist - 0.5) spit(e, nx, nz, dist);
+    if (sees && dist > reach+.4 && dist < 18 && e.special <= 0 && e.spitT <= 0 && e.flashT<=0) {
+      e.special = rand(2.2, 3.4);e.spitAction=beginSpit();e.spitT=SPIT_DURATION;
     }
-    if (sees && dist < reach && e.atkCd <= 0) { e.atkCd = 1.2; e.bite = 0.25; hit(T.dmg, 5); }
+    if (sees && dist < reach && e.atkCd <= 0 && e.spitT<=0) { e.atkCd = 1.2; e.bite = 0.25; hit(T.dmg, 5); }
   } else {
     const boss = !!T.boss, rage = boss && e.hp < e.maxHp * 0.34 ? 1.3 : 1;
     // fases do chefe: ruge e chama a matilha em 66% e 33% de vida
@@ -441,6 +439,11 @@ function updateEnemy(e, dt) {
       }
     }
   }
+  if(T.shape==='spitter'){
+    e.spitRelease=advanceSpit(e.spitAction,dt,e.stun>0||e.flashT>0||hitNow||player.dead);
+    e.spitT=e.spitAction&&!e.spitAction.cancelled?Math.max(0,SPIT_DURATION-e.spitAction.time):0;
+    if(e.spitT>0||e.spitRelease)spd*=.15;
+  }
   const ml = Math.hypot(mvx, mvz); if (ml > 0) { mvx /= ml; mvz /= ml; }
   const ox = e.pos.x, oz = e.pos.z;
   e.pos.x += (mvx * spd + e.kx) * dt; e.pos.z += (mvz * spd + e.kz) * dt;
@@ -455,6 +458,11 @@ function updateEnemy(e, dt) {
   g.rotation.y = e.yaw; g.position.set(e.pos.x, 0, e.pos.z);
   const moved = Math.hypot(e.pos.x - ox, e.pos.z - oz) / Math.max(dt, 1e-4); e.phase += moved * dt * 2.4 / T.scale;
   animateDino(e.parts,e,dt,moved);
+  if(e.spitRelease&&sees){
+    const mouth=dinoMouth(e.parts,mouthPoint),mx=mouth?.x??e.pos.x,mz=mouth?.z??e.pos.z,dx=player.pos.x-mx,dz=player.pos.z-mz,d=Math.hypot(dx,dz)||1;
+    if(castWorld(mx,mz,dx/d,dz/d,d,Math.min(1.5,mouth?.y||1.5))>=d-.5)spit(e,nx,nz,dist);
+  }
+  e.spitRelease=false;
   const sw = Math.sin(e.phase) * Math.min(1, moved / 2) * 0.7; e.legs[0].rotation.x = sw; e.legs[1].rotation.x = -sw;
   e.body.position.y = Math.abs(Math.sin(e.phase)) * 0.06;
   if (e.lane && !(e.windup > 0)) { hideLane(e.lane); e.lane = null; }
@@ -520,5 +528,8 @@ export function updateEnemies(dt) {
 
 /** Cinematic animation only: no AI, damage, projectiles or navigation. */
 export function animateCinematicEnemies(dt) {
-  for (const e of enemies) animateDino(e.parts,e,dt,0);
+  for (const e of enemies) {
+    advanceSpit(e.spitAction,0,true);e.spitT=0;e.spitRelease=false;
+    animateDino(e.parts,{cfg:e.cfg,dead:e.dead,yaw:e.yaw},dt,0);
+  }
 }

@@ -5,12 +5,13 @@ import { loadModel } from './model-assets.js';
 import {calibrateDino,createDinoGrounder,localBonePose,restoreBonePose} from './dino-grounding.js';
 import {dinoDimensions} from './dino-dimensions.mjs';
 import { DINO_VISUALS } from './config.js';
-import { DINO_CLIPS, dinoKind, dinoMotion } from './dino-animation.mjs';
+import { dinoClips, dinoKind, dinoMotion } from './dino-animation.mjs';
+import {createFrillDynamics} from './dino-frill.mjs';
 const templates = new Map();
 export const dinoModelStats = { ready:0, failed:0, instances:0 };
 function template(kind) {
   if (!templates.has(kind)) templates.set(kind, loadModel(DINO_VISUALS[kind]).then(gltf => {
-    for (const name of DINO_CLIPS) if (!gltf.animations.some(c=>c.name===name)) throw new Error('Clipe ausente: '+name);
+    for (const name of dinoClips(kind)) if (!gltf.animations.some(c=>c.name===name)) throw new Error('Clipe ausente: '+name);
     gltf.scene.updateMatrixWorld(true);
     const calibration=calibrateDino(gltf);
     dinoModelStats.ready++;
@@ -18,7 +19,7 @@ function template(kind) {
   }).catch(err => { dinoModelStats.failed++; console.warn('Dinossauro '+kind+': usando fallback procedural.',err); return null; }));
   return templates.get(kind); // Failure stays cached: never storm the server on each spawn.
 }
-export const preloadDinos = () => DINO_VISUALS.enabled ? Promise.all(['raptor','trex'].map(template)) : Promise.resolve([]);
+export const preloadDinos = () => DINO_VISUALS.enabled ? Promise.all(['raptor','trex','cuspidor'].map(template)) : Promise.resolve([]);
 export function attachDino(P, cfg) {
   if (!DINO_VISUALS.enabled) return;
   const token = P.modelToken = {};
@@ -42,15 +43,15 @@ export function attachDino(P, cfg) {
     const mixer = new THREE.AnimationMixer(root), actions = {};
     for (const clip of t.gltf.animations) {
       const a=actions[clip.name]=mixer.clipAction(clip);
-      if (['attack','hurt','death'].includes(clip.name)) { a.setLoop(THREE.LoopOnce,1); a.clampWhenFinished=true; }
+      if (['attack','spit','hurt','death'].includes(clip.name)) { a.setLoop(THREE.LoopOnce,1); a.clampWhenFinished=true; }
     }
-    P.visual = {root,holder,mixer,actions,mats,skeletons,rest,dimensions:dinoDimensions(cfg),ground:createDinoGrounder(root,holder,P.g,t.contacts),contacts:t.contacts.reduce((n,c)=>n+c.length,0),clip:null,lock:0};
+    P.visual = {root,holder,mixer,actions,mats,skeletons,rest,frill:createFrillDynamics(root,THREE),mouth:root.getObjectByName('SpitSocket'),dimensions:dinoDimensions(cfg),ground:createDinoGrounder(root,holder,P.g,t.contacts),contacts:t.contacts.reduce((n,c)=>n+c.length,0),clip:null,lock:0};
     resetDino(P); dinoModelStats.instances++;
   });
 }
 export function resetDino(P) {
   const v=P.visual; if (!v) return;
-  v.mixer.stopAllAction();restoreBonePose(v.rest);
+  v.mixer.stopAllAction();restoreBonePose(v.rest);v.frill?.reset();
   // skeleton.pose() após escalar/reparentear usa inversas de bind antigas e encolhia/enterrava os dinos.
   v.clip=null;v.lock=0;play(v,'idle',1);v.actions.idle.stopFading().setEffectiveWeight(1);v.mixer.update(0);v.ground();
 }
@@ -67,8 +68,18 @@ export function animateDino(P,e,dt,speed=0) {
   const v=P.visual; if (!v) return false;
   const m=dinoMotion(e,speed); v.lock=Math.max(0,v.lock-dt);
   // Finish a one-shot bite/flinch even when the AI's damage window already closed.
-  if (m.clip==='death' || !v.lock || ['hurt','attack'].includes(m.clip)) play(v,m.clip,m.rate);
-  v.mixer.update(dt);v.ground();return true;
+  if (m.clip==='death' || !v.lock || ['hurt','attack','spit'].includes(m.clip)) play(v,m.clip,m.rate);
+  // O cuspe acompanha exatamente o relógio da IA, inclusive após carregamento assíncrono.
+  if(m.clip==='spit'){v.actions.spit.time=m.time;v.lock=0;}
+  v.mixer.update(dt);v.frill?.update(e,dt,speed);v.ground();return true;
+}
+export function dinoMouth(P,target=new THREE.Vector3()) {
+  const mouth=P.visual?.mouth;
+  if(mouth){P.g.updateMatrixWorld(true);return mouth.getWorldPosition(target);}
+  if(P.visual){const d=P.visual.dimensions,s=P.g.scale;return P.g.localToWorld(target.set(0,d.height*.72/s.y,d.maxZ*.98/s.z));}
+  // O bico procedural continua utilizável enquanto o GLB carrega ou se falhar.
+  if(P.head){P.g.updateMatrixWorld(true);return target.set(0,-.06,.62).applyMatrix4(P.head.matrixWorld);}
+  return null;
 }
 export function disposeDino(P) {
   P.modelToken=null;

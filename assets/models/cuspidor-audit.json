@@ -1,0 +1,160 @@
+{
+  "input": "/workspace/crise-input/cuspidor.glb",
+  "sourceSha256": "03178010698d5fd2efd5333f967cbfb1434c23fa80010719313131f7705a71c0",
+  "outputSha256": "c6c878ba8d76d22aebedd8123f8db206d3d4def0ff647c4a3003ed54e25b974c",
+  "before": 2572084,
+  "after": 1170588,
+  "sourceNodes": 92,
+  "sourceJoints": 90,
+  "sourceAnimations": 0,
+  "nodes": 100,
+  "joints": 97,
+  "vertices": 17186,
+  "triangles": 10433,
+  "frillVertices": 6323,
+  "jawVertices": 117,
+  "animations": [
+    {
+      "name": "idle",
+      "channels": 98,
+      "extras": {
+        "source": "authored-procedural",
+        "loop": true
+      }
+    },
+    {
+      "name": "walk",
+      "channels": 98,
+      "extras": {
+        "source": "authored-procedural",
+        "loop": true
+      }
+    },
+    {
+      "name": "run",
+      "channels": 98,
+      "extras": {
+        "source": "authored-procedural",
+        "loop": true
+      }
+    },
+    {
+      "name": "attack",
+      "channels": 98,
+      "extras": {
+        "source": "authored-procedural",
+        "loop": false
+      }
+    },
+    {
+      "name": "spit",
+      "channels": 98,
+      "extras": {
+        "source": "authored-procedural",
+        "loop": false,
+        "releaseTime": 0.52
+      }
+    },
+    {
+      "name": "hurt",
+      "channels": 98,
+      "extras": {
+        "source": "authored-procedural",
+        "loop": false
+      }
+    },
+    {
+      "name": "death",
+      "channels": 98,
+      "extras": {
+        "source": "authored-procedural",
+        "loop": false
+      }
+    }
+  ],
+  "textures": [
+    {
+      "mime": "image/webp",
+      "size": [
+        1024,
+        1024
+      ]
+    },
+    {
+      "mime": "image/webp",
+      "size": [
+        1024,
+        1024
+      ]
+    },
+    {
+      "mime": "image/webp",
+      "size": [
+        1024,
+        1024
+      ]
+    }
+  ],
+  "extensions": [
+    "EXT_meshopt_compression",
+    "EXT_texture_webp",
+    "KHR_mesh_quantization"
+  ],
+  "rig": {
+    "hips": "Bone_001",
+    "chest": "Bone_006",
+    "head": "Bone_036",
+    "neck": [
+      "Bone_006",
+      "Bone_005",
+      "Bone_004",
+      "Bone_003",
+      "Bone_002"
+    ],
+    "tail": [
+      "Bone_028",
+      "Bone_027",
+      "Bone_026",
+      "Bone_025",
+      "Bone_024",
+      "Bone_023",
+      "Bone_022",
+      "Bone_021",
+      "Bone_020",
+      "Bone_019"
+    ],
+    "legs": [
+      [
+        "Bone_011",
+        "Bone_010",
+        "Bone_009",
+        "Bone_008"
+      ],
+      [
+        "Bone_017",
+        "Bone_016",
+        "Bone_015",
+        "Bone_014"
+      ]
+    ],
+    "arms": [
+      [
+        "Bone_042",
+        "Bone_041"
+      ],
+      [
+        "Bone_047",
+        "Bone_046"
+      ]
+    ],
+    "mouth": "SpitSocket",
+    "frills": [
+      "Frill_L",
+      "Frill_L_Top",
+      "Frill_L_Bottom",
+      "Frill_R",
+      "Frill_R_Top",
+      "Frill_R_Bottom"
+    ]
+  }
+}

@@ -1,0 +1,291 @@
+{
+  "asset": {
+    "input": "/workspace/crise-input/cuspidor.glb",
+    "sourceSha256": "03178010698d5fd2efd5333f967cbfb1434c23fa80010719313131f7705a71c0",
+    "outputSha256": "c6c878ba8d76d22aebedd8123f8db206d3d4def0ff647c4a3003ed54e25b974c",
+    "before": 2572084,
+    "after": 1170588,
+    "sourceNodes": 92,
+    "sourceJoints": 90,
+    "sourceAnimations": 0,
+    "nodes": 100,
+    "joints": 97,
+    "vertices": 17186,
+    "triangles": 10433,
+    "frillVertices": 6323,
+    "jawVertices": 117,
+    "animations": [
+      {
+        "name": "idle",
+        "channels": 98,
+        "extras": {
+          "source": "authored-procedural",
+          "loop": true
+        }
+      },
+      {
+        "name": "walk",
+        "channels": 98,
+        "extras": {
+          "source": "authored-procedural",
+          "loop": true
+        }
+      },
+      {
+        "name": "run",
+        "channels": 98,
+        "extras": {
+          "source": "authored-procedural",
+          "loop": true
+        }
+      },
+      {
+        "name": "attack",
+        "channels": 98,
+        "extras": {
+          "source": "authored-procedural",
+          "loop": false
+        }
+      },
+      {
+        "name": "spit",
+        "channels": 98,
+        "extras": {
+          "source": "authored-procedural",
+          "loop": false,
+          "releaseTime": 0.52
+        }
+      },
+      {
+        "name": "hurt",
+        "channels": 98,
+        "extras": {
+          "source": "authored-procedural",
+          "loop": false
+        }
+      },
+      {
+        "name": "death",
+        "channels": 98,
+        "extras": {
+          "source": "authored-procedural",
+          "loop": false
+        }
+      }
+    ],
+    "textures": [
+      {
+        "mime": "image/webp",
+        "size": [
+          1024,
+          1024
+        ]
+      },
+      {
+        "mime": "image/webp",
+        "size": [
+          1024,
+          1024
+        ]
+      },
+      {
+        "mime": "image/webp",
+        "size": [
+          1024,
+          1024
+        ]
+      }
+    ],
+    "extensions": [
+      "EXT_meshopt_compression",
+      "EXT_texture_webp",
+      "KHR_mesh_quantization"
+    ],
+    "rig": {
+      "hips": "Bone_001",
+      "chest": "Bone_006",
+      "head": "Bone_036",
+      "neck": [
+        "Bone_006",
+        "Bone_005",
+        "Bone_004",
+        "Bone_003",
+        "Bone_002"
+      ],
+      "tail": [
+        "Bone_028",
+        "Bone_027",
+        "Bone_026",
+        "Bone_025",
+        "Bone_024",
+        "Bone_023",
+        "Bone_022",
+        "Bone_021",
+        "Bone_020",
+        "Bone_019"
+      ],
+      "legs": [
+        [
+          "Bone_011",
+          "Bone_010",
+          "Bone_009",
+          "Bone_008"
+        ],
+        [
+          "Bone_017",
+          "Bone_016",
+          "Bone_015",
+          "Bone_014"
+        ]
+      ],
+      "arms": [
+        [
+          "Bone_042",
+          "Bone_041"
+        ],
+        [
+          "Bone_047",
+          "Bone_046"
+        ]
+      ],
+      "mouth": "SpitSocket",
+      "frills": [
+        "Frill_L",
+        "Frill_L_Top",
+        "Frill_L_Bottom",
+        "Frill_R",
+        "Frill_R_Top",
+        "Frill_R_Bottom"
+      ]
+    }
+  },
+  "runtime": {
+    "three": "160",
+    "fallback": false,
+    "reads": 3,
+    "aiMarkerSeconds": 0.52,
+    "mouthWorldVerified": true,
+    "clipGrounding": true,
+    "realFrillSkinDeformation": true,
+    "springDeflectionMetres": 0.014592928511372333,
+    "openingDisplacementMetres": 0.32151650518151553,
+    "secondaryGroundingFrames": 360,
+    "interruptionCases": 6,
+    "webGL": false
+  },
+  "grounding": {
+    "three": "160",
+    "samples": 4214,
+    "framingChecks": 192,
+    "webGL": false,
+    "measuredSkinnedVertices": true,
+    "report": [
+      {
+        "type": "raptor",
+        "width": 0.7599999999999999,
+        "height": 2.125642322821539,
+        "length": 4.730000000372529,
+        "navigationRadius": 0.75,
+        "contactSamples": 47,
+        "minimumY": [
+          0.011999999999999726,
+          0.01200000000000033
+        ],
+        "resets": 20
+      },
+      {
+        "type": "spitter",
+        "width": 0.8820000000000003,
+        "height": 2.5426054529202147,
+        "length": 4.394250000391155,
+        "navigationRadius": 0.75,
+        "contactSamples": 51,
+        "minimumY": [
+          0.011999999999999672,
+          0.012000000000000483
+        ],
+        "resets": 20
+      },
+      {
+        "type": "brute",
+        "width": 2.436000000000001,
+        "height": 5.242045617481214,
+        "length": 9.771988865098319,
+        "navigationRadius": 1.7,
+        "contactSamples": 60,
+        "minimumY": [
+          0.01199999999999921,
+          0.012000000000000653
+        ],
+        "resets": 20
+      },
+      {
+        "type": "colossus",
+        "width": 3.7120000000000006,
+        "height": 7.987879036161852,
+        "length": 14.890649699197446,
+        "navigationRadius": 2.6,
+        "contactSamples": 60,
+        "minimumY": [
+          0.011999999999998677,
+          0.012000000000001322
+        ],
+        "resets": 20
+      },
+      {
+        "type": "matriarca",
+        "width": 3.132,
+        "height": 6.739772936761558,
+        "length": 12.563985683697842,
+        "navigationRadius": 2.1,
+        "contactSamples": 60,
+        "minimumY": [
+          0.011999999999998677,
+          0.012000000000001315
+        ],
+        "resets": 20
+      },
+      {
+        "type": "primordio",
+        "width": 3.480000000000001,
+        "height": 7.4886365964017365,
+        "length": 13.959984092997606,
+        "navigationRadius": 2.4,
+        "contactSamples": 60,
+        "minimumY": [
+          0.011999999999999112,
+          0.012000000000000956
+        ],
+        "resets": 20
+      },
+      {
+        "type": "origin",
+        "width": 3.596000000000002,
+        "height": 7.738257816281794,
+        "length": 14.425316896097526,
+        "navigationRadius": 2.5,
+        "contactSamples": 60,
+        "minimumY": [
+          0.01199999999999868,
+          0.012000000000001454
+        ],
+        "resets": 20
+      }
+    ]
+  },
+  "limits": [
+    "CPU/GLTFLoader e render offline; n\u00e3o \u00e9 verifica\u00e7\u00e3o WebGL/navegador",
+    "FPS, GPU, \u00e1udio, celular e combate por uma pessoa n\u00e3o verificados"
+  ],
+  "render": "/workspace/cuspidor-preview.png",
+  "regression": {
+    "unitTests": 186,
+    "passed": 186,
+    "geometryRoutes": 73,
+    "cageRoutes": 9,
+    "heroPoseSamples": 2904,
+    "grassMasksStreamingAndSharing": true,
+    "fallbackAIInterruptionCases": 6,
+    "deterministicRebuildByteIdentical": true
+  }
+}
