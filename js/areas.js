@@ -95,6 +95,7 @@ export const AREAS = [
       // Plataforma aberta sobre a água, ligada à terra pela faixa leste; nunca bloqueia o portão norte.
       W.solid(ctx, 13, 17, 16, 16, 0.24, MATS.concrete, -0.24, false);
       quayHelipad(ctx, this.quayPad);
+      const heli = rescueHelicopter(); heli.group.visible = false; ctx.group.add(heli.group);
       // Fora dos pisos do píer e da plataforma é água, não chão invisível caminhável.
       ctx.boxes.push(...[
         [-22, -2, 18, 26], [-22, -5, 16, 18], [2, 5, 18, 26], [21, 22, 16, 26], [5, 21, 25, 26],
@@ -106,7 +107,7 @@ export const AREAS = [
       W.grass(ctx, { ...b, maxX: 5, maxZ: shore - 1 }, 220, 0x3a4a28);
       W.lamp(ctx, -6, 12, 0xffb060); W.lamp(ctx, 7, 10, 0xffa050); W.lamp(ctx, -10, -9.5, 0xff8a40); W.lamp(ctx, 10, -5, 0xff8a40); W.lamp(ctx, 2, -15, 0xff2020, 'pulse', 26);
       return {
-        doors: { N: W.doorway(ctx, 'N', 0, b) },
+        heli, doors: { N: W.doorway(ctx, 'N', 0, b) },
         terminals: [{ id: 'save-porto', kind: 'save', ...W.terminal(ctx, 5, 13, Math.PI), x: 5, z: 13 }],
       };
     },
@@ -354,8 +355,8 @@ export const AREAS = [
     mood: { fog: 0x1a0a0c, density: 0.024, sky: 0xa05050, groundCol: 0x0a0404, hemi: 0.95, moonCol: 0xffb0a0, moon: 1.0,
       rain: 1, lightning: true, fireflies: false, exposure: 1.15, moonPos: [-10, 40, 20],
       spots: [{ x: 20, h: 10, z: -20, tx: 0, tz: -8, color: 0xffe0d0, sweep: 9, speed: 0.3 }, { x: -21.5, h: 7.5, z: 19, tx: 0, tz: -4, color: 0xffd8c8, sweep: 8, speed: 0.42 }] },
-    // v7: portão leste para o Ato 2 (trilha do rio) — só abre depois que o Colosso cai
-    doors: [{ id: 'W', side: 'W', at: -10, to: 'patio', toDoor: 'E', lock: 'bossLock' }, { id: 'E', side: 'E', at: -2, to: 'margem', toDoor: 'W', lock: 'act2Gate' }],
+    // Portão norte para o Ato 2 (trilha do rio) — só abre depois que o Colosso cai
+    doors: [{ id: 'W', side: 'W', at: -10, to: 'patio', toDoor: 'E', lock: 'bossLock' }, { id: 'N', side: 'N', at: -10, to: 'margem', toDoor: 'W', lock: 'act2Gate' }],
     pickups: [
       { id: 'p6ammo', kind: 'ammo', x: -18, z: 14 }, { id: 'p6ammo2', kind: 'ammo', x: 18, z: 14 },
       { id: 'p6med', kind: 'med', x: -20, z: 0 }, { id: 'p6gren', kind: 'grenade', x: 20, z: 0 },
@@ -373,10 +374,12 @@ export const AREAS = [
       // penhasco ao redor (pedras grandes fora dos limites)
       for (let i = 0; i < 40; i++) {
         const a = rng() * Math.PI * 2, d = 30 + rng() * 8, s = 2 + rng() * 3;
-        if (Math.abs(Math.atan2(Math.sin(a), Math.cos(a))) < 0.3) continue; // v7: trilha livre a leste (portão do rio)
+        if (Math.abs(Math.atan2(Math.sin(a + 1.89), Math.cos(a + 1.89))) < 0.3) continue; // trilha livre junto ao portão norte
         W.rock(ctx, Math.cos(a) * d, Math.sin(a) * d, s, false);
       }
-      W.perimeter(ctx, b, 1.1, MATS.stripe, [{ side: 'W', at: -10, half: 2.4 }, { side: 'E', at: -2, half: 2.4 }], 0.3);
+      // Passarela externa explica a curva da trilha sobre o rio até a margem.
+      W.solid(ctx, -10, -33.5, 4.4, 7.2, 0.2, MATS.plank, -0.2, false);
+      W.perimeter(ctx, b, 1.1, MATS.stripe, [{ side: 'W', at: -10, half: 2.4 }, { side: 'N', at: -10, half: 2.4 }], 0.3);
       // Apron de concreto na ponta do penhasco; água abaixo, cauda/rotor livres de carga e portões.
       W.solid(ctx, 0, -19, 18, 18, 0.2, MATS.concrete, -0.2, false);
       W.helipadMark(ctx, this.helipad.x, this.helipad.z, this.helipad.r);
@@ -401,7 +404,7 @@ export const AREAS = [
       // v6: rádio de campo da equipe Tellus-2 (antena fina + caixa), ao lado do registro 9
       const rbox = W.boxMesh(MATS.dark, 0.7, 0.45, 0.5); rbox.position.set(-21, 0.23, -13.2); ctx.group.add(rbox);
       const ant = W.boxMesh(MATS.metal, 0.04, 1.8, 0.04); ant.position.set(-21.2, 1.3, -13.3); ctx.group.add(ant);
-      return { doors: { W: W.doorway(ctx, 'W', -10, b), E: W.doorway(ctx, 'E', -2, b) }, terminals: [], heli, wreck };
+      return { doors: { W: W.doorway(ctx, 'W', -10, b), N: W.doorway(ctx, 'N', -10, b) }, terminals: [], heli, wreck };
     },
   },
 
@@ -409,10 +412,10 @@ export const AREAS = [
   // ------------------------------------------------------------------ 7. MARGEM DO RIO
   {
     id: 'margem', save: true, name: 'MARGEM DO RIO', sub: 'A trilha do penhasco desce até a água — pegadas de sapato social na lama',
-    map: { x: 4, y: 1 }, bounds: { minX: -24, maxX: 24, minZ: -16, maxZ: 20 },
+    map: { x: 3, y: 0 }, bounds: { minX: -24, maxX: 24, minZ: -16, maxZ: 20 },
     mood: { fog: 0x0c1618, density: 0.032, sky: 0x6a8a9a, groundCol: 0x080c0c, hemi: 1.1, moonCol: 0xa8c8e0, moon: 1.15,
       rain: 0.75, lightning: true, fireflies: true, fireflyCol: 0x90ffd0, exposure: 1.22, moonPos: [10, 40, -30] },
-    doors: [{ id: 'W', side: 'W', at: -2, to: 'heliponto', toDoor: 'E' }, { id: 'S', side: 'S', at: -8, to: 'acampamento', toDoor: 'N' }],
+    doors: [{ id: 'W', side: 'W', at: -2, to: 'heliponto', toDoor: 'N' }, { id: 'S', side: 'S', at: -8, to: 'acampamento', toDoor: 'N' }],
     pickups: [
       { id: 'p7ammo', kind: 'ammo', x: -14, z: -8 },
       { id: 'p7med', kind: 'med', x: 4, z: 15 },
@@ -478,7 +481,7 @@ export const AREAS = [
   // ------------------------------------------------------------------ 8. ACAMPAMENTO TELLUS-2
   {
     id: 'acampamento', save: true, name: 'ACAMPAMENTO TELLUS-2', sub: 'Barracas, geradores e jaulas vazias — vazias demais',
-    map: { x: 4, y: 2 }, bounds: { minX: -24, maxX: 24, minZ: -20, maxZ: 20 },
+    map: { x: 4, y: 0 }, bounds: { minX: -24, maxX: 24, minZ: -20, maxZ: 20 },
     mood: { fog: 0x10160e, density: 0.028, sky: 0x8a9a7a, groundCol: 0x0a0c08, hemi: 1.1, moonCol: 0xc8d8b0, moon: 1.1,
       rain: 0.8, lightning: true, fireflies: false, exposure: 1.15, moonPos: [-16, 40, 12],
       spots: [{ x: -22, h: 8.5, z: -18, tx: 0, tz: 4, color: 0xfff4d8, sweep: 10, speed: 0.33 }] },
@@ -575,7 +578,7 @@ export const AREAS = [
     ambient: [{ type: 'spitter', x: -14, z: 8 }, { type: 'raptor', x: 12, z: -6 }],
     logs: [{ id: 'log13', x: -10, z: -18.8, yaw: 0 }],
     nest: { x: 0, z: 9, r: 3.2 }, dock: { x: 19.5, z: 6 },
-    helipad: { x: -13, z: -9, r: 3.4 },
+    helipad: { x: -13, z: -9, r: 5.8 },
     encounters: [
       { id: 'nest-awaken', on: 'zone', zone: { x: 0, z: -3, r: 7 }, boss: true, delay: 2.4, beat: 'nestAwaken', msg: 'A MATRIARCA defende o ninho!',
         spawn: [{ type: 'matriarca', x: 0, z: 13 }, { type: 'raptor', x: -3, z: 9, delay: 2.5, fx: 'egg' }, { type: 'raptor', x: 3, z: 9, delay: 3.2, fx: 'egg' }] },
@@ -613,10 +616,10 @@ export const AREAS = [
       const bm = W.boxMesh(MATS.dark, 0.6, 0.8, 0.6); bm.position.set(-2.4, 0.9, 0); boat.add(bm);
       boat.position.set(27.5, 0, 6); ctx.group.add(boat);
       // clareira de extração (sudoeste): marca H improvisada com sinalizadores
-      W.helipadMark(ctx, -13, -9, 3.4);
+      W.helipadMark(ctx, -13, -9, 5.8);
       const heli = rescueHelicopter(); heli.group.visible = false; ctx.group.add(heli.group);
       W.lamp(ctx, 21, 9, 0xffb060, 'flicker', 18, 2.4);
-      W.lamp(ctx, -17.5, -12.5, 0xff3020, 'pulse', 22, 2.6);
+      W.lamp(ctx, -20, -16, 0xff3020, 'pulse', 22, 2.6);
       // ossos e restos da equipe Tellus-2
       [[-4, -16, 1], [5, -17, 0.9], [15, 0, 1]].forEach((c) => W.crate(ctx, ...c));
       W.grass(ctx, b, 120, 0x1e3a1c);

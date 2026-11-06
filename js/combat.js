@@ -1,3 +1,4 @@
+import { ammoAmount } from './campaign-rules.mjs';
 // combat.js — disparo, granadas, detecção de acertos, dano/abates, combo e itens (do mapa e drops).
 import * as THREE from 'three';
 import { scene, camera, castWorld, rayCircle, resolve, GLOW } from './world.js';
@@ -285,6 +286,7 @@ export function spawnPickup(kind, x, z, opts = {}) {
 export function clearPickups() { pickups.forEach((p) => scene.remove(p.g)); pickups.length = 0; clearGrenades(); }
 
 function tryCollect(p) {
+  const ammo = n => ammoAmount(n, G.difficulty);
   const full = (msg) => { if (p.msgT <= 0) { ui.feed(msg, '#aaa'); p.msgT = 2; } return false; };
   switch (p.kind) {
     case 'med':
@@ -297,17 +299,17 @@ function tryCollect(p) {
       bag.grenades++; ui.feed(`+1 Granada (${bag.grenades}/${grenadeMax()}) — G para arremessar`, '#90d0ff');
       break;
     case 'shotgun':
-      bag.owned[1] = true; weapons[1].mag = weapons[1].size; weapons[1].res = Math.max(weapons[1].res, 6);
+      bag.owned[1] = true; weapons[1].mag = weapons[1].size; weapons[1].res = Math.max(weapons[1].res, ammo(6));
       switchWeapon(1); ui.banner('ESCOPETA', 'Arma nova! Tecla 2 ou Q para alternar', 2.6); sfx.reloadEnd();
       break;
     case 'smg':
-      bag.owned[2] = true; weapons[2].mag = weapons[2].size; weapons[2].res = Math.max(weapons[2].res, 30);
+      bag.owned[2] = true; weapons[2].mag = weapons[2].size; weapons[2].res = Math.max(weapons[2].res, ammo(30));
       switchWeapon(2); ui.banner('SUBMETRALHADORA', 'Arma nova! Automática — segure para disparar. Tecla 3, Q ou roda', 3); sfx.reloadEnd();
       break;
     case 'smgammo': {
       const sm = weapons[2];
       if (sm.res >= resMax(2)) return full('Balas de submetralhadora no máximo');
-      const add = Math.min(PICKUPS.AMMO_SMG, resMax(2) - sm.res);
+      const add = Math.min(ammo(PICKUPS.AMMO_SMG), resMax(2) - sm.res);
       sm.res += add; ui.feed(ui.STR.smgAmmo(add) + (bag.owned[2] ? '' : ' (ache a submetralhadora!)'), '#ffb060');
       break;
     }
@@ -319,10 +321,10 @@ function tryCollect(p) {
       // v6: caixa de suprimentos brilhante — abre com munição para o que você tem e um kit médico
       const got = [];
       const sg = weapons[1], sm = weapons[2], pi = weapons[0];
-      if (pi.res < resMax(0)) { const a = Math.min(36, resMax(0) - pi.res); pi.res += a; got.push(`+${a} balas de pistola`); }
-      if (bag.owned[1] && sg.res < resMax(1)) { const a = Math.min(8, resMax(1) - sg.res); sg.res += a; got.push(`+${a} cartuchos`); }
-      if (bag.owned[2] && sm.res < resMax(2)) { const a = Math.min(45, resMax(2) - sm.res); sm.res += a; got.push(`+${a} balas`); }
-      if (!bag.owned[1] && !bag.owned[2] && sg.res < resMax(1)) { const a = Math.min(6, resMax(1) - sg.res); sg.res += a; got.push(`+${a} cartuchos`); }
+      if (pi.res < resMax(0)) { const a = Math.min(ammo(36), resMax(0) - pi.res); pi.res += a; got.push(`+${a} balas de pistola`); }
+      if (bag.owned[1] && sg.res < resMax(1)) { const a = Math.min(ammo(8), resMax(1) - sg.res); sg.res += a; got.push(`+${a} cartuchos`); }
+      if (bag.owned[2] && sm.res < resMax(2)) { const a = Math.min(ammo(45), resMax(2) - sm.res); sm.res += a; got.push(`+${a} balas`); }
+      if (!bag.owned[1] && !bag.owned[2] && sg.res < resMax(1)) { const a = Math.min(ammo(6), resMax(1) - sg.res); sg.res += a; got.push(`+${a} cartuchos`); }
       if (bag.meds < medMax()) { bag.meds++; got.push('+1 kit médico'); } else if (player.hp < PLAYER.HP) { heal(PICKUPS.MED_HEAL); got.push(`+${PICKUPS.MED_HEAL} vida`); }
       if (bag.grenades < grenadeMax() && Math.random() < 0.5) { bag.grenades++; got.push('+1 granada'); }
       if (!got.length) return full('Caixa de suprimentos: nada que você precise agora');
@@ -333,15 +335,15 @@ function tryCollect(p) {
     case 'pistolammo': {
       const pi = weapons[0];
       if (pi.res >= resMax(0)) return full('Balas de pistola no máximo');
-      const add = Math.min(PICKUPS.AMMO_PISTOL, resMax(0) - pi.res);
+      const add = Math.min(ammo(PICKUPS.AMMO_PISTOL), resMax(0) - pi.res);
       pi.res += add; ui.feed(`+${add} balas de pistola`, '#ffe070');
       break;
     }
     default: {
       // Caixas amarelas são universais: saves e mapas antigos também abastecem a pistola.
       const sg = weapons[1], pi = weapons[0], got = [];
-      if (pi.res < resMax(0)) { const a = Math.min(PICKUPS.AMMO_PISTOL, resMax(0) - pi.res); pi.res += a; got.push(`+${a} balas de pistola`); }
-      if (sg.res < resMax(1)) { const a = Math.min(PICKUPS.AMMO_SHELLS, resMax(1) - sg.res); sg.res += a; got.push(ui.STR.ammo(a)); }
+      if (pi.res < resMax(0)) { const a = Math.min(ammo(PICKUPS.AMMO_PISTOL), resMax(0) - pi.res); pi.res += a; got.push(`+${a} balas de pistola`); }
+      if (sg.res < resMax(1)) { const a = Math.min(ammo(PICKUPS.AMMO_SHELLS), resMax(1) - sg.res); sg.res += a; got.push(ui.STR.ammo(a)); }
       if (!got.length) return full('Munição no máximo');
       ui.feed(got.join(' · '), '#ffe070');
     }

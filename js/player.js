@@ -8,7 +8,8 @@ import { PLAYER, CAMERA, WEAPONS, COLORS, GRENADE, INVENTORY, PICKUPS, ARMOR, UP
 import { G } from './state.js';
 import { breakStreak } from './clean-streak.mjs';
 import { loadModel, limitTextures, fitWeapon } from './model-assets.js';
-import { adaptWalkClip } from './animation-retarget.mjs';
+import { ammoAmount, difficultyProfile } from './campaign-rules.mjs';
+import { adaptWalkClip, retargetCombatClip } from './animation-retarget.mjs';
 import { GUN_SCALE, GUN_ASSETS as gunAssets } from './gun-layout.mjs';
 import { keys } from './input.js';
 import { pad } from './gamepad.js';
@@ -166,11 +167,12 @@ function heroAction(clips, names, { lower = false, swing = false, upper = false,
   return null;
 }
 // Guardar a pose original: o mixer pode alterar ossos antes de uma troca de personagem.
-const bindPoses = new WeakMap();
+const bindPoses = new WeakMap(), bindTransforms = new WeakMap();
 function captureBindPose(model) {
   if (bindPoses.has(model)) return bindPoses.get(model);
-  const poses = new Map();
-  model.traverse(o => { if (o.isBone && o.name) poses.set(o.name, o.quaternion.toArray()); });
+  const poses = new Map(), transforms = [];
+  model.traverse(o => { if (o.isBone && o.name) { poses.set(o.name, o.quaternion.toArray()); transforms.push([o, o.position.clone(), o.quaternion.clone(), o.scale.clone()]); } });
+  bindTransforms.set(model, transforms);
   bindPoses.set(model, poses); return poses;
 }
 function installJillWalk(targetModel, targetGLTF, jillGLTF) {
@@ -211,6 +213,8 @@ async function loadHeroInner(choice = 'marina') {
   if (choice === 'jill') limitTextures(model);
   model.traverse((o) => { if (o.isMesh) { o.castShadow = true; o.receiveShadow = true; o.frustumCulled = false; if (o.material) o.material.side = THREE.FrontSide; } });
   // escala para ~1,8 m e pés no chão (y=0); o modelo já vem Y-up e virado para +Z (mesma frente do jogador)
+  for (const [bone, pos, quat, scale] of bindTransforms.get(model) || []) { bone.position.copy(pos); bone.quaternion.copy(quat); bone.scale.copy(scale); }
+  model.scale.setScalar(1); model.position.set(0, 0, 0);
   model.updateMatrixWorld(true);
   const box = new THREE.Box3().setFromObject(model), h = Math.max(0.01, box.max.y - box.min.y), k = HERO.height / h;
   model.scale.setScalar(k); model.position.y = -box.min.y * k;
@@ -226,7 +230,7 @@ async function loadHeroInner(choice = 'marina') {
   if (hero.model) { hero.mixer.stopAllAction(); hero.model.removeFromParent(); }
   hero.mixer = new THREE.AnimationMixer(model);
   hero.act = {}; hero.fireAct = hero.relAct = null;
-  const clips = choice === 'jill' ? [...gltf.animations, ...defaultHeroGLTF.animations.filter(c => !gltf.animations.some(a => a.name === c.name))] : gltf.animations;
+  const clips = choice === 'jill' ? [...gltf.animations, ...defaultHeroGLTF.animations.filter(c => !gltf.animations.some(a => a.name === c.name)).map(c => retargetCombatClip(c, captureBindPose(defaultHeroGLTF.scene), captureBindPose(model)))] : gltf.animations;
   const A = hero.act;
   A.walk = heroAction(clips, ['Walking_Woman', 'Walking'], { lower: true });
   A.run = heroAction(clips, ['Running', 'Walking'], { lower: true });
@@ -236,8 +240,9 @@ async function loadHeroInner(choice = 'marina') {
   A.runUp = heroAction(clips, ['Running', 'Walking'], { swing: true });
   // v11: o tempo dos clipes de locomoção é dirigido pela fase compartilhada (updateHero), não pelo mixer
   for (const a of [A.walk, A.run, A.walkUp, A.runUp]) if (a) a.timeScale = 0;
-  A.idle = heroAction(clips, ['Weapon_Idle']);
-  A.aim = heroAction(clips, ['Aim_Pistol']);
+  A.idleLegs = heroAction(clips, ['Weapon_Idle'], { lower: true });
+  A.idle = heroAction(clips, ['Weapon_Idle'], { upper: true });
+  A.aim = heroAction(clips, ['Aim_Pistol'], { upper: true });
   for (const id in FIRE_CLIP) { A['fire_' + id] = heroAction(clips, FIRE_CLIP[id], { upper: true, once: id !== 'smg' }); A['reload_' + id] = heroAction(clips, RELOAD_CLIP[id], { upper: true, once: true }); }
   hero.fires = Object.keys(FIRE_CLIP).map((id) => A['fire_' + id]).filter(Boolean).filter((a, i, l) => l.indexOf(a) === i);
   hero.reloads = Object.keys(RELOAD_CLIP).map((id) => A['reload_' + id]).filter(Boolean).filter((a, i, l) => l.indexOf(a) === i);
@@ -249,6 +254,9 @@ async function loadHeroInner(choice = 'marina') {
   pg.add(model); body.visible = false;
   hero.model = model; hero.ok = true; selectedHero = choice;
   hero.walkSource = choice === 'jill' ? 'jill' : 'original';
+  hero.loco = hero.walkW = hero.runW = hero.blend = hero.ph = hero.legYaw = hero.fireW = hero.relW = hero.aimW = hero.raiseW = 0; hero.fireT = -9;
+  if (A.idleLegs) A.idleLegs.setEffectiveWeight(1);
+  hero.mixer.update(0);
   if (choice === 'marina') {
     loadModel('assets/personagens/jill.glb').then(reference => {
       captureBindPose(reference.scene); installJillWalk(model, gltf, reference);
@@ -286,7 +294,7 @@ const _q = new THREE.Quaternion(), _qp = new THREE.Quaternion(), _ax = new THREE
 const _a = new THREE.Vector3(), _b = new THREE.Vector3(), _t = new THREE.Vector3(), _up = new THREE.Vector3(0, 1, 0), _q2 = new THREE.Quaternion();
 // v11: referências da locomoção (medidas nos clipes do GLB): velocidade natural do andar/corrida (m/s),
 // faixa de velocidade da mistura andar→correr, fases (0..1) em que cada pé pisa e defasagem da corrida.
-const LOCO = { WALK_REF: 1.35, RUN_REF: 4.6, B0: 3.0, B1: 7.0, STEPS: [0.24, 0.72], RUN_OFS: -0.03 };
+const LOCO = { WALK_REF: 1.35, RUN_REF: 4.6, B0: 2.4, B1: 5.0, STEPS: [0.24, 0.72], RUN_OFS: -0.03 };
 // aplica uma rotação dada no espaço do mundo a um osso (convertida para o espaço do pai)
 function rotWorld(o, q) {
   o.parent.updateWorldMatrix(true, false); o.parent.getWorldQuaternion(_qp);
@@ -309,9 +317,9 @@ function updateHero(dt, mk) {
   if (spd > 0.3) hero.blend = damp(hero.blend, clamp((spd - LOCO.B0) / (LOCO.B1 - LOCO.B0), 0, 1) * (hero.back ? 0.3 : 1), 7, dt);
   const b = hero.blend;
   const dW = A.walk ? A.walk.getClip().duration : 1, dR = A.run ? A.run.getClip().duration : 1;
-  const period = (dW / clamp(spd / LOCO.WALK_REF, 0.8, 2.3)) * (1 - b) + (dR / clamp(spd / LOCO.RUN_REF, 0.8, 1.6)) * b;
+  const period = (dW * LOCO.WALK_REF * (1 - b) + dR * LOCO.RUN_REF * b) / Math.max(0.01, spd);
   const ph0 = hero.ph;
-  if (L > 0.02) hero.ph = ((hero.ph + dt / period * (hero.back ? -1 : 1)) % 1 + 1) % 1;
+  if (moving && L > 0.02) hero.ph = ((hero.ph + dt / period * (hero.back ? -1 : 1)) % 1 + 1) % 1;
   // passos sincronizados com os pés da animação
   if (moving && L > 0.5) for (const st of LOCO.STEPS) {
     const crossed = hero.back ? (ph0 >= st && hero.ph < st) || (ph0 < hero.ph && (ph0 >= st || hero.ph < st)) : (ph0 < st && hero.ph >= st) || (hero.ph < ph0 && (ph0 < st || hero.ph >= st));
@@ -322,6 +330,7 @@ function updateHero(dt, mk) {
   hero.walkW = A.run === A.walk ? L : L * (1 - b); hero.runW = A.run === A.walk ? 0 : L * b;
   if (A.walk) A.walk.setEffectiveWeight(hero.walkW);
   if (A.run && A.run !== A.walk) A.run.setEffectiveWeight(hero.runW);
+  if (A.idleLegs) A.idleLegs.setEffectiveWeight(1 - L);
   const walkN = hero.walkW, runN = hero.runW;
   // giro do quadril (strafe): de lado as pernas apontam para onde ela anda
   const legT = moving ? clamp(hero.back ? wrapAngle(mvAng - Math.PI) : mvAng, -0.85, 0.85) : 0;
@@ -339,7 +348,8 @@ function updateHero(dt, mk) {
     const total = Math.max(0.2, arms.reloadTotal), dur = ra.getClip().duration;
     if (hero.relAct !== ra) { ra.reset(); hero.relAct = ra; }
     // tempo do clipe preso ao progresso da recarga (não escorrega mesmo com quadros irregulares)
-    ra.paused = false; ra.timeScale = dur / total; ra.time = clamp(1 - arms.reloading / total, 0, 1) * dur * 0.999;
+    ra.paused = false; ra.timeScale = 0; // tempo dirigido manualmente: não avançar duas vezes no mixer
+    ra.time = clamp(1 - arms.reloading / total, 0, 1) * dur * 0.999;
   } else if (hero.relAct) hero.relAct = null; // o clipe fica parado no último quadro enquanto some
   let relSum = 0;
   for (const a of hero.reloads) {
@@ -354,7 +364,7 @@ function updateHero(dt, mk) {
   for (const a of hero.fires) a.setEffectiveWeight(a.w8 / Math.max(1, fireSum) * (1 - rel));
   // mira: entra e sai com suavidade; com a mira as pernas continuam andando por baixo
   hero.aimW = damp2(hero.aimW, G.aiming && !player.dead ? 1 : 0, 10, 7, dt);
-  const aim = hero.aimW * rest, base = rest - aim;
+  const aim = A.aim ? hero.aimW * rest : 0, base = rest - aim;
   if (A.aim) A.aim.setEffectiveWeight(aim);
   if (A.idle) A.idle.setEffectiveWeight(base);
   // balanço do tronco ao andar/correr por cima da pose base (só ossos do tronco e braço esquerdo).
@@ -482,6 +492,7 @@ let armKick = 0, armSwap = 0;
 export function hurtPlayer(d, fromX, fromZ, knock) {
   if (player.inv > 0 || G.state !== 'play' || player.dead) return;
   if (G.cleanStreak.kills) { breakStreak(G.cleanStreak); ui.feed('Sequência sem dano interrompida', '#ff8a70'); }
+  d *= difficultyProfile(G.difficulty).damage;
   let soaked = 0;
   if (bag.armor > 0) { // v6: colete absorve parte do golpe
     soaked = Math.min(bag.armor, Math.round(d * ARMOR.ABSORB)); bag.armor -= soaked; d -= soaked;
@@ -539,7 +550,7 @@ export function resetPlayer() {
   player.pos.set(0, 0, 0); pg.rotation.set(0, 0, 0); pg.position.set(0, 0, 0); pg.visible = true; playerShadow.visible = true;
   bag.owned = [true, false, false]; bag.grenades = GRENADE.START; bag.meds = INVENTORY.MED_START; bag.armor = 0; bag.up = {};
   applyUpgrades(); // v10: volta aos atributos base
-  weapons.forEach((w) => { w.mag = w.size; w.res = w.startRes; });
+  weapons.forEach((w) => { w.mag = w.size; w.res = Math.min(w.resMax, ammoAmount(w.startRes, G.difficulty)); });
   arms.cur = 0; arms.cool = 0; arms.reloading = 0; showGun(0); armKick = armSwap = 0;
   G.yaw = Math.PI; G.pitch = -0.12; G.aiming = false;
   snapCamera();
@@ -596,7 +607,8 @@ export function updatePlayer(dt) {
   player.pos.x += mx * sp * dt; player.pos.z += mz * sp * dt;
   resolve(player.pos, player.r);
   // v11: velocidade real andada (parede/encosto reduzem) — usada pela animação; o empurrão (kx/kz) não conta
-  if (dt > 0) player.spd = damp(player.spd || 0, Math.min(Math.hypot(player.pos.x - ox, player.pos.z - oz) / dt, sp * Math.min(ml, 1)), 14, dt);
+  if (dt > 0) player.spd = Math.min(Math.hypot(player.pos.x - ox, player.pos.z - oz) / dt, sp * Math.min(ml, 1));
+  player.moving = player.spd > 0.04;
   player.pos.x += player.kx * dt; player.pos.z += player.kz * dt;
   const k = Math.exp(-9 * dt); player.kx *= k; player.kz *= k;
   resolve(player.pos, player.r);
