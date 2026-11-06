@@ -11,8 +11,8 @@ export const WORLD = {
 export const PLAYER = {
   HP: 100,
   RADIUS: 0.5,
-  WALK: 5.2,
-  RUN: 8.2,
+  WALK: 2.7,
+  RUN: 5.6,
   BACK_MULT: 0.75,      // andar de costas é mais lento
   AIM_MULT: 0.6,        // mirando (botão direito) anda mais devagar
   RELOAD_MULT: 0.85,

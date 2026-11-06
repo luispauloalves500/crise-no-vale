@@ -1,6 +1,7 @@
 // state.js — estado de execução compartilhado entre módulos (evita imports circulares).
 export const G = {
   state: 'menu',
+  difficulty: 'normal',
   transitioning: false,
   hitstop: 0,         // v6: congelamento breve (s) em crítico/abate
   hitstopCd: 0,      // menu | play | pause | story | terminal | over | win | ended

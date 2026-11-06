@@ -37,3 +37,19 @@ export function adaptWalkClip(base, source, sourcePose, targetPose) {
   walk.duration = source.duration;
   return walk;
 }
+
+/** Retarget de rotações entre rigs Mixamo (nomes com/sem ':'). Sem translação de outro rig. */
+export function retargetCombatClip(source, sourcePose, targetPose) {
+  const key = name => name.replace(/^mixamorig:?/, '');
+  const targets = new Map([...targetPose].map(([name, q]) => [key(name), { name, q }]));
+  const from = new Map([...sourcePose].map(([name, q]) => [key(name), q]));
+  const clip = source.clone();
+  clip.tracks = clip.tracks.flatMap(track => {
+    if (!track.name.endsWith('.quaternion')) return [];
+    const name = track.name.slice(0, -11), target = targets.get(key(name)), rest = from.get(key(name));
+    if (!target || !rest || track.values.length !== track.times.length * 4) return [];
+    const t = track.clone(); t.name = target.name + '.quaternion';
+    t.values = retargetValues(track.values, rest, target.q); return [t];
+  });
+  return clip;
+}
