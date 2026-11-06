@@ -338,7 +338,12 @@ function updateEnemy(e, dt) {
   e.atkCd -= dt; e.flashT -= dt; e.stun -= dt; e.special -= dt; e.bite -= dt; e.stompCd -= dt;
   let mvx = 0, mvz = 0, spd = T.speed, face = Math.atan2(dx, dz);
   const reach = T.r + (tgt === player ? player.r : 0.4) + 0.45;
-  if (!e.alert && !player.dead) {
+  if (e.cageExit) {
+    const ex=e.cageExit.x-e.pos.x,ez=e.cageExit.z-e.pos.z,ed=Math.hypot(ex,ez);
+    if(ed<.45){e.home={...e.cageExit};e.cageExit=null;spd=0;}
+    else if(e.stun>0||player.dead)spd=0;
+    else {mvx=ex/ed;mvz=ez/ed;spd*=.8;face=Math.atan2(ex,ez);}
+  } else if (!e.alert && !player.dead) {
     const search = e.investigate;
     if (search && search.t > 0) {
       search.t -= dt;

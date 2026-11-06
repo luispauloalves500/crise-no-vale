@@ -43,14 +43,35 @@ export function normalizeCampaignSave(raw) {
   if (act === 3) Object.assign(f, { nestClear: true, act2Win: true, campGate: true, limaRescued: true });
   if (act < 3) for (const k of ['act3Banner','act3Win','act3Choice','act3Resolved','valvesClosed','primDead','primFight','contamT','contaminated','contamOk']) delete f[k];
   if (act === 1) {
-    for (const k of ['campGate','nestClear','nestDestroyed','brandt']) delete f[k];
+    for (const k of ['campGate','nestClear','nestDestroyed','brandt','cagesReleased']) delete f[k];
     f.act1Complete = false; f.act2Win = false; f.rescued = false;
   }
   else f.rescued = !!f.act2Win;
   if (f.act3Choice && f.primDead && f.valvesClosed) f.act3Resolved = true;
+  // O evento antigo abria na chegada; sem a nova flag, rearmar para o gatilho jogável.
+  if (!f.cagesReleased) {
+    if (s.enc.includes('camp-brandt') && s.st.acampamento) s.st.acampamento={...s.st.acampamento,pending:[]};
+    s.enc=s.enc.filter(id=>id!=='camp-brandt'&&id!=='camp-jaula');
+  }
   // Memória de áreas futuras misturadas não pode pular gatilhos na próxima etapa.
   for (const id of Object.keys(s.st)) if (actOf(id) > act) delete s.st[id];
   // Recarregar uma decisão antiga retoma a fuga, sem disparar vitória incompleta.
   f.act3Win = false; f.bossFight = f.nestFight = f.primFight = false;
   return s;
+}
+
+// Jaulas: uma liberação persistente por campanha. Só patrulhas ambientais renovam.
+export const CAGE_OPEN_SECONDS = 1.6;
+export function cageReleaseWave(cages, difficulty) {
+  if(!cages.length)return [];
+  const count=Math.max(1,Math.round(cages.length*difficultyProfile(difficulty).patrols));
+  return Array.from({length:count},(_,i)=>{
+    const c=cages[i%cages.length],w=c.big?5:3.6,extra=Math.floor(i/cages.length),z=c.z+(extra ? .65 : 0);
+    return {type:c.big?'brute':'raptor',x:c.x,z,delay:.20+i*.35,cageRelease:true,
+      cageExit:{x:c.x+c.face*(w/2+1.9),z}};
+  });
+}
+export function cageGatePose(progress, height) {
+  const p=Math.min(1,Math.max(0,progress)),y=(height+.2)*p*p*(3-2*p);
+  return {y,blocking:y<height*.88};
 }

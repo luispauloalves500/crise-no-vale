@@ -14,6 +14,7 @@ export function captureEncounterMemory(enemies = [], queue = []) {
       lastSeen: copyPoint(e.lastSeen), investigate: e.investigate && validPoint(e.investigate) ?
         { x: e.investigate.x, z: e.investigate.z, t: Math.max(0, e.investigate.t || 0) } : null,
       phaseIdx: Number.isInteger(e.phaseIdx) ? e.phaseIdx : 0,
+      ...(e.cageRelease ? {cageRelease:true,cageExit:copyPoint(e.cageExit)} : {}),
     })),
     // Ondas ligadas a um evento cancelável (gerador / hack / resgate) não continuam após deixar a área.
     pending: queue.filter((q) => validPending(q) && !q.eventKind).map((q) => ({ ...q })),
@@ -21,7 +22,7 @@ export function captureEncounterMemory(enemies = [], queue = []) {
 }
 export function restoreEncounterMemory(state = {}, ambient = []) {
   const living = Array.isArray(state.living)
-    ? state.living.filter(validLiving).map((e) => ({ ...e }))
+    ? state.living.filter(validLiving).map((e) => ({ ...e, ...(e.cageRelease ? {cageExit:copyPoint(e.cageExit)} : {}) }))
     : ambient.flatMap((e, index) => (state.dead || []).includes(index) ? [] :
       [{ type: e.type, x: e.x, z: e.z, ambientIdx: index, alert: false }]);
   const pending = Array.isArray(state.pending)
