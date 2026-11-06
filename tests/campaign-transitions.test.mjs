@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import vm from 'node:vm';
 import { restoreEncounterMemory } from '../js/encounter-memory.mjs';
-import { findEscortPath, segmentClear } from '../js/escort-nav.mjs';
+import { ammoAmount, patrolComposition } from '../js/campaign-rules.mjs';
 const read = f => readFileSync(new URL('../js/' + f, import.meta.url), 'utf8');
 const director = read('director.js'), playerCode = read('player.js'), areaCode = read('areas.js');
 const config = vm.runInNewContext(read('config.js').replaceAll('export ', '') + '\n({WEAPONS,PICKUPS,CAMERA,UPGRADES,INVENTORY,GRENADE,PLAYER})');
@@ -42,7 +42,7 @@ test('caixas antigas, caixas de suprimentos e drops abastecem a pistola sem exce
   const weapons=config.WEAPONS.map(w=>({...w,mag:0,res:0}));
   const c=run(read('combat.js').slice(read('combat.js').indexOf('function tryCollect('),read('combat.js').indexOf('function updatePickups(')),{
     weapons,bag:{owned:[true,true,false],meds:4,grenades:5},resMax:i=>weapons[i].resMax,
-    PICKUPS:config.PICKUPS,PLAYER:config.PLAYER,player:{hp:100},medMax:()=>4,grenadeMax:()=>5,
+    ammoAmount,G:{difficulty:'normal'},PICKUPS:config.PICKUPS,PLAYER:config.PLAYER,player:{hp:100},medMax:()=>4,grenadeMax:()=>5,
     ui:{feed(){},STR:{ammo:n=>String(n)}},burst(){},Math
   });
   assert.equal(c.tryCollect({kind:'ammo'}),true);assert.equal(weapons[0].res,24);assert.equal(weapons[1].res,6);
@@ -56,7 +56,7 @@ test('todas as áreas renovam patrulhas em múltiplos retornos sem duplicar iten
     const state={visited:true,dead:a.ambient.map((_,i)=>i),taken:['already'],living:[],pending:[]};
     const spawned=[],picked=[],F={bossDead:true,nestClear:true,primDead:true};
     const c=run(director.slice(director.indexOf('function spawnAreaContents('),director.indexOf('function setupSurvivor(')),{
-      D:{st:{[a.id]:state}},F,restoreEncounterMemory,ENEMY_TYPES:{raptor:{r:.75},spitter:{r:.75},brute:{r:1.7},colossus:{boss:true,r:2.6}},
+      G:{difficulty:'normal'},patrolComposition,D:{st:{[a.id]:state}},F,restoreEncounterMemory,ENEMY_TYPES:{raptor:{r:.75},spitter:{r:.75},brute:{r:1.7},colossus:{boss:true,r:2.6}},
       player:{pos:{x:0,z:0}},freeSpot:()=>true,rearmPendingWarnings:q=>q,
       spawnEnemy(type,x,z,opts){const e={type,cfg:{},maxHp:55,hp:55,home:{x:x??15,z:z??15}};spawned.push(e);return e;},
       spawnPickup(...args){picked.push(args);}
@@ -74,7 +74,7 @@ test('chefe em andamento mantém vida, mas patrulhas voltam inteiras e longe da 
   const alive={type:'colossus',x:20,z:20,hp:700};
   const s={taken:[],dead:[0],living:[alive],pending:[]}, spawned=[];
   const c=run(director.slice(director.indexOf('function spawnAreaContents('),director.indexOf('function setupSurvivor(')),{
-    D:{st:{a:s}},F:{},restoreEncounterMemory,ENEMY_TYPES:{raptor:{r:.75},colossus:{boss:true,r:2.6}},
+    G:{difficulty:'normal'},patrolComposition,D:{st:{a:s}},F:{},restoreEncounterMemory,ENEMY_TYPES:{raptor:{r:.75},colossus:{boss:true,r:2.6}},
     player:{pos:{x:1,z:1}},freeSpot:()=>true,rearmPendingWarnings:q=>q,
     spawnEnemy(type,x,z){const e={type,cfg:{boss:type==='colossus'},x,z,maxHp:type==='raptor'?55:1600,home:{x:x??20,z:z??20}};spawned.push(e);return e;},spawnPickup(){}
   });
@@ -99,40 +99,18 @@ test('câmera real nasce atrás do spawn nos quatro sentidos, com colisão insta
   const place=playerCode.slice(playerCode.indexOf('export function placePlayer('),playerCode.indexOf('export function snapshotBag('));
   assert.match(place,/G.aiming = false/);assert.match(place,/snapCamera\(\)/);
 });
-function boardingHarness() {
-  const h=areas.find(a=>a.id==='heliponto').helipad;
-  const group={position:new V(),rotation:new V(),visible:false},heli={group,rotor:{rotation:new V()},tailRotor:{rotation:new V()},nav:[],boardingDoor:{position:new V(1.38,1.4,-1.6)}};
-  const area={id:'heliponto',helipad:h,bounds:{minX:-24,maxX:24,minZ:-30,maxZ:22},ctx:{boxes:[],circles:[]},refs:{heli}};
-  const samples=[],entered=[],phases=new Set(),D={area,heli:{t:0,chopT:0},event:null,trans:null};
-  const c=run(director.slice(director.indexOf('function startBoarding('),director.indexOf('/** Atalho de depuração')),{
-    D,F:{rescued:true},G:{yaw:0,transitioning:false,shake:0},player:{r:.5,pos:{x:h.x,z:h.z}},pg:{position:new V(h.x,0,h.z),visible:true},
-    findEscortPath,clearInput(){},story:{clearSpeech(){}},ui:{feed(){},setFade(){}},spots:[{}],sfx:{heli(){}},castWorld:()=>Infinity,
-    animateBoarding(dt,p,yaw,crouch){samples.push({...p,yaw,crouch});c.pg.position.set(p.x,p.y,p.z);c.pg.visible=true;},
-    enterArea(id){entered.push(id);c.F.act2=true;},streamAround(){},Math
-  });
-  return {c,D,heli,samples,entered,phases,h};
-}
-test('embarque percorre chão, espera pousar, sobe pela porta e chega ao Ato 2 uma única vez',()=>{
-  const {c,D,heli,samples,entered,phases,h}=boardingHarness();c.startBoarding();
-  for(let i=0;i<1000&&D.trans;i++){
-    phases.add(D.trans.phase);
-    if(D.trans.phase==='walk-door')assert.equal(D.heli.land,1);
-    c.updateBoarding(.05);
-  }
-  assert.equal(D.trans,null);assert.deepEqual(entered,['margem']);assert.equal(c.F.act1Rescued,true);assert.equal(c.F.rescued,false);assert.equal(c.F.act2,true);
-  assert.deepEqual([...phases],['clear-pad','land','walk-door','step-in','takeoff']);
-  for(let i=1;i<samples.length;i++){
-    assert.ok(Math.hypot(samples[i].x-samples[i-1].x,samples[i].z-samples[i-1].z)<.15,'não há teleporte visível');
-    assert.ok(samples[i].y>=0&&samples[i].y<=.551);
-  }
-  assert.ok(samples.some(p=>p.y>.5&&p.crouch>.9));assert.equal(heli.boardingDoor.position.z,.25);
-  assert.ok(heli.group.position.y>=9.9);assert.equal(c.G.transitioning,false);
-  assert.ok(samples.some(p=>Math.hypot(p.x-h.x,p.z-h.z)>6),'aguarda fora do rotor antes do pouso');
+test('helicóptero do Ato 1 não transporta a heroína para a margem',()=>{
+  assert.equal(director.includes('function startBoarding('), false);
+  assert.match(director, /a.id === 'porto' && F.heliCode && !F.limaRescued/);
+  assert.match(director, /npcBoard/);
+  const cliff=areas.find(a=>a.id==='heliponto');
+  assert.equal(cliff.doors.find(d=>d.to==='margem').side,'N');
+  assert.equal(areas.find(a=>a.id==='porto').doors[0].to,'ruinas');
 });
-test('percurso de embarque usa navegação com obstáculos e falha sem prender o jogo',()=>{
-  const {c,D}=boardingHarness();D.area.ctx.boxes=[{minX:2,maxX:3,minZ:-20,maxZ:-17}];c.startBoarding();
-  let from=c.player.pos;for(const p of D.trans.route){assert.ok(segmentClear(from,p,{bounds:D.area.bounds,boxes:D.area.ctx.boxes,circles:[]},.5));from=p;}
-  const h2=boardingHarness();h2.c.findEscortPath=()=>[];h2.c.startBoarding();assert.equal(h2.D.trans,null);assert.equal(h2.c.F.rescued,false);assert.equal(h2.c.G.transitioning,false);
+test('final só acontece ao voltar à extração depois da decisão e do Primórdio',()=>{
+  const finish=director.slice(director.indexOf('function finishAct3('),director.indexOf('/** Monta o objeto'));
+  assert.equal(finish.includes('onWin()'),false);
+  assert.match(director,/it.kind === 'finalEvac' && canFinishCampaign\(F\)/);
 });
 test('cais separa heliponto do portão norte e agrupa pintura/balizadores em um lote',()=>{
   const a=areas.find(a=>a.id==='porto'), h=a.quayPad;

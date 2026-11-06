@@ -1,252 +1,135 @@
 # Crise no Vale
 
-Jogo de ação e sobrevivência em terceira pessoa feito em Three.js (r160) com módulos ES. Projeto original, inspirado na *estrutura* dos survival-horror de áreas conectadas da era PS1: exploração, portas trancadas, objetivos, terminais de save e um chefe no final. Não usa nenhum asset, nome ou mapa de outro jogo.
+Ação/sobrevivência em terceira pessoa, Three.js **r160**, módulos ES, teclado/mouse ou controle. A campanha tem **3 atos, 12 áreas e um final jogável**, seguido de epílogo, créditos e estatísticas.
 
-## História
+**Jogar:** https://luispauloalves500.github.io/crise-no-vale/  
+**Repositório:** https://github.com/luispauloalves500/crise-no-vale — GitHub Pages na branch `main`.
 
-A **Estação de Pesquisa Vale Verde**, da Fundação Tellus, estudava DNA preservado em âmbar (o **Projeto RAIZ**). Para "domar" os animais recriados, a equipe testou o composto **V-7**: ele apagou o medo dos dinossauros e os deixou atraídos por barulho. Na noite da tempestade, o diretor **Otávio Brandt** tirou o fusível de partida automática do gerador para cobrir a fuga com o apagão, trocou as senhas do heliponto e fugiu com as amostras. As cercas elétricas caíram. O **Espécime Zero — o Colosso** — derrubou o helicóptero dele no penhasco.
+## História e fluxo atual (fonte de referência)
 
-Você é a agente **Marina Rocha**, enviada depois de três dias de silêncio do rádio. Sua missão é achar a última sobrevivente, a **Dra. Helena Lima**, e sair do vale com o piloto **Garça-1**.
+A Fundação Tellus recriou dinossauros com DNA do **Projeto RAIZ**. O composto **V-7** eliminou o medo dos animais e os tornou sensíveis ao barulho. O diretor **Otávio Brandt** sabotou o gerador e fugiu com amostras; o **Colosso** derrubou seu helicóptero no penhasco. A agente **Marina Rocha** procura a **Dra. Helena Lima**, segue a rota das amostras e descobre a ameaça à água de **Porto Anil**. O piloto **Garça-1** ajuda nas evacuações, mas não encerra a campanha no primeiro ato.
 
-- **Introdução** com cartões de história depois de "Novo jogo". Clique ou Espaço avança, Enter pula.
-- **9 registros** (tablets azuis) espalhados pelas áreas: 7 na estação e 2 fora dela (v6). Aproxime-se e aperte **E** para ler. Cada um vale +150 pontos e é guardado no save.
-- **Sala da diretoria** opcional no laboratório (lado oeste). Ela é destrancada quando a energia volta e guarda a gravação particular do diretor.
-- **Falas de rádio e diálogos** com legendas: Lima comenta a escolta, reage aos registros e conversa depois do código.
-- **Cenas curtas** em cada marco: energia, código do heliponto, chegada ao Colosso, morte do chefe e resgate.
-- **Epílogo variável**: muda conforme você achou as provas contra Brandt (registros 4 e 5) e quantos registros encontrou.
-- **Dois finais (v6):**
-  - **A fuga do vale** é o final normal.
-  - **Rio abaixo — ameaça viva** é o final alternativo: leia os 9 registros, incluindo a caixa RAIZ-3 na margem do pântano e o rádio da Tellus-2 no heliponto.
-  - **Segredo:** depois do Colosso, use o rádio da Tellus-2 para transmitir as provas e mudar o desfecho.
+Jill é a aparência alternativa da heroína jogável; as missões continuam sendo as da Marina. Os nomes de modelos não criam personagens ou campanhas paralelas.
 
-## Ato 3 — Porto Anil (v11)
+### Ato 1 — a estação (6 áreas)
 
-Depois do resgate no ninho (fim do Ato 2), o Garça-1 pousa e oferece duas saídas:
-- **E na marca H**: voltar para casa (final do Ato 2).
-- **E na marca ao lado**: seguir para **Porto Anil**.
+1. **Cais do Porto → PORTÃO NORTE → Corredor das Ruínas → Laboratório.** O heliponto do Cais não é a saída da protagonista.
+2. **Laboratório → Pântano:** ative e defenda o gerador por 20 s. Volte ao laboratório e atravesse o portão norte energizado.
+3. **Pátio:** fale com Lima e escolte-a ao terminal de controle no nordeste. Ela libera o código do portão leste para o penhasco. Se cair, aproxime-se e aperte E.
+4. **Heliponto do Penhasco:** derrote o **Colosso**. Atravesse o **PORTÃO NORTE**, pela passarela/trilha até a Margem do Rio. **Essa travessia conclui o Ato 1 e carrega o Ato 2. Não há embarque/final de helicóptero aqui.**
+5. **Resgate opcional no Cais:** depois de obter o código, é possível voltar ao Cais. Lima chega pelo corredor de serviço; aperte E na marca H e proteja a evacuação por 14 s. Ela caminha até o helicóptero e parte; a heroína fica no chão e segue ao portão do penhasco. O resgate não concede vitória, não teleporta a jogadora e não desbloqueia o Ato 3. Se essa opção não for feita, Garça-1 recolhe Lima durante a operação do ninho.
 
-Lá você atravessa o cais evacuado e chega à **captação de água**. Feche as comportas antes que o relógio de contaminação zere, desça até a **sede secreta da Tellus** e enfrente o **Primórdio**. No fim, decida: **transmitir as atas do Conselho** ou **destruir o laboratório**. São 4 finais e 4 registros novos (17 no total). Depois de terminar o Ato 2 uma vez, o menu mostra **CONTINUAR ATO 3 — PORTO ANIL**.
+A sala da diretoria, os registros e a transmissão das provas são opcionais. Os portões que liberam o rio exigem energia, código e Colosso abatido.
 
-Testes: `node --test tests/*.test.mjs`.
+### Ato 2 — rio abaixo (3 áreas)
 
-## Jogar online
+**Margem do Rio → Acampamento Tellus-2 → Ninho Raiz.** Quebre a senha no acampamento e derrote a **Matriarca** no ninho. Brandt pode ser capturado ou fugir; destruir o ninho é opcional.
 
-**https://jogoiarexx-blip.github.io/Crisis-no-vale/**
+Após a Matriarca, chame e proteja o resgate na marca H por 14 s, aguarde o pouso completo e **aperte E junto ao piloto**. Só com **`nestClear` + `act2Win`** o Ato 3 é liberado. Há fade, preparação do cenário/shaders e carregamento separado de Porto Anil. Uma falha de construção permite tentar novamente sem conceder vitória.
 
-O jogo roda direto no navegador (desktop, com teclado e mouse ou controle), sem instalar nada. No final do Ato 1, pressione **E** na marca H para iniciar a extração; o portão leste leva ao Ato 2. Entrar na marca H por acidente não inicia o resgate. Os ajustes ficam salvos no navegador (`crise-no-vale-settings`), assim como o progresso (`crise-no-vale-save`). O GitHub Pages republica o site a cada push na branch `main`.
+O menu **CONTINUAR ATO 3 — PORTO ANIL** usa o checkpoint legítimo dessa conclusão. Não existe mais a opção de terminar toda a campanha voltando para casa no Ato 2.
 
-- O repositório atual publica o jogo em `https://jogoiarexx-blip.github.io/Crisis-no-vale/`. Confira a configuração em [Settings → Pages](https://github.com/jogoiarexx-blip/Crisis-no-vale/settings/pages). Esta revisão não adiciona um workflow de GitHub Actions.
-- Os caminhos são relativos (`<base href="./">`) e o Three.js vem do CDN, então o jogo funciona em `/crise-no-vale/`.
+### Ato 3 — Porto Anil (3 áreas) e final
 
-## Como jogar
+**Porto Anil → Captação Anil → Sede Tellus.** Feche as comportas antes do relógio de contaminação para preservar a água. Atrasar muda o desfecho, mas não impede terminar o jogo. Derrote o **Primórdio** e escolha:
 
-Os módulos ES precisam de um servidor HTTP (não funciona abrindo via `file://`):
+- **Transmitir as atas do Conselho** no terminal azul; ou
+- **Destruir o laboratório** no núcleo.
+
+A escolha resolve a missão, **não termina o jogo dentro do bunker**. Volte por **Sede → Captação → Porto Anil** e aperte **E no ponto de extração do cais**. Só então são exibidos **epílogo → FIM / créditos → tela final com estatísticas**. Há quatro variações (escolha × água preservada/contaminada). Nenhuma exige encontrar todos os 17 registros.
+
+### Fronteiras e isolamento
+
+| Ato | IDs dos mapas | Saída de capítulo |
+|---|---|---|
+| 1 | `porto`, `ruinas`, `lab`, `pantano`, `patio`, `heliponto` | Portão norte do penhasco → `margem` |
+| 2 | `margem`, `acampamento`, `ninho` | Piloto depois de chefe + resgate → carregamento de `portoanil` |
+| 3 | `portoanil`, `captacao`, `sede` | Retorno ao cais e interação de extração |
+
+Não há porta física ligando os mapas do Ato 2 aos do Ato 3. Atos anteriores ficam fechados após a passagem de capítulo. Só um grupo de cenário fica visível; preload, streaming, minimapa e mapa grande respeitam o ato atual, inclusive na qualidade Alta. Recursos antigos em compilação são descartados depois que a preparação termina, sem aparecerem no novo mapa.
+
+## Dificuldade
+
+Escolha **Fácil / Normal / Difícil** no menu inicial, antes de Novo jogo. A seleção fica como preferência para novos jogos; **Continuar respeita a dificuldade gravada no save**.
+
+| Efeito (multiplicador) | Fácil | Normal | Difícil |
+|---|---:|---:|---:|
+| Dano recebido, antes do colete | 0,65 | 1 | 1,35 |
+| Vida dos dinossauros, incluindo chefes | 0,80 | 1 | 1,25 |
+| Quantidade de patrulhas ambientais | 0,65 | 1 | 1,35 |
+| Reserva inicial / munição coletada | 1,50 | 1 | 0,70 |
+
+Quantidades são arredondadas, patrulhas mantêm mínimo de um inimigo quando previstas, e os limites do inventário continuam valendo. Ondas roteirizadas e os três chefes obrigatórios são mantidos para não apagar eventos da história. A pistola usa **munição finita**; drops e reposição de emergência ajudam nos retornos. Terminais TELLUS oferecem save e melhorias.
+
+## Saves e animação
+
+- Save **v7**, na chave existente `crise-no-vale-save`; checkpoint do Ato 3 separado. Saves anteriores recebem dificuldade Normal se não informarem outra.
+- O capítulo é normalizado pela área salva. Flags, memória e gatilhos indevidos de capítulos futuros não podem pular chefes ou trocar objetivos.
+- Checkpoint falso do Ato 3 sem conclusão do Ato 2 retorna ao ninho, com a Matriarca rearmada. Checkpoints v6 legítimos continuam aceitos. Inventário, itens e registros legítimos são preservados.
+- Recarregar uma escolha final antiga retoma a fuga até a extração, em vez de disparar vitória dentro do bunker.
+- A heroína separa camadas superior/inferior: idle não disputa com pernas andando; mira/recarga preservam a locomoção. A fase dos passos segue o deslocamento real, para ao encostar em paredes e mistura andar/correr suavemente. A recarga é avançada uma única vez pelo progresso real da arma.
+- Jill recebe os clipes de combate adaptados à sua pose de repouso, sem copiar translações de outro esqueleto. Troca de modelo restaura a pose-base e avalia o idle antes de exibir a personagem.
+
+## Auditoria de coerência desta revisão
+
+Foram lidos `README.md`, `ANALISE-ATO3.md`, `AUDITORIA-COERENCIA.md`, `AUDITORIA-DESEMPENHO.md`, `IMPROVEMENTS.md`, `PLANO-MUNDO-COERENTE.md`, `PROMPT-IMPLEMENTACAO-MUNDO.md` e `assets/originais/LEIA-ME.md`, confrontando propostas e história com portas, triggers, flags, eventos, HUD e saves do código.
+
+| Incoerência encontrada | Correção |
+|---|---|
+| README antigo: URLs de outro repositório, 9 mapas, final/extração de helicóptero no Ato 1, fim opcional no Ato 2 e pistola infinita | Esta especificação descreve os 12 mapas, a travessia terrestre, os três atos obrigatórios e a munição finita |
+| `startCampaign` zerava a área atual antes de esconder seu grupo: cenário anterior permanecia sobreposto | Ocultar todos os grupos antigos ao iniciar/continuar/entrar; limpar efeitos, falas e timers da área anterior |
+| Preload em Alta e callbacks ociosos antigos podiam construir qualquer ato; mapa mostrava todos | Filtrar pelo ato e invalidar tarefas antigas, retirar recursos dos outros capítulos |
+| Entrada/checkpoint de Porto Anil aceitava flags parciais e saves misturados | Regras de campanha centralizadas, validação da conclusão da Matriarca/resgate e migração de saves |
+| Escolha final vencia automaticamente dentro da sede, embora o HUD mandasse escapar | Extração jogável no cais, epílogo, créditos e tela de fim |
+| Jill usava clipes de combate de outra pose; idle de corpo inteiro concorria com pernas; recarga avançava em duplicidade | Retarget pela pose-base, camadas independentes, cadência por deslocamento e tempo manual de recarga |
+
+**Os demais `.md` são análises/planos históricos, não especificações simultâneas.** Propostas antigas de final no heliponto, retorno para casa no Ato 2 ou progressão opcional para Porto Anil ficam superadas pelo fluxo acima e por `js/campaign-rules.mjs`.
+
+## Rodar e testar
 
 ```bash
-cd crise-no-vale
-python3 -m http.server 8000
-# abra http://localhost:8000
+python3 -m http.server 8765
+# abrir http://localhost:8765
+node --test tests/*.test.mjs
 ```
 
-O Three.js vem do CDN jsDelivr via importmap, então é preciso estar online. O bloom usa os *addons* oficiais da mesma versão (`three/addons/`, r160). Se eles não carregarem, o jogo segue sem bloom.
+Os módulos exigem HTTP (não `file://`). Three.js/addons vêm do jsDelivr via importmap e exigem conexão; bloom tem fallback.
 
-### Controles
+A suíte tem **101 testes**, incluindo sequência completa dos três atos nos dois caminhos finais, portas por ato, travas, saves antigos/misturados, isolamento de mapas/preload, resgate opcional e dificuldade. A simulação executa o diretor real em VM, com renderização, inimigos e entrada simulados: **não é uma partida humana nem uma prova de balanceamento de combate**.
 
-| Tecla | Ação |
+Auditorias CPU adicionais reproduzíveis, com o Three da mesma versão, sem instalar dependências no projeto:
+
+```bash
+npm install --prefix /tmp/crise-test-deps three@0.160.0
+THREE_ROOT=/tmp/crise-test-deps/node_modules/three node --experimental-vm-modules tests/runtime-geometry.mjs
+THREE_ROOT=/tmp/crise-test-deps/node_modules/three node tests/runtime-animation.mjs
+```
+
+- Geometria real dos **12 mapas**, chegadas de portas e **64 rotas** até portas, registros e pontos de missão: sem bloqueios na auditoria (diretoria testada com a porta energizada aberta).
+- Esqueletos GLB reais de Marina/Jill, **15 clipes de combate adaptados**, **1.446 amostras** de mistura idle/andar/correr/mira/recarga: quaternions finitos e normalizados. Malhas/texturas não são desenhadas nesse teste.
+- Servidor local `:8765` validado para entregar HTML/módulos.
+- **Não verificado visualmente nesta revisão:** WebGL/GPU, deformação da malha/arma na mão, qualidade visual dos pés/transições/embarque, câmera, FPS, áudio, controles físicos e conclusão por uma pessoa. Não se afirma ausência visual absoluta de T-pose/deslizamento nem “60 FPS garantidos” com base em testes CPU.
+
+## Controles e ajustes
+
+| Entrada | Ação |
 |---|---|
-| WASD | mover (Shift corre) |
-| Mouse | mirar / girar a câmera (clique na tela para travar o cursor) |
-| Clique esquerdo | atirar (segure com a submetralhadora) |
-| Botão direito | mirar com zoom |
-| R | recarregar |
-| 1 / 2 / 3 · Q · roda do mouse | pistola / escopeta / submetralhadora · alternar |
-| G | lançar granada |
-| H | usar kit médico |
-| E | interagir (Terminal TELLUS: salvar/loja; gerador, sobrevivente, registros) |
-| Espaço / clique · Enter | avançar / pular cartões de história |
-| B | bloom liga/desliga (desliga sozinho se o FPS cair) |
-| Tab | mapa do vale |
-| V | trocar ombro da câmera |
-| P / Esc | pausar |
-| M | som liga/desliga |
-| E perto da Dra. Lima caída | levantá-la na hora (escolta) |
+| WASD / Shift | Mover / correr |
+| Mouse / clique esquerdo / botão direito | Câmera / atirar / mirar |
+| R / 1–3 / Q ou roda | Recarregar / arma / alternar |
+| E / G / H | Interagir / granada / kit médico |
+| Tab / J / V | Mapa / arquivo de registros / trocar ombro |
+| P ou Esc / M / B | Pausa / som / bloom |
+| Espaço ou clique / Enter | Avançar / pular cartões |
 
-**Controle (v6):** analógico esquerdo move, direito mira; RT atira, LT mira; A interage, X recarrega, B granada, Y kit médico, LB/RB trocam de arma, Start pausa, Select abre o mapa, L3 corre, R3 troca o ombro.
+Controle: analógico esquerdo move, direito mira; RT atira, LT mira; A interage, X recarrega, B granada, Y kit; LB/RB arma; Start pausa, Select mapa; L3 corre e R3 troca ombro. Ajustes permitem sensibilidade, inverter Y, volumes, movimento reduzido, qualidade e controle. O áudio é procedural WebAudio e começa após interação com a página.
 
-### Ajustes (v6)
+## Arquitetura e assets
 
-O painel **Ajustes**, no menu e na pausa, tem sensibilidade, inverter Y, volumes geral/efeitos/ambiente, **movimento reduzido** (menos tremor, coice e partículas, sem pausa de impacto) e liga/desliga do controle. As mudanças valem na hora e ficam salvas em `localStorage`.
+- `campaign-rules.mjs`: fronteiras, dificuldade e normalização de saves, sem DOM/WebGL.
+- `director.js`: progressão, objetivos, portas/cenas, resgates e finais.
+- `areas.js` / `world.js`: descrições/construção sob demanda, geometria e colisores.
+- `player.js` / `animation-retarget.mjs`: movimento, heroína, camadas e adaptação de animações.
+- `enemies.js` / `combat.js`: IA, dano e munição; `story.js`: história/epílogos; `ui.js` / `main.js`: interface/loop.
 
-### Áudio
-
-Todo o som é gerado no navegador com WebAudio; não há nenhum arquivo de áudio. O navegador só libera o som depois do primeiro clique ou tecla. Por isso o ambiente começa quando você clica em "Novo jogo".
-
-- Cada área tem um **ambiente próprio**: chuva, vento, mar, insetos, zumbido elétrico, alarme e tensão. A troca de área faz um crossfade. O ambiente muda com a energia, o gerador, o lockdown, a escolta e o chefe.
-- Os **passos** mudam conforme o terreno, e o Colosso faz passos pesados que você ouve antes de ver.
-- Na **pausa** e nos **cartões de história** o som fica abafado.
-- **M** liga e desliga todo o som.
-
-## Áreas
-
-| # | Área | Clima | Conteúdo |
-|---|---|---|---|
-| 1 | **Cais do Porto** | noite azulada, chuva | início, terminal de save, emboscada entre os contêineres |
-| 2 | **Corredor das Ruínas** | âmbar, neblina densa | **escopeta** no altar, emboscada na primeira passagem |
-| 3 | **Exterior do Laboratório** | cinza, sem energia | hub: portas para ruínas (S), pântano (O) e pátio (N, **sem energia**); save; **sala da diretoria** (opcional); **submetralhadora** (v6) |
-| 4 | **Trilha do Pântano** | verde, neblina pesada | **gerador** (evento de defesa de 20 s); registro 8 na margem leste (v6) |
-| 5 | **Pátio da Instalação** | holofotes brancos | sobrevivente **Dra. Lima**, escolta, terminal de controle, save; **colete** (v6) |
-| 6 | **Heliponto do Penhasco** | vermelho | chefe **Colosso** e resgate do Ato 1; rádio da Tellus-2 / registro 9 (v6); portão leste para o Ato 2 (v7) |
-| 7 | **Margem do Rio** (v7) | neblina, lama, rio | save, rastro de alguém fugindo |
-| 8 | **Acampamento Tellus-2** (v7) | luzes de obra | save, jaulas, terminal a invadir |
-| 9 | **Ninho Raiz** (v7) | cratera, brilho dos ovos | guardiã do ninho, barco, resgate do Ato 2 |
-
-```
-            [Pátio]──🔒──[Heliponto]──🔒──[Margem]        ← Ato 2 (v7)
-               │🔒                           │
-[Pântano]──[Laboratório]              [Acampamento]
-               │                             │🔒
-           [Ruínas]                       [Ninho]
-               │
-            [Cais]
-```
-
-## Progressão
-
-1. **Cais → Ruínas → Laboratório.** Pegue a escopeta no caminho.
-2. **Ligar a energia.** O portão norte do laboratório está sem energia. No pântano, ligue o gerador (E). O barulho atrai a matilha: fique perto dele por 20 s enquanto chegam três grupos de inimigos. A energia volta, as lâmpadas acendem e o portão abre. Depois disso as ruínas e o laboratório ganham novos encontros.
-3. **Escolta.** No pátio, fale com a Dra. Lima (E). Ela passa a seguir você. Leve-a até o terminal de controle no nordeste, protegendo-a de raptores e de um bruto que arromba o galpão. Ela aguenta uma mordida. Na segunda ela cai: chegue perto e aperte **E** para levantá-la. Ela digita o código e libera o portão leste. Se você sair do pátio antes disso, a Dra. Lima espera no ponto onde ficou; ao voltar, a escolta continua sem repetir as emboscadas.
-4. **Chefe.** No heliponto, o portão se fecha atrás de você e o **Colosso** ataca:
-   - Ele investe em linha reta e pisa no chão em área.
-   - Ele chama raptores nas fases de vida.
-   - Quando bate numa parede fica atordoado e leva +50% de dano. Granadas também o atordoam.
-   - v5: um **anel vermelho** no chão avisa o pisão e uma **faixa** mostra a direção da investida.
-5. **Resgate.** Com o Colosso morto, aproxime-se da marca H e aperte **E** para acionar o sinalizador; então aguente 14 s até o helicóptero chegar. Se quiser continuar a campanha, use o portão leste para o Ato 2 antes de chamar o resgate. No fim você recebe um rank (S–D) calculado pelo tempo, pela precisão e pelo número de saves.
-
-### Ato 2 — Rio Abaixo (v7, sem spoilers pesados)
-
-Depois do Colosso você escolhe: chamar o resgate e terminar o **Ato 1** como antes ou **seguir o rio** pelo portão leste do heliponto.
-
-- Alguém do alto escalão está fugindo rio abaixo, e as pegadas na lama não são de dinossauro.
-- No acampamento da Tellus-2 as jaulas não estão tão vazias quanto parecem, e o portão sul só abre pelo terminal (aguente as ondas enquanto ele é invadido).
-- No fim do rio há algo guardando um ninho. O que você faz depois (com o ninho e com quem tentou fugir) decide qual dos **quatro finais novos** você vê.
-- São mais **4 registros** (13 no total) e dois terminais de save novos (margem e acampamento).
-
-### Momentos com roteiro (v5)
-
-- **Protocolo da diretoria:** com a energia de volta, a sala do Brandt tranca você por 7 s e a sirene chama a matilha para o corredor.
-- **A lama ferve:** no meio do pântano, raptores saem de dentro da lama. As bolhas avisam antes.
-- **Rádio interceptado:** depois do código do heliponto, uma transmissão da Tellus-2 aparece e entra no epílogo.
-
-### Regras do mundo
-
-- Inimigos de patrulha mortos **continuam mortos**, e itens coletados não voltam.
-- Encontros com roteiro disparam ao entrar numa área, ao pisar numa zona ou quando uma flag muda.
-- **Terminais de save** ficam no cais, no laboratório, no pátio, na margem e no acampamento. Com **E** abre o **Terminal TELLUS** (v10): **SALVAR** restaura toda a vida e grava o progresso no `localStorage`; **LOJA** vende munição, cura, armas e upgrades. "Continuar" no menu retoma do último terminal.
-- **Pontos de Extinção (PE, v10):** a moeda da loja. Cada abate rende PE × combo (raptor 10, cuspidor 15, bruto 60; Colosso 600 e Matriarca 500 sem multiplicador). Objetivos (+50), registros novos (+20) e áreas novas (+20) também rendem, e um evento de defesa (ou chefe) sem levar dano dá +25%. Os **pontos** de ranking continuam separados e nunca são gastos.
-- O terminal não abre com perigo por perto: inimigo em alerta a menos de 8 m, evento, chefe ou troca de área. As compras só ficam gravadas no próximo save.
-- Munição: a pistola tem reserva infinita. A escopeta usa cartuchos encontrados no mapa ou deixados por inimigos.
-- **Submetralhadora (v6):** automática, fica no laboratório (anexo leste) e raramente cai de inimigos. Os pentes aparecem no mapa e como drop.
-- **Caixas de suprimentos** (brilhantes) dão munição para o que você tem, kit ou vida e às vezes granada. O **colete** (pátio; às vezes deixado pelo bruto) absorve 60% do dano até 50 pontos.
-- Inventário: até 4 kits médicos e 5 granadas. O HUD mostra as armas (tecla, `pente+reserva`), os kits, as granadas e o colete.
-- Atirar faz barulho e atrai inimigos próximos.
-
-## Gráficos
-
-Quase tudo é procedural. A exceção é a personagem jogável (v8):
-- **Marina (modelo GLB)**: `assets/marina.min.glb` (~1,3 MB, meshopt + texturas webp; o original tinha 14 MB) com esqueleto Mixamo, ~1,82 m de altura e sombras. Animações com transições suaves: parada com arma, andar, correr, mirar, disparo de cada arma e recarga. O braço direito levanta a arma para a mira, e o tronco acompanha a inclinação da câmera.
-  - Se o modelo não carregar em até 25 s (ou der erro), o jogo segue com o boneco procedural antigo. Para forçar o boneco antigo: `?heroi=0` na URL.
-  - No repositório o modelo fica em base64 (`assets/marina.min.glb.b64`); o workflow do Pages decodifica para o `.glb` servido.
-
-O resto não usa arquivos de imagem ou modelo:
-- **Texturas** em canvas com ruído, manchas, escorridos e relevo (*bump*): concreto, paralelepípedo, lama, ferrugem, chapa corrugada, escamas dos dinossauros. Superfícies molhadas têm brilho, e as poças recebem ondulações de chuva.
-- **Cenário**: contêineres corrugados, caixas com cintas, portões com placas de destino, árvores por bioma (palmeira, pântano), barco afundado, destroços de helicóptero em chamas, torres de holofote e janelas que acendem quando a energia volta.
-- **Personagens**:
-  - Rocha com colete, cinto, coldre, ombreiras e armas detalhadas.
-  - Lima com jaleco aberto, crachá, óculos e tablet; ela acena quando você chega.
-  - Dinossauros com tronco orgânico, dentes, garras e textura de escamas. O Colosso tem cicatrizes incandescentes.
-- **Iluminação**:
-  - Pool fixo de luzes por área (não recompila *shaders*): lâmpadas com halo, fogo tremulante e holofotes varrendo o pátio e o heliponto.
-  - Clarão quente quando a energia volta.
-  - Arena do chefe com névoa vermelha e luz que acompanha o Colosso.
-- **Efeitos**:
-  - Clarão de tiro, sangue e faíscas alongadas.
-  - Explosões com luz real e fumaça, e onda de choque dupla no pisão.
-  - Chuva, relâmpagos e vaga-lumes.
-  - Helicóptero de resgate com rotor, luzes de navegação e holofote de busca.
-- **Pós-processamento** opcional (bloom em meia resolução), granulado de filme e vinheta.
-
-## Desempenho e qualidade
-
-O jogo foi ajustado para não travar ("engasgar") em máquinas modestas:
-
-- **Carregamento progressivo.** Uma tela "Carregando…" com barra mostra o progresso. Só o cais é montado antes do menu; os modelos de inimigos vão para um pool e os shaders são pré-compilados. As outras áreas são construídas em segundo plano, uma por fatia ociosa do navegador, e o menu mostra "Áreas prontas: n/6".
-- **Qualidade gráfica** (menu principal e pausa): **Auto**, **Baixo**, **Médio** ou **Alto**. A escolha fica salva no navegador.
-
-| | Baixo | Médio | Alto |
-|---|---|---|---|
-| Mapa de sombras | 512, simples | 1024, suave | 2048, suave |
-| Sombras de árvores distantes e objetos pequenos | não | não | sim |
-| Resolução máxima (pixel ratio) | 1× | 1,25× | 1,75× |
-| Gotas de chuva / vaga-lumes | 250 / 40 | 500 / 80 | 900 / 140 |
-| Bloom (padrão; a tecla B continua valendo) | desligado | ligado | ligado |
-| Textura do chão | 256 px | 512 px | 512 px |
-| Postes iluminados / holofotes | 4 (alcance menor) / 1 | 6 / 2 | 6 / 2 |
-| Áreas na memória | atual + vizinhas | atual + vizinhas | todas |
-
-- **Auto** escolhe pelo aparelho (memória, núcleos, celular, GPU; renderizador por software cai em Baixo). Se o FPS ficar abaixo de ~36 por 6 s durante o jogo, ele desce um nível.
-- O bloom ainda se desliga sozinho se o FPS cair, como antes.
-
-## Estrutura
-
-```
-index.html        HUD, menus, importmap do Three r160
-css/main.css      telas e menus
-css/hud.css       HUD, mapa, barras
-js/config.js      balanceamento: armas, inimigos, chefe, câmera, pontuação
-js/state.js       estado global, recorde e save (localStorage)
-js/world.js       renderer, cena, luzes, colisão 2D e construtores de cenário
-js/areas.js       definição das 9 áreas (portas, itens, patrulhas, encontros, clima)
-js/director.js    progressão: troca de área, travas, eventos, encontros, save/load, objetivos, registros, helicóptero
-js/story.js       roteiro: introdução, registros, falas/legendas, cartões de história e epílogo
-js/post.js        bloom opcional (addons do Three r160), com fallback
-js/quality.js     predefinições de qualidade (Auto/Baixo/Médio/Alto) e queda automática
-js/idle.js        fila de tarefas em fatias ociosas (construção de áreas em segundo plano)
-js/player.js      jogador, armas (pistola, escopeta, submetralhadora), inventário, colete, câmera
-js/settings.js    ajustes salvos (sensibilidade, inverter Y, volumes, movimento reduzido, controle)
-js/gamepad.js     controle (API Gamepad)
-js/enemies.js     raptor, cuspidor, bruto, Colosso e Matriarca (IA, ataques)
-js/brandt.js      Brandt: NPC do Ato 2 (rota de fuga, prisão) (v7)
-js/npc.js         sobrevivente (seguir, ser atacada)
-js/combat.js      tiros, dano, granadas, itens e drops
-js/fx.js          partículas e efeitos
-js/audio.js       áudio procedural via WebAudio: mixagem, ambiente por área, abafar, passos, stingers
-js/input.js       teclado e mouse
-js/ui.js          HUD, radar, mapa das áreas, banners, telas
-js/main.js        loop principal e estados (menu, jogo, pausa, fim)
-js/utils.js       utilitários
-.github/workflows/coherence.yml  CI: sintaxe de todos os módulos + testes (a publicação usa o GitHub Pages da branch)
-```
-
-### Depuração
-
-No console, `__game` expõe o estado (`area`, `flags`, `objective`, `hp`, `enemies`). Também tem `__game.goto('patio')` para pular de área, `__game.story` (ex.: `__game.story.skipCard()`) e `__game.post` (bloom). Para desempenho: `__game.quality`, `__game.setQuality('baixo')`, `__game.areas()` (áreas construídas), `__game.streamStats`, `__game.poolStats`, `__game.hudStats` e `__game.renderInfo()`. Áudio (v5): `__game.ambience` (camada atual), `__game.muted` e `__game.toggleMute()`.
-
-Os saves antigos continuam compatíveis: o campo `story` (registros lidos e falas já ditas) é opcional e os saves `v: 1` (v5, duas armas) são migrados ao carregar. v6: `__game.SETTINGS`, `__game.setSetting(k, v)`, `__game.switchWeapon(i)`, `__game.cycleWeapon(±1)`, `__game.bag` (armas, colete) e `__game.story.ending()`.
-
-v7: o save é `v: 3` (flags da campanha); saves antigos são migrados. `__game.setFlags({...})`, `__game.brandt` e `__game.goto('margem' | 'acampamento' | 'ninho')`.
-
-
-## Revisão de coerência — IA e backtracking (03/11/2026)
-
-- Os dinossauros patrulham, investigam barulhos e só confirmam a posição de Marina quando têm linha de visão (com campo visual para os desatentos). Parede também reduz o alcance auditivo.
-- Ao perder o contato visual, perseguem a última posição conhecida por alguns segundos e depois investigam/retomam a patrulha. Mordidas, cuspes e ondas de choque não atravessam paredes sólidas.
-- Ao mudar de área ou salvar num terminal, posições, HP e estado de alerta dos sobreviventes são lembrados. Os mortos não voltam. Aparições programadas ainda pendentes voltam na próxima visita, evitando desaparecimento por atravessar uma porta rapidamente.
-- Ondas de eventos canceláveis (gerador e terminal) não sobrevivem à interrupção do evento. Saves antigos sem memória de inimigos continuam aceitos, usando a composição inicial da área e os abates registrados.
-- Testes puros: `node --test tests/coherence.test.mjs` (requer Node.js moderno; não executa WebGL).
-
-## Atualização: escolta e navegação (novembro de 2026)
-
-- A Dra. Lima contorna obstáculos do pátio com A* 2D e os colisores reais da área. A velocidade da animação segue o deslocamento efetivo, evitando passos no lugar.
-- A posição, resistência e escolta são preservadas ao sair e voltar ao pátio ou carregar um salvamento; emboscadas já disparadas não reiniciam.
-- O código de abertura do heliponto não pode ser interrompido atravessando outra porta durante seus 4 segundos.
-- Testes de rota em `tests/escort.test.mjs` e verificações de sintaxe no GitHub Actions.
+Os modelos existentes estão em `assets/`. Fontes não carregadas ficam em `assets/originais/`; consulte seu LEIA-ME e as licenças dos modelos antes de redistribuir. Esta revisão não troca assets nem afirma que o modelo alternativo Jill seja de autoria original.
