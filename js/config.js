@@ -105,7 +105,7 @@ export const ENEMY_TYPES = {
   // v7: guardiã do NINHO RAIZ (Ato 2) — bruta alfa menor e mais rápida, cicatrizes bioluminescentes verdes
   matriarca:{ name: 'Matriarca', shape: 'brute', hp: 1150, speed: 3.5, dmg: 30, r: 2.1, scale: 2.7, score: 4000, ep: 500, aggro: 99, boss: true,
              color: 0x2a3a30, belly: 0x7a8a6a, stripe: 0x1a6a40, eye: 0x9aff40, horn: 0xd8f0c0, radar: '#40ff90', scar: 0x60ff90,
-             chargeDmg: 36, chargeSpeed: 18, mass: 22, stompR: 6.5, stompDmg: 24,
+             chargeDmg: 36, chargeSpeed: 18, mass: 22, stompR: 6.5, stompDmg: 22,
              stompWind: 1.1, windup: 1.15, wallStun: 3.0, stunGrace: 1.2 },
   // v11: PRIMÓRDIO — chefe final do Ato 3 (sede da Tellus). Bruto ancestral, pele pálida e glândulas ácidas.
   // acid: leque de cuspe ácido (3 projéteis) a média distância; as fases chamam a matilha e chocam ovos.
