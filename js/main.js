@@ -1,3 +1,4 @@
+import { preloadGrass, atualizarVento, updateGrass, grassStats } from './grass.js';
 import { playCutscene, skipCutscene, cancelCutscene, updateCutscene, currentCutscene, cutsceneActive } from './cutscenes.js';
 import { preloadDinos, dinoModelStats } from './dino-models.js';
 // main.js — inicialização, máquina de estados (menu/story/play/pause/over/win) e laço principal.
@@ -210,6 +211,7 @@ const clock = new THREE.Clock();
 function update(dt) {
   G.time += dt;
   updateWorld(dt);
+  atualizarVento(dt,SETTINGS.reducedMotion);
   if(G.state==='cutscene'){updateCutscene(dt);updateFx(dt);return;}
   if (!D.trans) story.updateStory(dt);
   if (G.state === 'play' || G.state === 'over' || G.state === 'win') {
@@ -258,6 +260,7 @@ function loop() {
   }
   // v9: LOD por distância da câmera (cenário a ~6 Hz; inimigos leem o nível em updateEnemies)
   updateLod(dt, D.area ? D.area.ctx : null);
+  updateGrass(dt,D.area?.ctx,camera,quality.p,G.difficulty,SETTINGS.grassDensity);
   const h = D.area ? hudData() : EMPTY;
   ui.updateHUD(dt, {
     camera, player, weapon: curWeapon(), weapons, cur: arms.cur, reloading: arms.reloading, reloadTotal: arms.reloadTotal, moving: player.moving,
@@ -302,10 +305,11 @@ async function boot() {
   const heroOk = await heroReady; // nunca trava: em falha/tempo esgotado volta à malha antiga
   if (!heroOk) ui.setLoading(n / steps, 'Modelo da Marina indisponível — usando personagem simples');
   await step('Carregando… criaturas');
-  await Promise.race([preloadDinos(),new Promise(r=>setTimeout(r,15000))]);
+  await Promise.race([Promise.all([preloadDinos(),preloadGrass()]),new Promise(r=>setTimeout(r,15000))]);
   const warm = prewarmEnemies();
   // tela de menu: mostra o cais ao fundo
   startCampaign(false); clearEnemies(); hideSurvivor();
+  updateGrass(0,D.area?.ctx,camera,quality.p,G.difficulty,SETTINGS.grassDensity,true);
   await step('Carregando… preparando shaders');
   await initPost(renderer, scene, camera);
   await compileShaders(warm);
@@ -345,6 +349,7 @@ window.__game = {
   // v6: ajustes, controle e armas
   SETTINGS, setSetting, getVolumes, pad, cycleWeapon, switchWeapon, arms,
   currentCutscene, playCutscene, skipCutscene, dinoModelStats,
+  grassStats: () => grassStats(D.area?.ctx),
   hero: heroInfo, // v8: modelo GLB da Marina
   // v4: desempenho
   quality, setQuality: (m) => { setQualityMode(m); refreshQualityUI(); }, PRESETS, poolStats, streamStats, bounds, hudStats: ui.hudStats,

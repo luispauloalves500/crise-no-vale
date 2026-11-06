@@ -1,0 +1,220 @@
+{
+  "three": "160",
+  "loaded": true,
+  "fetches": 1,
+  "webGL": false,
+  "shaderCompiled": false,
+  "placementMasks": true,
+  "streaming": true,
+  "sharedResources": true,
+  "report": [
+    {
+      "area": "porto",
+      "patches": 56,
+      "chunks": 13,
+      "totals": {
+        "baixo_easy": {
+          "maxTriangles": 1130,
+          "maxFrustumTriangles": 1106,
+          "maxDraws": 6,
+          "maxNear": 2,
+          "maxFar": 10
+        },
+        "medio_normal": {
+          "maxTriangles": 6408,
+          "maxFrustumTriangles": 6348,
+          "maxDraws": 8,
+          "maxNear": 12,
+          "maxFar": 34
+        },
+        "alto_normal": {
+          "maxTriangles": 8656,
+          "maxFrustumTriangles": 8632,
+          "maxDraws": 13,
+          "maxNear": 16,
+          "maxFar": 50
+        }
+      }
+    },
+    {
+      "area": "ruinas",
+      "patches": 32,
+      "chunks": 12,
+      "totals": {
+        "baixo_easy": {
+          "maxTriangles": 1058,
+          "maxFrustumTriangles": 1046,
+          "maxDraws": 4,
+          "maxNear": 2,
+          "maxFar": 5
+        },
+        "medio_normal": {
+          "maxTriangles": 4635,
+          "maxFrustumTriangles": 3577,
+          "maxDraws": 6,
+          "maxNear": 9,
+          "maxFar": 12
+        },
+        "alto_normal": {
+          "maxTriangles": 7298,
+          "maxFrustumTriangles": 6643,
+          "maxDraws": 12,
+          "maxNear": 14,
+          "maxFar": 29
+        }
+      }
+    },
+    {
+      "area": "lab",
+      "patches": 0,
+      "maxTriangles": 0
+    },
+    {
+      "area": "pantano",
+      "patches": 158,
+      "chunks": 24,
+      "totals": {
+        "baixo_easy": {
+          "maxTriangles": 1190,
+          "maxFrustumTriangles": 1178,
+          "maxDraws": 9,
+          "maxNear": 2,
+          "maxFar": 14
+        },
+        "medio_normal": {
+          "maxTriangles": 8944,
+          "maxFrustumTriangles": 8620,
+          "maxDraws": 17,
+          "maxNear": 16,
+          "maxFar": 64
+        },
+        "alto_normal": {
+          "maxTriangles": 17780,
+          "maxFrustumTriangles": 17012,
+          "maxDraws": 24,
+          "maxNear": 32,
+          "maxFar": 125
+        }
+      }
+    },
+    {
+      "area": "patio",
+      "patches": 0,
+      "maxTriangles": 0
+    },
+    {
+      "area": "heliponto",
+      "patches": 0,
+      "maxTriangles": 0
+    },
+    {
+      "area": "margem",
+      "patches": 166,
+      "chunks": 23,
+      "totals": {
+        "baixo_easy": {
+          "maxTriangles": 1190,
+          "maxFrustumTriangles": 1190,
+          "maxDraws": 6,
+          "maxNear": 2,
+          "maxFar": 14
+        },
+        "medio_normal": {
+          "maxTriangles": 8944,
+          "maxFrustumTriangles": 8788,
+          "maxDraws": 13,
+          "maxNear": 16,
+          "maxFar": 64
+        },
+        "alto_normal": {
+          "maxTriangles": 17888,
+          "maxFrustumTriangles": 17432,
+          "maxDraws": 23,
+          "maxNear": 32,
+          "maxFar": 128
+        }
+      }
+    },
+    {
+      "area": "acampamento",
+      "patches": 79,
+      "chunks": 23,
+      "totals": {
+        "baixo_easy": {
+          "maxTriangles": 1106,
+          "maxFrustumTriangles": 1070,
+          "maxDraws": 8,
+          "maxNear": 2,
+          "maxFar": 10
+        },
+        "medio_normal": {
+          "maxTriangles": 7953,
+          "maxFrustumTriangles": 5717,
+          "maxDraws": 16,
+          "maxNear": 15,
+          "maxFar": 38
+        },
+        "alto_normal": {
+          "maxTriangles": 13279,
+          "maxFrustumTriangles": 11686,
+          "maxDraws": 23,
+          "maxNear": 25,
+          "maxFar": 67
+        }
+      }
+    },
+    {
+      "area": "ninho",
+      "patches": 52,
+      "chunks": 18,
+      "totals": {
+        "baixo_easy": {
+          "maxTriangles": 1058,
+          "maxFrustumTriangles": 1058,
+          "maxDraws": 7,
+          "maxNear": 2,
+          "maxFar": 8
+        },
+        "medio_normal": {
+          "maxTriangles": 5350,
+          "maxFrustumTriangles": 4611,
+          "maxDraws": 14,
+          "maxNear": 10,
+          "maxFar": 25
+        },
+        "alto_normal": {
+          "maxTriangles": 9071,
+          "maxFrustumTriangles": 8440,
+          "maxDraws": 18,
+          "maxNear": 17,
+          "maxFar": 42
+        }
+      }
+    },
+    {
+      "area": "portoanil",
+      "patches": 0,
+      "maxTriangles": 0
+    },
+    {
+      "area": "captacao",
+      "patches": 0,
+      "maxTriangles": 0
+    },
+    {
+      "area": "sede",
+      "patches": 0,
+      "maxTriangles": 0
+    },
+    {
+      "area": "setorzero",
+      "patches": 0,
+      "maxTriangles": 0
+    },
+    {
+      "area": "raiz",
+      "patches": 0,
+      "maxTriangles": 0
+    }
+  ]
+}

@@ -1,3 +1,4 @@
+import { finalizeGrass } from './grass.js';
 import { batchBackgroundTrees } from './tree-batching.mjs';
 import { buildContactShadows } from './contact-shadows.js';
 // areas.js — definição das ÁREAS conectadas (geometria, clima, portas, itens, inimigos e eventos).
@@ -869,6 +870,7 @@ export function buildArea(a) {
     // para o renderer não recalcular a cada quadro. (só objetos instanciados; portas/lâmpadas seguem livres)
     for (const o of a.ctx.group.children) if (o.isInstancedMesh) { o.updateMatrix(); o.matrixAutoUpdate = false; }
   }
+  finalizeGrass(a.ctx,a);
   buildContactShadows(a.ctx);
   W.applyShadowTiers(a.ctx.group);
   collectLod(a.ctx);   // v9: LOD por distância (js/lod.js)

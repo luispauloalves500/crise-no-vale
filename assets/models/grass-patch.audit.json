@@ -1,0 +1,35 @@
+{
+  "source": "grama_leve.glb fornecido pelo usuário",
+  "sourceBytes": 5420960,
+  "sourceSha256": "d0c21e44f8a94761b6a04b7dd7b665a0cb5b6e364e6519df2afa6eca2182a2fe",
+  "sourceTriangles": 161635,
+  "extractedComponents": 10,
+  "extractedTriangles": 9706,
+  "file": "grass-patch.glb",
+  "bytes": 60456,
+  "sha256": "3fffe5e7e65e30bfc9ef4fce7fe21c887b375786ec24a81451b4c205ae0b8d62",
+  "triangles": 511,
+  "farLOD": "procedural: 4 curved ribbons, 12 triangles",
+  "extensions": [
+    "EXT_meshopt_compression",
+    "EXT_texture_webp"
+  ],
+  "texture": {
+    "count": 1,
+    "width": 512,
+    "height": 512,
+    "mimeType": "image/webp"
+  },
+  "sizeMeters": {
+    "width": 0.72,
+    "height": 0.42,
+    "depth": 0.57406
+  },
+  "notes": [
+    "Componentes inteiros selecionados antes de simplificar, bases apoiadas em y=0 e dimensões do patch normalizadas.",
+    "Simplificação Meshopt, normais, weld, dedup, prune, textura WebP quality 80; metalness=0, sem mapas de normal/ORM.",
+    "Vento adaptado de grama_vento.js fornecido pelo usuário; fase por instância, uniforme compartilhado e sem animação CPU dos vértices.",
+    "Os arquivos de entrada ficam fora do runtime; não instanciar o GLB original de 161.635 triângulos.",
+    "Licença pública do material de origem não informada no pacote do usuário."
+  ]
+}

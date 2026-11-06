@@ -385,7 +385,7 @@ function drawRadar(d) {
 
 // ---------- v6: painel de ajustes (mesmo markup no menu e na pausa) ----------
 const fmtS = { sens: (v) => v.toFixed(2).replace('.', ',') + '×', master: (v) => Math.round(v * 100) + '%' };
-fmtS.sfx = fmtS.amb = fmtS.master;
+fmtS.sfx = fmtS.amb = fmtS.grassDensity = fmtS.master;
 /** Liga os controles .sset; onChange(chave, valor). onReset() restaura padrões. */
 export function bindSettings(onChange, onReset) {
   document.querySelectorAll('.sset [data-s]').forEach((inp) => {

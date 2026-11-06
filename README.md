@@ -122,6 +122,42 @@ Foram lidos `README.md`, `ANALISE-ATO3.md`, `AUDITORIA-COERENCIA.md`, `AUDITORIA
 
 **Os demais `.md` são análises/planos históricos, não especificações simultâneas.** Propostas antigas de final no heliponto, retorno para casa no Ato 2 ou progressão opcional para Porto Anil ficam superadas pelo fluxo acima e por `js/campaign-rules.mjs`.
 
+## Grama otimizada do usuário
+
+`assets/models/grass-patch.glb`: **60.456 bytes (60,5 kB / 59,0 KiB)**, contra **5.420.960 bytes** do `grama_leve.glb` enviado (**98,88% menor**). Foram extraídas dez folhas/componentes inteiros do original e simplificadas para um patch de **511 triângulos**, aproximadamente **0,72 × 0,42 × 0,57 m**. Meshopt + uma textura WebP de 512²; mapas de normal/ORM removidos e metalness zerado. O arquivo de 161.635 triângulos **não é copiado para o runtime nem repetido por tufo**. Proveniência, hash e medidas em `assets/models/grass-patch.audit.json`; licença pública não especificada no pacote de origem.
+
+- Substitui os tufos antigos em **Cais, Ruínas (bordas), Pântano, Margem, Acampamento e Ninho**. Laboratório/Pátio e os mapas pavimentados dos Atos 3–4 ficam sem grama. A seleção usa os mesmos nove sorteios de antes: não altera as sementes, portas, obstáculos ou saves da campanha.
+- `InstancedMesh` por **chunks de 10 m**, geometria/textura/material compartilhados; sem projetar **nem receber sombras**. LOD próximo usa o GLB; distante usa quatro fitas curvas (**12 triângulos**). Cada chunk desenha um único LOD; frustum culling, corte por distância e orçamento **global por mapa**, não multiplicado pelo número de chunks. Matrizes estáticas, atualização de LOD a ~6 Hz.
+- Orçamento antes dos redutores: **Baixo 8/40 patches próximo/distante, 6/16 m**; **Médio 20/80, 9/24 m**; **Alto 32/128, 12/32 m**. No Cais, teto adicional de **16/80**. Multiplicador gráfico 0,55/0,8/1; **Fácil ×0,65**, e slider **Densidade da grama (0–100%)** no menu/pausa. Auto já baixa a qualidade em hardware fraco/FPS baixo. Densidade zero remove todos os desenhos de grama.
+- Máscaras calculadas **após** terminar o mapa: verificam o footprint inteiro mais margem para o vento, limites da terra, água/poças, obstáculos, pisos/passarelas (inclusive sem colisão), tendas, jaulas, helipontos, caminhos, itens e terminais. O mar/rios fora do chão não recebem instâncias.
+- Vento do JS fornecido adaptado em `js/grass.js`: `onBeforeCompile`, fase espacial via `instanceMatrix`, peso por altura e uniformes compartilhados. `atualizarVento` roda no loop, inclusive nas cutscenes; pausa congela e Movimento reduzido suaviza. Nenhum vértice é atualizado na CPU. O carregamento usa o `GLTFLoader` + `MeshoptDecoder` existente, uma tentativa; falha mantém as fitas procedurais e vento. Streaming não destrói recursos compartilhados nem ressuscita áreas após carregamento tardio.
+
+### Triângulos de grama aproximadamente submetidos por mapa
+
+Máximos amostrados na CPU com **49 posições × 8 direções** por mapa, câmera de 60°, chunks testados contra o frustum, slider em 100%. **Não são medições de FPS/GPU, nem garantia de um máximo para toda câmera possível.** Somente grama, não a cena inteira; contagem anterior a recorte por pixel/oclusão. Relatório reproduzível em `tests/grass-runtime-audit.json`.
+
+| Mapa | Baixo + Fácil | Médio + Normal | Alto + Normal |
+|---|---:|---:|---:|
+| Cais do Porto | 1.106 | 6.348 | 8.632 |
+| Ruínas | 1.046 | 3.577 | 6.643 |
+| Pântano | 1.178 | 8.620 | 17.012 |
+| Margem do Rio | 1.190 | 8.788 | 17.432 |
+| Acampamento | 1.070 | 5.717 | 11.686 |
+| Ninho | 1.058 | 4.611 | 8.440 |
+| Laboratório, Pátio, Heliponto e Atos 3–4 | 0 | 0 | 0 |
+
+Limite teórico no Alto/Normal: **17.888 triângulos de grama por mapa**, **9.136 no Cais**, antes de frustum/densidade; até 13 draws de grama no Cais na amostragem (até um por chunk visível). O LOD distante/fallback é deliberadamente simples. **Ainda requer revisão no navegador com WebGL**: aspecto/inclinação/transição das folhas, shader de vento compilado, integração visual junto a pisos, FPS real e dispositivos móveis. Foi inspecionado apenas um render técnico offline do patch; isso não valida a cena do jogo.
+
+Auditoria CPU adicional com dependências opcionais (a suíte padrão continua sem dependências):
+
+```bash
+npm install --no-save three@0.160.0 @napi-rs/canvas
+node --experimental-vm-modules tests/runtime-grass.mjs
+node --experimental-vm-modules tests/runtime-grass.mjs --failure
+```
+
+Testa o GLB real com Meshopt/WebP, máscaras de todos os mapas, limites/slider/Fácil, materiais sem sombra, shader/uniformes, um único 404, descarte e recarga/streaming. **Não compila GLSL nem abre navegador**.
+
 ## Rodar e testar
 
 ```bash
@@ -132,7 +168,7 @@ node --test tests/*.test.mjs
 
 Os módulos exigem HTTP (não `file://`). Three.js/addons vêm do jsDelivr via importmap e exigem conexão; bloom tem fallback.
 
-A suíte tem **mais de 140 testes**, incluindo sequência completa dos quatro atos nas três dificuldades e nas quatro combinações de decisões, portas por ato, travas, saves antigos/misturados, isolamento de mapas/preload, resgate opcional, dificuldade, jaulas persistentes, keyframes da recarga e montagem do artefato Pages. A simulação executa o diretor real em VM, com renderização, inimigos e entrada simulados: **não é uma partida humana nem uma prova de balanceamento de combate**.
+A suíte tem **164 testes**, incluindo sequência completa dos quatro atos nas três dificuldades e nas quatro combinações de decisões, portas por ato, travas, saves antigos/misturados, isolamento de mapas/preload, resgate opcional, dificuldade, jaulas persistentes, keyframes da recarga e montagem do artefato Pages. A simulação executa o diretor real em VM, com renderização, inimigos e entrada simulados: **não é uma partida humana nem uma prova de balanceamento de combate**.
 
 Auditorias CPU adicionais reproduzíveis, com o Three da mesma versão, sem instalar dependências no projeto:
 

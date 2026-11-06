@@ -5,7 +5,7 @@ import { FX, CAMERA } from './config.js';
 import { rand, clamp, noiseTex, glowTex, texMat, corrugatedTex, rippleTex, beamTex, labelTex, mergeGeos, softSplatTex, mulberry32 } from './utils.js';
 import { G } from './state.js';
 import { quality, onQuality } from './quality.js';
-import { makeGrassBlades, grassCount } from './grass-design.mjs';
+import { queueGrass, releaseGrass, isGrassResource } from './grass.js';
 import { queueShadow, contactShadowResources } from './contact-shadows.js';
 
 export const GLOW = glowTex();
@@ -14,7 +14,7 @@ export const GLOW = glowTex();
 const SHARED = new WeakSet();
 /** Marca geometria/material/textura como compartilhado (não é descartado com a área). */
 export function share(...xs) { for (const x of xs) if (x) SHARED.add(x); return xs[0]; }
-const isShared = (x) => SHARED.has(x);
+const isShared = (x) => SHARED.has(x) || isGrassResource(x);
 share(GLOW, ...contactShadowResources);
 
 // ---------- renderer / cena / câmera ----------
@@ -182,12 +182,13 @@ function lod(m, cls) { m.userData.lod = cls; return m; }
 export function applyShadowTiers(root) { root.traverse((o) => { if (o.userData.shTier) o.castShadow = tierOn(o.userData.shTier); }); }
 
 // ---------- kit de construção (ctx = { group, boxes, circles, lamps, water, rng }) ----------
-export function makeCtx(rng) { const group = new THREE.Group(); group.visible = false; scene.add(group); return { group, boxes: [], circles: [], lamps: [], water: [], rng }; }
+export function makeCtx(rng) { const group = new THREE.Group(); group.visible = false; scene.add(group); return { group, boxes: [], circles: [], lamps: [], water: [], grassNoGo: [], rng }; }
 
 /** Paralelepípedo sólido (colide e bloqueia tiros se h alto). */
 export function solid(ctx, x, z, w, d, h, mat = MATS.concrete, y = 0, collide = true) {
   const m = boxMesh(mat, w, h, d); m.position.set(x, y + h / 2, z); m.castShadow = m.receiveShadow = true; ctx.group.add(m);
   if (y === 0 && w <= 12 && d <= 12) queueShadow(ctx, x, z, w + 0.8, d + 0.8);
+  if (!collide && y <= .3 && w > 1.4 && d > 1.4) ctx.grassNoGo.push({ minX:x-w/2,maxX:x+w/2,minZ:z-d/2,maxZ:z+d/2 });
   if (collide) ctx.boxes.push({ minX: x - w / 2, maxX: x + w / 2, minZ: z - d / 2, maxZ: z + d / 2, h: y + h });
   return m;
 }
@@ -345,6 +346,7 @@ export function ground(ctx, b, tex, extra = 30, opts = {}) {
     for (let i = 0; i < n; i++) {
       o.position.set(b.minX + rng() * (b.maxX - b.minX), y, b.minZ + rng() * (b.maxZ - b.minZ));
       o.rotation.set(-Math.PI / 2, 0, rng() * 6.28); const s = s0 + rng() * (s1 - s0); o.scale.set(s, s * (0.6 + rng() * 0.6), 1);
+      if (mat2 === puddleMat) ctx.grassNoGo.push({x:o.position.x,z:o.position.z,r:Math.hypot(o.scale.x,o.scale.y)/2});
       o.updateMatrix(); inst.setMatrixAt(i, o.matrix);
     }
     inst.receiveShadow = true; ctx.group.add(inst); return inst;
@@ -353,22 +355,7 @@ export function ground(ctx, b, tex, extra = 30, opts = {}) {
   if (patches) scatter(patches, new THREE.MeshStandardMaterial({ color: opts.patchCol ?? 0x14180c, roughness: 1, transparent: true, opacity: 0.6, alphaMap: SPLAT, depthWrite: false, polygonOffset: true, polygonOffsetFactor: -1 }), 0.012, 2, 6);
   if (opts.puddles) scatter(opts.puddles, puddleMat, 0.02, 1.2, 3.4);
 }
-export function grass(ctx, b, n, color = 0x2f5524) {
-  const rng = ctx.rng, blades = makeGrassBlades(), geo = new THREE.BufferGeometry();
-  geo.setAttribute('position', new THREE.BufferAttribute(blades.positions, 3));
-  geo.setAttribute('color', new THREE.BufferAttribute(blades.colors, 3));
-  geo.computeVertexNormals();
-  const inst = new THREE.InstancedMesh(geo, new THREE.MeshStandardMaterial({ color: 0xffffff, roughness: 1, vertexColors: true, side: THREE.DoubleSide }), n), d = new THREE.Object3D();
-  const base = new THREE.Color(color), c = new THREE.Color();
-  for (let i = 0; i < n; i++) {
-    d.position.set(b.minX - 4 + rng() * (b.maxX - b.minX + 8), 0, b.minZ - 4 + rng() * (b.maxZ - b.minZ + 8));
-    d.rotation.set(rng() * 0.16, rng() * 3, rng() * 0.16); d.scale.set(0.6 + rng(), 0.5 + rng() * 1.3, 0.6 + rng()); d.updateMatrix(); inst.setMatrixAt(i, d.matrix);
-    c.copy(base).multiplyScalar(0.7 + rng() * 0.6); inst.setColorAt(i, c);
-  }
-  // O limite usa todas as instâncias, permitindo aumentar a qualidade depois sem cortar a grama.
-  inst.computeBoundingSphere(); inst.userData.grassMax = n; inst.count = grassCount(n, quality.p.grass ?? 1);
-  ctx.group.add(inst);
-}
+export function grass(ctx,b,n,color=0x2f5524) { queueGrass(ctx,b,n,color); }
 /** Anel de árvores fora dos limites (selva fechada ao redor). */
 export function treeRing(ctx, b, n, margin = 3, depth = 12, palm = false) {
   const rng = ctx.rng;
@@ -703,7 +690,6 @@ export function applyQuality(p = quality.p) {
   const ffPer = Math.floor(Math.min(FF, p.fireflies) / 2);
   ffSets.forEach((f) => { f.n = Math.min(f.max, ffPer); f.geo.setDrawRange(0, f.n); });
   applyShadowTiers(scene);
-  scene.traverse(o => { if (o.isInstancedMesh && Number.isFinite(o.userData.grassMax)) o.count = grassCount(o.userData.grassMax, p.grass ?? 1); });
   if (recompile) { scene.traverse((o) => { const m = o.material; if (m) (Array.isArray(m) ? m : [m]).forEach((x) => { x.needsUpdate = true; }); }); for (const fn of extraMats) fn(); }
   assignLamps(true);
   return recompile;
@@ -716,6 +702,7 @@ onQuality((p) => applyQuality(p));
 // ---------- descarte de áreas (streaming) ----------
 /** Descarta geometrias/materiais/texturas de um grupo, poupando os recursos compartilhados. */
 export function disposeGroup(root) {
+  releaseGrass(root);
   const geos = new Set(), mats = new Set(), texs = new Set();
   root.traverse((o) => {
     if (o.isInstancedMesh) o.dispose();
