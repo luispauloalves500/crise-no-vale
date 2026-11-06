@@ -11,7 +11,7 @@ test('artefato Pages inclui Jill, Lima, armas, grama e sombra, decodifica Marina
   const lines=block.split('\n'),indent=Math.min(...lines.filter(l=>l.trim()).map(l=>l.match(/^ */)[0].length));
   const script=lines.map(l=>l.slice(indent)).join('\n'),root=mkdtempSync(join(tmpdir(),'crise-pages-test-'));
   try{
-    const paths=['index.html','css/style.css','js/main.js','assets/personagens/jill.glb','assets/personagens/dra-lima-lod.glb','assets/armas/glock-lod.glb','assets/armas/mp5-lod.glb','assets/shadow.webp','assets/models/grass-patch.glb','js/grass.js','js/grass-policy.mjs','assets/originais/Jill Valentine.glb'];
+    const paths=['index.html','css/style.css','js/main.js','assets/personagens/jill.glb','assets/personagens/dra-lima-lod.glb','assets/armas/glock-lod.glb','assets/armas/mp5-lod.glb','assets/shadow.webp','assets/models/grass-patch.glb','js/grass.js','js/grass-policy.mjs','js/hero-animation.mjs','js/dino-grounding.js','js/dino-dimensions.mjs','assets/originais/Jill Valentine.glb'];
     for(const f of paths){mkdirSync(dirname(join(root,f)),{recursive:true});writeFileSync(join(root,f),'fixture');}
     writeFileSync(join(root,'assets/marina.min.glb.b64'),Buffer.from('glTF').toString('base64'));
     execFileSync('bash',['-e','-c',script],{cwd:root});

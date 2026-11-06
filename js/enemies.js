@@ -1,3 +1,4 @@
+import { dinoBarY, dinoImpactY, DINO_FLOOR_CLEARANCE } from './dino-dimensions.mjs';
 import { attachDino, resetDino, animateDino, disposeDino } from './dino-models.js';
 import { actorShadow } from './contact-shadows.js';
 // enemies.js — construção dos dinossauros (silhuetas distintas), IA (patrulha → alerta → ataque),
@@ -135,9 +136,10 @@ function buildDino(type) {
   const fgMat = new THREE.MeshBasicMaterial({ color: 0xff4030, depthTest: false }); mats.push(fgMat);
   const fg = new THREE.Mesh(barGeo, fgMat); fg.scale.set(0.96, 0.06, 1); fg.position.z = 0.001; bar.add(fg);
   bg.renderOrder = fg.renderOrder = 10;
-  bar.position.y = 2.6 * T.scale; scene.add(bar);
+  bar.position.y = dinoBarY(T); scene.add(bar);
 
   const contactShadow = actorShadow(g, big ? 2.4 : 1.6, big ? 3 : 2.6);
+  contactShadow.position.y=DINO_FLOOR_CLEARANCE*.5/T.scale; // sombra abaixo das solas, não 4,5 cm × escala acima delas
   g.scale.setScalar(T.scale);
   const em0 = mats.map((m) => (m.emissive ? m.emissive.getHex() : 0));
   // v9: listas do LOD — meshes que projetam sombra e detalhes finos (dentes/garras) que somem de longe
@@ -152,8 +154,8 @@ function buildDino(type) {
 const POOL = {}, POOL_MAX = 8;
 export const poolStats = { built: 0, reused: 0 };
 function resetParts(P) {
-  resetDino(P);
   P.contactShadow.visible = true; P.g.rotation.set(0, 0, 0); P.g.position.set(0, 0, 0); P.g.visible = true; P.g.scale.setScalar(ENEMY_TYPES[P.type].scale);
+  resetDino(P);
   P.body.position.set(0, 0, 0); P.body.rotation.set(0, 0, 0);
   P.legs.forEach((l) => l.rotation.set(0, 0, 0)); P.jaw.rotation.set(0, 0, 0);
   P.tail.rotation.set(0, 0, 0); P.tail2.rotation.set(0, 0, 0);
@@ -293,7 +295,7 @@ function updateEnemy(e, dt) {
     // v6: desabamento — tranco (achata), tomba com pequeno quique, desliza com o impulso, afunda e encolhe até sumir
     const d = e.deadT;
     if (animateDino(e.parts,e,dt)) {
-      g.position.set(e.pos.x, d>2.3?-(d-2.3)*1.5:0, e.pos.z);
+      g.position.set(e.pos.x,0,e.pos.z); // morte GLB fica apoiada até o descarte; não afunda no terreno
       if (d>3.5) { disposeEnemy(e);e.remove=true; } return;
     }
     const k = Math.min(1, d * 3), ease = 1 - (1 - k) * (1 - k);
@@ -447,7 +449,7 @@ function updateEnemy(e, dt) {
     e.charge = 0; e.stun = T.wallStun || (T.boss ? 2.4 : 1.4);
     // v5: carência depois do atordoamento — ele não emenda pisão/investida assim que acorda
     if (T.stunGrace) { e.stompCd = Math.max(e.stompCd, e.stun + T.stunGrace); e.special = Math.max(e.special, e.stun + T.stunGrace + 1); }
-    burst(e.pos.x, 2.4 * T.scale, e.pos.z, 'spark', 12, 2.5); G.shake = Math.max(G.shake, 0.35); burst(e.pos.x, 1, e.pos.z, 'dust', 16, 3); sfx.crash();
+    burst(e.pos.x, dinoImpactY(T), e.pos.z, 'spark', 12, 2.5); G.shake = Math.max(G.shake, 0.35); burst(e.pos.x, 1, e.pos.z, 'dust', 16, 3); sfx.crash();
   }
   e.yaw = lerpAngle(e.yaw, face, Math.min(1, dt * (e.charge > 0 ? 2 : 8)));
   g.rotation.y = e.yaw; g.position.set(e.pos.x, 0, e.pos.z);
@@ -469,7 +471,7 @@ function updateEnemy(e, dt) {
   e.mats.forEach((m) => m.emissive && m.emissive.setHex(fl));
   // barra de vida (v9: some de longe — LOD nível ≥ 2)
   if (e.hp < e.maxHp && !T.boss && !(e.lodLv >= 2)) {
-    e.bar.visible = true; e.bar.position.set(e.pos.x, 2.6 * T.scale + (e.type === 'spitter' ? 0.3 : 0), e.pos.z);
+    e.bar.visible = true; e.bar.position.set(e.pos.x, dinoBarY(T), e.pos.z);
     e.bar.quaternion.copy(camera.quaternion);
     const f = Math.max(0, e.hp / e.maxHp); e.barFg.scale.x = 0.96 * f; e.barFg.position.x = -0.48 * (1 - f);
     e.barFg.material.color.setHex(f > 0.5 ? 0xffb030 : 0xff3020);

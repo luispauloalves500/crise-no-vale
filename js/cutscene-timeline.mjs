@@ -1,3 +1,5 @@
+import {dinoDimensions} from './dino-dimensions.mjs';
+import {ENEMY_TYPES} from './config.js';
 // Renderer-independent timeline. Skip and natural completion have identical outcomes.
 export function sampleShot(keys, time) {
   if (!keys.length) throw new Error('Cutscene sem câmera');
@@ -37,11 +39,12 @@ export function sceneScript(id, focus={x:0,z:0}, flags={}) {
   };
   const [title,...dialogue]=scripts[id],duration=dialogue.length*3.8+1;
   const {x,z}=focus,wide=id.startsWith('act')||id==='opening', giant=id==='tyrant';
+  const tyrant=dinoDimensions(ENEMY_TYPES.origin),lookY=tyrant.height*.4,shotDistance=tyrant.length*1.7;
   const boarding=id==='extraction'||id.startsWith('ending-');
   const boatKeys=[{t:0,pos:[x+8,5,z-7],look:[x,1.3,z+3],fov:52},{t:duration*.52,pos:[x-6,3.5,z-4],look:[x,1.3,z+4],fov:46},{t:duration,pos:[x-5,3,z+1],look:[x,1.5,z+5],fov:43}];
   return {id,title,duration,
-    keys:boarding?boatKeys:[{t:0,pos:[x+(wide?13:8),giant?9:wide?12:5,z+11],look:[x,giant?3:1.4,z],fov:52},
-      {t:duration*.52,pos:[x-6,giant?4.5:3.8,z+8],look:[x,giant?3:1.5,z],fov:46},
-      {t:duration,pos:[x-4,giant?3:2.6,z+5.5],look:[x,giant?3.2:1.4,z],fov:43}],
+    keys:boarding?boatKeys:[{t:0,pos:[x+(giant?shotDistance*.6:wide?13:8),giant?tyrant.height*1.3:wide?12:5,z+(giant?shotDistance:11)],look:[x,giant?lookY:1.4,z],fov:52},
+      {t:duration*.52,pos:[x-(giant?shotDistance*.6:6),giant?tyrant.height*1.1:3.8,z+(giant?shotDistance*.95:8)],look:[x,giant?lookY:1.5,z],fov:giant?50:46},
+      {t:duration,pos:[x-(giant?shotDistance*.4:4),giant?tyrant.height*.95:2.6,z+(giant?shotDistance*.9:5.5)],look:[x,giant?lookY:1.4,z],fov:giant?50:43}],
     lines:dialogue.map((s,i)=>({start:.5+i*3.8,end:.5+(i+1)*3.8,who:s.split('|')[0],text:s.split('|')[1]}))};
 }

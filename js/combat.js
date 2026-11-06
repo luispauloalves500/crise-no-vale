@@ -1,7 +1,8 @@
+import { rayDinoHit, dinoImpactY, dinoBarY } from './dino-dimensions.mjs';
 import { ammoAmount } from './campaign-rules.mjs';
 // combat.js — disparo, granadas, detecção de acertos, dano/abates, combo e itens (do mapa e drops).
 import * as THREE from 'three';
-import { scene, camera, castWorld, rayCircle, resolve, GLOW } from './world.js';
+import { scene, camera, castWorld, resolve, GLOW } from './world.js';
 import { PICKUPS, COMBO, PLAYER, GRENADE, INVENTORY, ARMOR, NOISE, EP, AIM } from './config.js';
 import { pad } from './gamepad.js';
 import { quality } from './quality.js';
@@ -24,7 +25,7 @@ export function castAll(ox, oz, dx, dz, max) {
   let best = castWorld(ox, oz, dx, dz, max, SHOT_H), hitE = null;
   for (const e of enemies) {
     if (e.dead) continue;
-    const t = rayCircle(ox, oz, dx, dz, e.pos.x, e.pos.z, e.cfg.r);
+    const t = rayDinoHit(ox,oz,dx,dz,e);
     if (t < best) { best = t; hitE = e; }
   }
   return { t: best, e: hitE };
@@ -102,7 +103,7 @@ export function fire() {
     const off = w.pellets > 1 ? ((p + 0.5 + (Math.random() - 0.5) * 0.9) / w.pellets - 0.5) * 2 : tri();
     const a = base + off * spread, dx = Math.sin(a), dz = Math.cos(a);
     const h = castAll(player.pos.x, player.pos.z, dx, dz, w.range);
-    v2.set(player.pos.x + dx * h.t, h.e ? 1.1 * h.e.cfg.scale : v1.y, player.pos.z + dz * h.t);
+    v2.set(player.pos.x + dx * h.t, h.e ? dinoImpactY(h.e.cfg) : v1.y, player.pos.z + dz * h.t);
     const renderPellet = showPelletVisual(p, w.pellets, quality.id);
     if (renderPellet) tracer(v1, v2, w.tracer, w.pellets > 1 ? 0.7 : 1);
     if (h.e) {
@@ -126,7 +127,7 @@ export function fire() {
     anyCrit = anyCrit || crit;
     // v11: número sai do ponto médio onde os tiros acertaram (alinhado com o impacto visível)
     const hx = info.x / info.n, hz = info.z / info.n;
-    ui.floater(crit || weak ? dmg + '!' : String(dmg), hx, 1.9 * e.cfg.scale, hz, (crit ? 'crit' : '') + (weak ? ' weak' : '') + (dmg >= 60 ? ' big' : ''));
+    ui.floater(crit || weak ? dmg + '!' : String(dmg), hx, dinoBarY(e.cfg), hz, (crit ? 'crit' : '') + (weak ? ' weak' : '') + (dmg >= 60 ? ' big' : ''));
     info.hx = hx; info.hy = info.y / info.n; info.hz = hz;
   }
   if (dmgBy.size) {
@@ -166,13 +167,13 @@ export function damageEnemy(e, d, dx, dz, knock) {
   G.combo = G.comboT > 0 ? G.combo + 1 : 1; G.comboT = COMBO.WINDOW;
   const mult = Math.min(G.combo, COMBO.MAX), pts = e.cfg.score * mult;
   G.score += pts;
-  ui.floater(`+${pts}${mult > 1 ? ` x${mult}` : ''}`, e.pos.x, 2.4 * e.cfg.scale, e.pos.z, 'kill');
+  ui.floater(`+${pts}${mult > 1 ? ` x${mult}` : ''}`, e.pos.x, dinoBarY(e.cfg)+.5, e.pos.z, 'kill');
   // v10: Pontos de Extinção — cfg.ep × combo (chefes não multiplicam; sem dano na luta = +25%)
   let ep = (e.cfg.ep || 0) * (e.cfg.boss ? 1 : mult);
   if (e.cfg.boss && (G.dmgTaken || 0) === e.dmg0) { ep *= 1 + EP.CLEAN; ui.feed('Chefe sem levar dano — bônus de PE!', '#9fe8ff'); }
-  if (ep > 0) ui.floater(`+${addEp(ep)} PE`, e.pos.x, 1.9 * e.cfg.scale, e.pos.z, 'ep');
+  if (ep > 0) ui.floater(`+${addEp(ep)} PE`, e.pos.x, dinoBarY(e.cfg), e.pos.z, 'ep');
   roar(heavy ? 0.45 : 1.1, 0.25);
-  bloodBurst(e.pos.x, 1.2 * e.cfg.scale, e.pos.z, heavy, dx, dz);
+  bloodBurst(e.pos.x, dinoImpactY(e.cfg), e.pos.z, heavy, dx, dz);
   decal(e.pos.x, e.pos.z, heavy ? 1.5 * e.cfg.scale : 1.6);
   if (!e.cfg.boss) {
     // Estoque finito no chão: cada patrulha renovada devolve munição coletável, não tiros grátis.
@@ -222,7 +223,7 @@ function explode(g) {
     if (castWorld(x, z, dx / (d || 1), dz / (d || 1), Math.max(0, d - 0.3), 1.2) < d - 0.6) continue; // cobertura protege
     const k = 1 - Math.max(0, d) / GRENADE.RADIUS, dmg = Math.round(GRENADE.DMG * (0.35 + 0.65 * k));
     e.stun = Math.max(e.stun, GRENADE.STUN * (e.cfg.boss ? 0.5 : 1)); e.windup = 0; e.charge = 0; hits++;
-    ui.floater(dmg + '!', e.pos.x, 1.9 * e.cfg.scale, e.pos.z, 'crit big');
+    ui.floater(dmg + '!', e.pos.x, dinoBarY(e.cfg), e.pos.z, 'crit big');
     const l = Math.hypot(dx, dz) || 1;
     if (damageEnemy(e, dmg, dx / l, dz / l, 8)) kills++;
   }

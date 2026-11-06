@@ -2,6 +2,8 @@
 import * as THREE from 'three';
 import { clone } from 'three/addons/utils/SkeletonUtils.js';
 import { loadModel } from './model-assets.js';
+import {calibrateDino,createDinoGrounder,localBonePose,restoreBonePose} from './dino-grounding.js';
+import {dinoDimensions} from './dino-dimensions.mjs';
 import { DINO_VISUALS } from './config.js';
 import { DINO_CLIPS, dinoKind, dinoMotion } from './dino-animation.mjs';
 const templates = new Map();
@@ -10,9 +12,9 @@ function template(kind) {
   if (!templates.has(kind)) templates.set(kind, loadModel(DINO_VISUALS[kind]).then(gltf => {
     for (const name of DINO_CLIPS) if (!gltf.animations.some(c=>c.name===name)) throw new Error('Clipe ausente: '+name);
     gltf.scene.updateMatrixWorld(true);
-    const b = new THREE.Box3().setFromObject(gltf.scene);
+    const calibration=calibrateDino(gltf);
     dinoModelStats.ready++;
-    return { gltf, height:b.max.y-b.min.y, ground:b.min.y };
+    return {gltf,...calibration};
   }).catch(err => { dinoModelStats.failed++; console.warn('Dinossauro '+kind+': usando fallback procedural.',err); return null; }));
   return templates.get(kind); // Failure stays cached: never storm the server on each spawn.
 }
@@ -23,8 +25,10 @@ export function attachDino(P, cfg) {
   return template(dinoKind(cfg)).then(t => {
     if (!t || P.modelToken !== token) return;
     const root = clone(t.gltf.scene), holder = new THREE.Group(), mats = [], skeletons = new Set();
-    // Original height ~1.7; target ~2*type.scale, matching the combat torso hitbox.
-    root.scale.setScalar(2 / t.height); root.position.y = -t.ground * root.scale.x;
+    // O grupo externo já aplica cfg.scale. Ajustar os três eixos à referência procedural local.
+    const dims=dinoDimensions({...cfg,scale:1}),size=t.idleBounds.getSize(new THREE.Vector3()),rest=localBonePose(root);
+    root.scale.set(dims.width/size.x,dims.height/size.y,dims.length/size.z);
+    root.position.set(-t.idleBounds.getCenter(new THREE.Vector3()).x*root.scale.x,0,dims.minZ-t.idleBounds.min.z*root.scale.z);
     root.traverse(o => {
       if (!o.isMesh) return;
       o.castShadow = o.receiveShadow = true; o.frustumCulled = false;
@@ -40,14 +44,15 @@ export function attachDino(P, cfg) {
       const a=actions[clip.name]=mixer.clipAction(clip);
       if (['attack','hurt','death'].includes(clip.name)) { a.setLoop(THREE.LoopOnce,1); a.clampWhenFinished=true; }
     }
-    P.visual = { root,holder,mixer,actions,mats,skeletons,clip:null,lock:0 };
+    P.visual = {root,holder,mixer,actions,mats,skeletons,rest,dimensions:dinoDimensions(cfg),ground:createDinoGrounder(root,holder,P.g,t.contacts),contacts:t.contacts.reduce((n,c)=>n+c.length,0),clip:null,lock:0};
     resetDino(P); dinoModelStats.instances++;
   });
 }
 export function resetDino(P) {
   const v=P.visual; if (!v) return;
-  v.mixer.stopAllAction(); v.root.traverse(o=>{if(o.isSkinnedMesh)o.skeleton.pose();});
-  v.clip=null; v.lock=0; play(v,'idle',1);
+  v.mixer.stopAllAction();restoreBonePose(v.rest);
+  // skeleton.pose() após escalar/reparentear usa inversas de bind antigas e encolhia/enterrava os dinos.
+  v.clip=null;v.lock=0;play(v,'idle',1);v.actions.idle.stopFading().setEffectiveWeight(1);v.mixer.update(0);v.ground();
 }
 function play(v,name,rate) {
   if (v.clip !== name) {
@@ -63,7 +68,7 @@ export function animateDino(P,e,dt,speed=0) {
   const m=dinoMotion(e,speed); v.lock=Math.max(0,v.lock-dt);
   // Finish a one-shot bite/flinch even when the AI's damage window already closed.
   if (m.clip==='death' || !v.lock || ['hurt','attack'].includes(m.clip)) play(v,m.clip,m.rate);
-  v.mixer.update(dt); return true;
+  v.mixer.update(dt);v.ground();return true;
 }
 export function disposeDino(P) {
   P.modelToken=null;

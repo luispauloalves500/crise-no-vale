@@ -1,0 +1,70 @@
+{
+  "three": "160",
+  "combatClipsRetargeted": 15,
+  "samples": 1446,
+  "poseSamples": 2904,
+  "maxLeftIdleAngle": 33.25065189409861,
+  "maxLeftLateral": 0.6043989487173227,
+  "maxNormError": 6.111635064698362e-8,
+  "texturesAndMeshes": false,
+  "armReport": {
+    "marina": {
+      "pipeline": "shared-hero-v2",
+      "clipNames": [
+        "Running",
+        "Walking",
+        "Flirty_Strut",
+        "Walking_Woman",
+        "Wave_One_Hand",
+        "open_door_4",
+        "Weapon_Idle",
+        "Aim_Pistol",
+        "Fire_Revolver",
+        "Fire_Shotgun",
+        "Fire_SMG",
+        "Fire_Dual_SMG",
+        "Reload_Revolver",
+        "Reload_Shotgun",
+        "Fire_Pistol_Controlled",
+        "Fire_Revolver_Heavy_REV4",
+        "Fire_Shotgun_Heavy_REV4",
+        "Fire_SMG_Burst_REV4",
+        "Fire_Dual_SMG_Alternating_REV4",
+        "Reload_SMG_REV4",
+        "Reload_Dual_SMG_REV4",
+        "Pump_Shotgun_REV4"
+      ],
+      "beltAndInsert": true,
+      "legsUnchanged": true
+    },
+    "jill": {
+      "pipeline": "shared-hero-v2",
+      "clipNames": [
+        "Running",
+        "Walking",
+        "Flirty_Strut",
+        "Walking_Woman",
+        "Wave_One_Hand",
+        "open_door_4",
+        "Weapon_Idle",
+        "Aim_Pistol",
+        "Fire_Revolver",
+        "Fire_Shotgun",
+        "Fire_SMG",
+        "Fire_Dual_SMG",
+        "Reload_Revolver",
+        "Reload_Shotgun",
+        "Fire_Pistol_Controlled",
+        "Fire_Revolver_Heavy_REV4",
+        "Fire_Shotgun_Heavy_REV4",
+        "Fire_SMG_Burst_REV4",
+        "Fire_Dual_SMG_Alternating_REV4",
+        "Reload_SMG_REV4",
+        "Reload_Dual_SMG_REV4",
+        "Pump_Shotgun_REV4"
+      ],
+      "beltAndInsert": true,
+      "legsUnchanged": true
+    }
+  }
+}

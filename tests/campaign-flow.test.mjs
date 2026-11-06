@@ -205,7 +205,8 @@ for(const id of ['easy','normal','hard'])test(`dano recebido real aplica a dific
 });
 test('recarga é dirigida uma só vez por quadro e idle/mira não disputam as pernas',()=>{
   const code=read('player.js');assert.match(code,/A.idleLegs = heroAction/);assert.match(code,/ra.timeScale = 0/);assert.match(code,/A.aim = heroAction[^\n]*upper: true/);
-  assert.match(code,/retargetCombatClip\(c,/);
+  assert.match(code,/heroAnimationSet\(defaultHeroGLTF,jillReference,model\)/);
+  assert.match(read('hero-animation.mjs'),/retargetCombatClip\(c,/);
 });
 
 test('save misturado do Ato 1 não dá a Matriarca por morta nem mantém seus gatilhos consumidos',()=>{

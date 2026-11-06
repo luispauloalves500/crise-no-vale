@@ -817,7 +817,7 @@ export const AREAS = [
     doors:[{id:'S',side:'S',at:0,to:'setorzero',toDoor:'N',lock:'originLock'}],logs:[],
     pickups:[{id:'p14ammo',kind:'ammo',x:19,z:16},{id:'p14smg',kind:'smgammo',x:-19,z:-14},{id:'p14med',kind:'med',x:12,z:-16},{id:'p14crate',kind:'crate',x:-20,z:16}],
     ambient:[{type:'raptor',x:14,z:2}],
-    encounters:[{id:'zero-awaken',on:'flag',flag:'originKnown',boss:true,delay:2,msg:'O TIRANO MATRIZ rompe a última contenção!',spawn:[{type:'origin',x:0,z:-16}]}],
+    encounters:[{id:'zero-awaken',on:'flag',flag:'originKnown',boss:true,delay:2,msg:'O TIRANO MATRIZ rompe a última contenção!',spawn:[{type:'origin',x:0,z:-10}]}],
     build(ctx) {
       const b=this.bounds;
       W.ground(ctx,b,W.groundTex.paving,8,{patchCol:0x20160d,puddles:2});

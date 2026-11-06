@@ -83,7 +83,7 @@ Quantidades são arredondadas, patrulhas mantêm mínimo de um inimigo quando pr
 - Checkpoint falso do Ato 3 sem conclusão do Ato 2 retorna ao ninho, com a Matriarca rearmada. Checkpoints v6 legítimos continuam aceitos. Inventário, itens e registros legítimos são preservados.
 - Recarregar uma escolha antiga do Ato 3 retoma a fuga até a lancha e permite jogar o Ato 4. Saves adulterados sem pré-requisitos não entram na ilha. Saves anteriores à leitura ou posteriores ao chefe/decisão retomam no ponto correto; o confronto não pode ser salvo no meio.
 - A heroína separa camadas superior/inferior: idle não disputa com pernas andando; mira/recarga preservam a locomoção. A fase dos passos segue o deslocamento real, para ao encostar em paredes e mistura andar/correr suavemente. A recarga é avançada uma única vez pelo progresso real da arma.
-- Jill recebe os clipes de combate adaptados à sua pose de repouso, sem copiar translações de outro esqueleto. Troca de modelo restaura a pose-base e avalia o idle antes de exibir a personagem.
+- Marina/Regina e Jill usam a mesma biblioteca canônica da Jill, retarget pela pose-base, IK dos dois braços, recarga procedural e camadas. Só o bob vertical do quadril é adaptado proporcionalmente; não se copiam comprimentos nem root motion XZ. Troca de modelo restaura a pose-base e avalia idle + IK antes de exibir a personagem.
 
 ## Correção posterior: braço da Jill, recarga e jaulas
 
@@ -91,11 +91,11 @@ Quantidades são arredondadas, patrulhas mantêm mínimo de um inimigo quando pr
 
 O diagnóstico dos GLBs mostrou que **Marina já tem os braços abaixados no repouso (~16° do tronco), enquanto Jill tem repouso em T (~92°)**. Não faltavam trilhas do braço esquerdo: a transformação entre as poses-base preservava o T da Jill no `Weapon_Idle`. Verificar apenas quaternions normalizados não detectava esse erro visual.
 
-Jill agora recebe uma **camada final de IK de dois ossos**, depois do mixer, nos dois braços. Ela usa comprimentos e ossos reais do modelo e a orientação do corpo: esquerda relaxada com balanço ao andar, cotovelo dobrado ao correr, apoio junto à arma ao mirar. Ombros, braços, antebraços e mãos recebem pose explícita; não há retorno à bind/T-pose quando o peso de um clipe muda. A correção também roda no idle do menu e é descartada ao trocar de personagem.
+Marina/Regina e Jill agora recebem a **mesma camada final de IK de dois ossos**, depois do mixer, nos dois braços. Ela usa comprimentos e ossos reais do modelo e a orientação do corpo: esquerda relaxada com balanço ao andar, cotovelo dobrado ao correr, apoio junto à arma ao mirar. Ombros, braços, antebraços e mãos recebem pose explícita; não há retorno à bind/T-pose quando o peso de um clipe muda. A correção também roda no idle do menu e é descartada ao trocar de personagem.
 
 A recarga usa **keyframes procedurais normalizados pelo tempo real de recarga da arma**, inclusive com melhorias: preparação → mão esquerda ao cinto (26–40%) → pega o pente visível → levanta e encaixa sob a pistola (~70%) → volta à pose pronta (100%). A arma inclina até ~32°. Somente tronco/braços são afetados: a animação de pernas continua andando/correndo. O pente acompanha a mão e fica vertical, alinhado à inclinação da arma.
 
-A auditoria com o mixer e ossos reais mede ângulos e rotações, não apenas validade numérica: maior ângulo esquerdo em idle/andar/correr **32,5°**, sem braço lateral em T em 1.452 avaliações, incluindo mira alta/baixa, raiz girada e recarga parada/andando. As quaternions de quadril/pernas permanecem exatamente iguais antes/depois dessa camada. Isso não substitui testar o jogo com WebGL e texturas.
+A auditoria com o mixer e ossos reais mede ângulos e rotações, não apenas validade numérica: maior ângulo esquerdo em idle/andar/correr **33,3°**, sem braço lateral em T em 2.904 avaliações dos dois rigs, incluindo mira alta/baixa, raiz girada e recarga parada/andando. As quaternions de quadril/pernas permanecem exatamente iguais antes/depois dessa camada. Isso não substitui testar o jogo com WebGL e texturas.
 
 ### Jaulas do Acampamento Tellus-2
 
@@ -168,7 +168,7 @@ node --test tests/*.test.mjs
 
 Os módulos exigem HTTP (não `file://`). Three.js/addons vêm do jsDelivr via importmap e exigem conexão; bloom tem fallback.
 
-A suíte tem **164 testes**, incluindo sequência completa dos quatro atos nas três dificuldades e nas quatro combinações de decisões, portas por ato, travas, saves antigos/misturados, isolamento de mapas/preload, resgate opcional, dificuldade, jaulas persistentes, keyframes da recarga e montagem do artefato Pages. A simulação executa o diretor real em VM, com renderização, inimigos e entrada simulados: **não é uma partida humana nem uma prova de balanceamento de combate**.
+A suíte tem **178 testes**, incluindo sequência completa dos quatro atos nas três dificuldades e nas quatro combinações de decisões, portas por ato, travas, saves antigos/misturados, isolamento de mapas/preload, resgate opcional, dificuldade, jaulas persistentes, keyframes da recarga e montagem do artefato Pages. A simulação executa o diretor real em VM, com renderização, inimigos e entrada simulados: **não é uma partida humana nem uma prova de balanceamento de combate**.
 
 Auditorias CPU adicionais reproduzíveis, com o Three da mesma versão, sem instalar dependências no projeto:
 
@@ -179,7 +179,7 @@ THREE_ROOT=/tmp/crise-test-deps/node_modules/three node tests/runtime-animation.
 ```
 
 - Geometria real dos **14 mapas**, chegadas de portas e **73 rotas** até portas, registros e pontos de missão: sem bloqueios na auditoria (diretoria testada com a porta energizada aberta). Também são testadas **9 saídas de jaulas** (2/3/4 por dificuldade): bloqueadas com a grade fechada e livres com ela aberta.
-- Esqueletos GLB reais de Marina/Jill, **15 clipes de combate adaptados**, **1.446 amostras** de mistura e **1.452 avaliações de pose da Jill**: quaternions finitos, braços fora da T-pose em idle/andar/correr/mira/recarga e pernas não alteradas pela camada de braços. A mão chega ao cinto e volta à arma; o pente aparece e desaparece na sequência. Malhas/texturas não são desenhadas nesse teste.
+- Esqueletos GLB reais de Marina/Jill, **15 clipes de combate adaptados**, **1.446 amostras** de mistura e **2.904 avaliações de pose dos dois rigs**: quaternions finitos, braços fora da T-pose em idle/andar/correr/mira/recarga e pernas não alteradas pela camada de braços. A mão chega ao cinto e volta à arma; o pente aparece e desaparece na sequência. Malhas/texturas não são desenhadas nesse teste.
 - Servidor local `:8765` validado para entregar HTML/módulos.
 - **Não verificado visualmente nesta revisão:** WebGL/GPU, deformação da malha/arma na mão, qualidade visual dos pés/transições/embarque, câmera, FPS, áudio, controles físicos e conclusão por uma pessoa. Não se afirma ausência visual absoluta de T-pose/deslizamento nem “60 FPS garantidos” com base em testes CPU.
 
@@ -211,7 +211,7 @@ Os modelos existentes estão em `assets/`. Fontes não carregadas ficam em `asse
 ## Raptor e T-rex fornecidos pelo jogador
 
 - `assets/models/raptor.glb` (943.168 bytes) e `trex.glb` (964.104 bytes), cada um com seis clipes esqueléticos: idle, walk, run, attack, hurt, death. Meshopt + texturas WebP 1024², cerca de 10,5 mil triângulos por espécie. Os originais não tinham clipes; os ciclos foram gerados no próprio rig.
-- Todas as patrulhas comuns/cuspidores usam raptor. Brutos, Colosso, Matriarca, Primórdio e Tirano Matriz usam T-rex, com escalas/hitboxes e balanceamento por tipo preservados. O raio considera o tronco, não a cauda longa.
+- Todas as patrulhas comuns/cuspidores usam raptor. Brutos, Colosso, Matriarca, Primórdio e Tirano Matriz usam T-rex, com dimensões calibradas ao procedural de `24d7e1e` e balanceamento por tipo preservado. O raio de navegação considera o tronco; projéteis usam uma elipse orientada que também cobre cabeça/cauda.
 - GLTFLoader + MeshoptDecoder r160, template em cache; SkeletonUtils.clone e AnimationMixer independentes. Geometria/texturas compartilhadas, materiais privados para flash de dano. Animação dirigida pelo estado da IA e deslocamento real; ataques/dano/morte são one-shots, morte sem a queda procedural duplicada. Pool restaura pose e ações; descarte invalida callbacks e libera esqueleto/materiais privados. Download/decodificação falhos mantêm o dinossauro procedural, com uma tentativa por espécie na sessão.
 - Teste real do adaptador, WebP, loader, clones, seis estados, reset/descarte/callback tardio e fallback sem tempestade de 404:
 
@@ -222,3 +222,44 @@ node tests/runtime-dinos.mjs --failure
 ```
 
 Essas auditorias são CPU: **não certificam FPS, deformação em GPU, enquadramento visual, áudio ou balanceamento de uma partida humana**. Os modelos enviados são preservados como conteúdo do usuário; não se presume licença de terceiros para redistribuição fora do projeto.
+
+## Correção de Marina/Regina e dimensões/pés dos dinossauros
+
+No código, a personagem chamada Regina neste pedido é a aparência **`marina`** (Marina Rocha); não há outro NPC/GLB Regina. `js/hero-animation.mjs` fornece **os mesmos 22 clipes canônicos** às duas aparências: locomoção nativa da Jill, combate adaptado para Jill, e então retarget para o rig escolhido. Nomes com/sem `:` e poses A/T são tratados; translações de ossos não são copiadas entre corpos. As duas usam a mesma criação de ações, camadas inferior/superior, fase por velocidade, IK, mira e recarga normalizada. Não existe mais a condição que aplicava IK só na Jill, nem o patch tardio que trocava apenas a caminhada da Marina. Falha da referência mantém os clipes nativos no mesmo pipeline com IK.
+
+### Medição e correção de escala
+
+O diagnóstico mediu os **vértices deformados** reais, não apenas os limites do arquivo: `skeleton.pose()` depois da normalização/reparent podia restaurar inversas de bind num espaço incompatível, reduzindo a malha e deixando os pés abaixo de y=0. Agora o reset restaura **transforms locais dos ossos**; não reaplica `skeleton.pose()`. A medição/apoio também chama `updateMatrixWorld` (só `updateWorldMatrix` não atualiza o `bindMatrixInverse` do SkinnedMesh em r160).
+
+Referência reproduzível: `node tests/measure-dino-reference.mjs`, que lê `git show 24d7e1e:js/enemies.js` e mede os meshes físicos, excluindo sprites/barras/sombras. Depois, cada GLB é medido na pose **idle a 0,4 s**, e seus três eixos são calibrados para largura, altura e comprimento históricos, inclusive a posição longitudinal assimétrica da cabeça/cauda. `cfg.scale` continua aplicado uma única vez no grupo externo. Arquivos GLB e texturas não foram alterados.
+
+Metros, **altura × comprimento**, idle deformado; “antes” é o adapter de `b5c6c1d`, não uma estimativa pelo bind:
+
+| Tipo | GLB antes | Corrigido = referência procedural | Largura corrigida | Raio de navegação mantido |
+|---|---:|---:|---:|---:|
+| Raptor | 1,185 × 2,353 | 2,126 × 4,730 | 0,760 | 0,75 |
+| Cuspidor (raptor) | 1,244 × 2,471 | 2,543 × 4,394 | 0,882 | 0,75 |
+| Bruto (T-rex) | 2,163 × 4,943 | 5,242 × 9,772 | 2,436 | 1,70 |
+| Colosso | 3,297 × 7,532 | 7,988 × 14,891 | 3,712 | 2,60 |
+| Matriarca | 2,782 × 6,355 | 6,740 × 12,564 | 3,132 | 2,10 |
+| Primórdio | 3,091 × 7,061 | 7,489 × 13,960 | 3,480 | 2,40 |
+| Tirano Matriz | 3,194 × 7,296 | 7,738 × 14,425 | 3,596 | 2,50 |
+
+O Tirano Matriz não existia em `24d7e1e`: usa a mesma fórmula procedural do bruto/chefe antigo, com seu `scale=3,1`. A referência, as medições antes e a validação depois estão em `tests/dino-procedural-reference.json` e `tests/dino-sizing-audit.json`.
+
+### Apoio e integração
+
+- Pré-cálculo por espécie de **47/60 vértices de apoio** de idle/andar/correr/atacar/dano/morte; por instância, só esses contatos são atualizados após o mixer. Não há varredura de 14 mil vértices por frame. Folga de **1,2 cm** acima do piso local, compensada pela escala da instância. A sombra de contato foi baixada para 6 mm (não fica acima das solas ao multiplicar a escala). Na morte, os contatos incluem o corpo; retirado o afundamento proposital antes do descarte.
+- **4.032 poses completas/transições** medidas na CPU, mais **20 resets de pool por tipo**: a menor coordenada da malha ficou em **y=0,012 m**, sem encolher após reuso. Verificados também translação, rotação, piso elevado, geometria/texturas compartilhadas e esqueletos independentes.
+- **Navegação/colisão horizontal mantém os raios antigos**, para não bloquear portas/rotas. **Projéteis continuam sendo aproximações 2D**, agora com elipse orientada de cabeça a cauda; não se afirma colisão 3D por triângulo. Impactos e barras/números usam a altura calibrada. Trilhos da aparição do Tirano enquadram sua altura/comprimento novos, com 192 projeções CPU dentro da área útil do letterbox (16:9). O ponto inicial dele foi recuado para o centro norte (z=-10), para a cauda não nascer atravessando a parede.
+
+```bash
+# Dependências opcionais das auditorias CPU reais
+npm install --no-save three@0.160.0 @napi-rs/canvas
+node tests/measure-dino-reference.mjs
+node tests/runtime-dino-grounding.mjs
+node tests/runtime-dinos.mjs
+THREE_ROOT=./node_modules/three node tests/runtime-animation.mjs
+```
+
+**Não validado no navegador:** deformação visual da pele e armas, contatos/interpolação vistos pela câmera real, sensação de passada, composição final das cutscenes, combate humano, FPS/GPU, áudio e celular. Testes de vértices/ossos não substituem essa revisão visual.

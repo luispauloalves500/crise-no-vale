@@ -9,7 +9,7 @@ import { G } from './state.js';
 import { breakStreak } from './clean-streak.mjs';
 import { loadModel, limitTextures, fitWeapon } from './model-assets.js';
 import { ammoAmount, difficultyProfile } from './campaign-rules.mjs';
-import { adaptWalkClip, retargetCombatClip } from './animation-retarget.mjs';
+import { captureHeroPose, heroAnimationSet } from './hero-animation.mjs';
 import { createHeroArmRig } from './hero-arms.mjs';
 import { GUN_SCALE, GUN_ASSETS as gunAssets } from './gun-layout.mjs';
 import { keys } from './input.js';
@@ -176,22 +176,6 @@ function captureBindPose(model) {
   bindTransforms.set(model, transforms);
   bindPoses.set(model, poses); return poses;
 }
-function installJillWalk(targetModel, targetGLTF, jillGLTF) {
-  if (!hero.ok || hero.model !== targetModel || selectedHero !== 'marina') return false;
-  const base = targetGLTF.animations.find(c => c.name === 'Walking_Woman' || c.name === 'Walking');
-  const source = jillGLTF.animations.find(c => c.name === 'Walking_Woman');
-  const walk = adaptWalkClip(base, source, captureBindPose(jillGLTF.scene), captureBindPose(targetModel));
-  if (!walk) return false;
-  const oldWalk = hero.act.walk, oldUp = hero.act.walkUp;
-  const clips = [walk];
-  const newWalk = heroAction(clips, [walk.name], { lower:true });
-  const newUp = heroAction(clips, [walk.name], { swing:true });
-  if (!newWalk || !newUp) { newWalk?.stop(); newUp?.stop(); return false; }
-  if (oldWalk) oldWalk.stop(); if (oldUp) oldUp.stop();
-  newWalk.timeScale = newUp.timeScale = 0;
-  hero.act.walk = newWalk; hero.act.walkUp = newUp;
-  hero.walkSource = 'jill-retargeted'; return true;
-}
 function loadGLB(loader, url) {
   return new Promise((res, rej) => loader.load(url, res, undefined, rej));
 }
@@ -208,7 +192,11 @@ async function loadHeroInner(choice = 'marina') {
       defaultHeroGLTF = await new Promise((res, rej) => loader.parse(bin.buffer, '', res, rej));
     } catch (e) { defaultHeroGLTF = await loadGLB(loader, HERO.url); }
   }
-  gltf = choice === 'jill' ? await loadModel('assets/personagens/jill.glb') : defaultHeroGLTF;
+  captureHeroPose(defaultHeroGLTF.scene);
+  let jillReference=null;
+  try {jillReference=await loadModel('assets/personagens/jill.glb');captureHeroPose(jillReference.scene);}
+  catch(error){if(choice==='jill')throw error;console.warn('Referência Jill indisponível; mesmo pipeline com clipes nativos.',error);}
+  gltf = choice === 'jill' ? jillReference : defaultHeroGLTF;
   const model = gltf.scene;
   captureBindPose(model);
   if (choice === 'jill') limitTextures(model);
@@ -229,10 +217,12 @@ async function loadHeroInner(choice = 'marina') {
   const bone = (n) => model.getObjectByName('mixamorig:' + n) || model.getObjectByName('mixamorig' + n);
   hero.spine = bone('Spine2'); hero.hips = bone('Hips'); hero.spine0 = bone('Spine'); hero.armR = bone('RightArm'); hero.handR = bone('RightHand'); hero.socket = socket;
   if (hero.model) { hero.armRig?.dispose(); hero.mixer.stopAllAction(); hero.model.removeFromParent(); }
-  hero.armRig = choice === 'jill' ? createHeroArmRig(THREE, model, pg, socket) : null;
+  hero.armRig = createHeroArmRig(THREE, model, pg, socket);
+  if(!hero.armRig)throw new Error('Rig sem ossos necessários para IK compartilhado');
   hero.mixer = new THREE.AnimationMixer(model);
   hero.act = {}; hero.fireAct = hero.relAct = null;
-  const clips = choice === 'jill' ? [...gltf.animations, ...defaultHeroGLTF.animations.filter(c => !gltf.animations.some(a => a.name === c.name)).map(c => retargetCombatClip(c, captureBindPose(defaultHeroGLTF.scene), captureBindPose(model)))] : gltf.animations;
+  const animationSet=heroAnimationSet(defaultHeroGLTF,jillReference,model),clips=animationSet.clips;
+  hero.pipeline=animationSet.pipeline;
   const A = hero.act;
   A.walk = heroAction(clips, ['Walking_Woman', 'Walking'], { lower: true });
   A.run = heroAction(clips, ['Running', 'Walking'], { lower: true });
@@ -255,16 +245,11 @@ async function loadHeroInner(choice = 'marina') {
   gunRig.position.set(0, 0, 0); if (!gunRig.userData.gripSet) { for (const c of gunRig.children) c.position.add(GRIP_OFS); gunRig.userData.gripSet = true; }
   pg.add(model); body.visible = false;
   hero.model = model; hero.ok = true; selectedHero = choice;
-  hero.walkSource = choice === 'jill' ? 'jill' : 'original';
+  hero.walkSource = animationSet.source;
   hero.loco = hero.walkW = hero.runW = hero.blend = hero.ph = hero.legYaw = hero.fireW = hero.relW = hero.aimW = hero.raiseW = 0; hero.fireT = -9;
   if (A.idleLegs) A.idleLegs.setEffectiveWeight(1);
   hero.mixer.update(0);
   hero.armRig?.apply();
-  if (choice === 'marina') {
-    loadModel('assets/personagens/jill.glb').then(reference => {
-      captureBindPose(reference.scene); installJillWalk(model, gltf, reference);
-    }).catch(e => console.warn('Caminhada de referência indisponível; mantendo a original:', e));
-  }
   return true;
 }
 /** Promessa do carregamento do personagem: resolve true (GLB) ou false (malha antiga), nunca trava. */
@@ -279,7 +264,7 @@ export async function selectHero(choice) {
   try { if (generation !== heroGeneration) return false; return await loadHeroInner(choice); }
   catch (e) { console.warn('Personagem indisponível:', e); return false; }
 }
-export const heroInfo = () => ({ ok: hero.ok, err: hero.err, walkSource: hero.walkSource, weights: { walk: hero.walkW, run: hero.runW, loco: hero.loco, blend: hero.blend, legYaw: hero.legYaw, phase: hero.ph, aim: hero.aimW, fire: hero.fireW, reload: hero.relW } });
+export const heroInfo = () => ({ ok: hero.ok, err: hero.err, walkSource: hero.walkSource, pipeline:hero.pipeline, armIK:!!hero.armRig, weights: { walk: hero.walkW, run: hero.runW, loco: hero.loco, blend: hero.blend, legYaw: hero.legYaw, phase: hero.ph, aim: hero.aimW, fire: hero.fireW, reload: hero.relW } });
 function heroFire() {
   if (!hero.ok) return;
   const id = curWeapon().id, a = hero.act['fire_' + id]; if (!a) return;
@@ -414,7 +399,7 @@ function updateHero(dt, mk) {
     hero.socket.getWorldQuaternion(_qp); _b.set(0, 1, 0).applyQuaternion(_qp);
     _q.setFromUnitVectors(_b, _t); rotWorld(hero.handR, _qi.identity().slerp(_q, r));
   }
-  // Última camada: pose natural/recarga da Jill, sem depender do A-pose de outro rig.
+  // Última camada compartilhada por Marina/Regina e Jill: mesma IK, pose e recarga procedural.
   if (!player.dead) hero.armRig?.apply({ aim: hero.aimW, moving: L, run: b, phase: hero.ph, pitch: G.pitch, kick: armKick * mk,
     reload: arms.reloading > 0 ? clamp(1 - arms.reloading / arms.reloadTotal, 0, 1) : null });
 }
