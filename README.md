@@ -81,6 +81,7 @@ Foram lidos `README.md`, `ANALISE-ATO3.md`, `AUDITORIA-COERENCIA.md`, `AUDITORIA
 | Preload em Alta e callbacks ociosos antigos podiam construir qualquer ato; mapa mostrava todos | Filtrar pelo ato e invalidar tarefas antigas, retirar recursos dos outros capítulos |
 | Entrada/checkpoint de Porto Anil aceitava flags parciais e saves misturados | Regras de campanha centralizadas, validação da conclusão da Matriarca/resgate e migração de saves |
 | Escolha final vencia automaticamente dentro da sede, embora o HUD mandasse escapar | Extração jogável no cais, epílogo, créditos e tela de fim |
+| Workflow de publicação copiava apenas Marina, deixando Jill/Lima/armas/sombra fora do artefato | Publicar todos os recursos de runtime, excluindo apenas `assets/originais`, e testar a montagem do site |
 | Jill usava clipes de combate de outra pose; idle de corpo inteiro concorria com pernas; recarga avançava em duplicidade | Retarget pela pose-base, camadas independentes, cadência por deslocamento e tempo manual de recarga |
 
 **Os demais `.md` são análises/planos históricos, não especificações simultâneas.** Propostas antigas de final no heliponto, retorno para casa no Ato 2 ou progressão opcional para Porto Anil ficam superadas pelo fluxo acima e por `js/campaign-rules.mjs`.
@@ -95,7 +96,7 @@ node --test tests/*.test.mjs
 
 Os módulos exigem HTTP (não `file://`). Three.js/addons vêm do jsDelivr via importmap e exigem conexão; bloom tem fallback.
 
-A suíte tem **101 testes**, incluindo sequência completa dos três atos nos dois caminhos finais, portas por ato, travas, saves antigos/misturados, isolamento de mapas/preload, resgate opcional e dificuldade. A simulação executa o diretor real em VM, com renderização, inimigos e entrada simulados: **não é uma partida humana nem uma prova de balanceamento de combate**.
+A suíte tem **102 testes**, incluindo sequência completa dos três atos nos dois caminhos finais, portas por ato, travas, saves antigos/misturados, isolamento de mapas/preload, resgate opcional, dificuldade e montagem do artefato Pages. A simulação executa o diretor real em VM, com renderização, inimigos e entrada simulados: **não é uma partida humana nem uma prova de balanceamento de combate**.
 
 Auditorias CPU adicionais reproduzíveis, com o Three da mesma versão, sem instalar dependências no projeto:
 
