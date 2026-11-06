@@ -10,6 +10,7 @@ import { breakStreak } from './clean-streak.mjs';
 import { loadModel, limitTextures, fitWeapon } from './model-assets.js';
 import { ammoAmount, difficultyProfile } from './campaign-rules.mjs';
 import { adaptWalkClip, retargetCombatClip } from './animation-retarget.mjs';
+import { createHeroArmRig } from './hero-arms.mjs';
 import { GUN_SCALE, GUN_ASSETS as gunAssets } from './gun-layout.mjs';
 import { keys } from './input.js';
 import { pad } from './gamepad.js';
@@ -227,7 +228,8 @@ async function loadHeroInner(choice = 'marina') {
   }
   const bone = (n) => model.getObjectByName('mixamorig:' + n) || model.getObjectByName('mixamorig' + n);
   hero.spine = bone('Spine2'); hero.hips = bone('Hips'); hero.spine0 = bone('Spine'); hero.armR = bone('RightArm'); hero.handR = bone('RightHand'); hero.socket = socket;
-  if (hero.model) { hero.mixer.stopAllAction(); hero.model.removeFromParent(); }
+  if (hero.model) { hero.armRig?.dispose(); hero.mixer.stopAllAction(); hero.model.removeFromParent(); }
+  hero.armRig = choice === 'jill' ? createHeroArmRig(THREE, model, pg, socket) : null;
   hero.mixer = new THREE.AnimationMixer(model);
   hero.act = {}; hero.fireAct = hero.relAct = null;
   const clips = choice === 'jill' ? [...gltf.animations, ...defaultHeroGLTF.animations.filter(c => !gltf.animations.some(a => a.name === c.name)).map(c => retargetCombatClip(c, captureBindPose(defaultHeroGLTF.scene), captureBindPose(model)))] : gltf.animations;
@@ -257,6 +259,7 @@ async function loadHeroInner(choice = 'marina') {
   hero.loco = hero.walkW = hero.runW = hero.blend = hero.ph = hero.legYaw = hero.fireW = hero.relW = hero.aimW = hero.raiseW = 0; hero.fireT = -9;
   if (A.idleLegs) A.idleLegs.setEffectiveWeight(1);
   hero.mixer.update(0);
+  hero.armRig?.apply();
   if (choice === 'marina') {
     loadModel('assets/personagens/jill.glb').then(reference => {
       captureBindPose(reference.scene); installJillWalk(model, gltf, reference);
@@ -411,6 +414,9 @@ function updateHero(dt, mk) {
     hero.socket.getWorldQuaternion(_qp); _b.set(0, 1, 0).applyQuaternion(_qp);
     _q.setFromUnitVectors(_b, _t); rotWorld(hero.handR, _qi.identity().slerp(_q, r));
   }
+  // Última camada: pose natural/recarga da Jill, sem depender do A-pose de outro rig.
+  if (!player.dead) hero.armRig?.apply({ aim: hero.aimW, moving: L, run: b, phase: hero.ph, pitch: G.pitch, kick: armKick * mk,
+    reload: arms.reloading > 0 ? clamp(1 - arms.reloading / arms.reloadTotal, 0, 1) : null });
 }
 
 // ---------- armas ----------
@@ -702,6 +708,6 @@ export function updateCamera(dt, snap = false) {
 let menuAnimT = 0;
 export function menuCamera(dt) {
   G.yaw += dt * 0.15; G.pitch = -0.12;
-  if (G.state === 'menu' && hero.ok && !player.dead) { menuAnimT += dt; if (menuAnimT >= 1 / 15) { hero.mixer.update(Math.min(menuAnimT, 0.2)); menuAnimT = 0; } }
+  if (G.state === 'menu' && hero.ok && !player.dead) { menuAnimT += dt; if (menuAnimT >= 1 / 15) { hero.mixer.update(Math.min(menuAnimT, 0.2)); hero.armRig?.apply(); menuAnimT = 0; } }
   updateCamera(dt);
 }

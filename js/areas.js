@@ -499,12 +499,9 @@ export const AREAS = [
     logs: [{ id: 'log11', x: 0, z: -2.2, yaw: Math.PI }, { id: 'log12', x: 7.5, z: 15.5, yaw: -0.6 }],
     cages: [{ x: -18, z: 12, face: 1 }, { x: 18, z: 12, face: -1 }, { x: -18, z: -12, face: 1, big: true }],
     encounters: [
-      // o Brandt abre as jaulas e foge pelo portão sul
-      { id: 'camp-brandt', on: 'enter', first: true, delay: 3.4, beat: 'brandtFlee', msg: 'O Brandt abriu as jaulas!',
-        spawn: [{ type: 'raptor', x: -18, z: 12 }, { type: 'raptor', x: 18, z: 12, delay: 0.6 }, { type: 'raptor', x: 18, z: 13.5, delay: 1.4 }, { type: 'spitter', from: 'E', delay: 3 }] },
-      // opcional: a jaula grande guarda o colete e as granadas — e um bruto
-      { id: 'camp-jaula', on: 'zone', zone: { x: -16, z: -14, r: 5.5 }, msg: 'A jaula grande não estava vazia!',
-        spawn: [{ type: 'brute', x: -19.5, z: -12, delay: 0.8 }, { type: 'raptor', from: 'N', delay: 2 }, { type: 'raptor', from: 'W', delay: 2.6 }] },
+      // Só abre depois de a jogadora avançar ao corredor central (ou iniciar o hack).
+      // cagesReleased é persistente: não há nova leva ao revisitar o cenário.
+      { id: 'camp-brandt', on: 'zone', zone: { x: 0, z: 1, r: 5.5 }, cages: true, beat: 'brandtFlee', msg: 'ALARME — o Brandt está liberando as jaulas!' },
     ],
     build(ctx) {
       const b = this.bounds, rng = ctx.rng;

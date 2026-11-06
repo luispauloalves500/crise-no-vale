@@ -70,6 +70,27 @@ Quantidades são arredondadas, patrulhas mantêm mínimo de um inimigo quando pr
 - A heroína separa camadas superior/inferior: idle não disputa com pernas andando; mira/recarga preservam a locomoção. A fase dos passos segue o deslocamento real, para ao encostar em paredes e mistura andar/correr suavemente. A recarga é avançada uma única vez pelo progresso real da arma.
 - Jill recebe os clipes de combate adaptados à sua pose de repouso, sem copiar translações de outro esqueleto. Troca de modelo restaura a pose-base e avalia o idle antes de exibir a personagem.
 
+## Correção posterior: braço da Jill, recarga e jaulas
+
+### Braços e recarga
+
+O diagnóstico dos GLBs mostrou que **Marina já tem os braços abaixados no repouso (~16° do tronco), enquanto Jill tem repouso em T (~92°)**. Não faltavam trilhas do braço esquerdo: a transformação entre as poses-base preservava o T da Jill no `Weapon_Idle`. Verificar apenas quaternions normalizados não detectava esse erro visual.
+
+Jill agora recebe uma **camada final de IK de dois ossos**, depois do mixer, nos dois braços. Ela usa comprimentos e ossos reais do modelo e a orientação do corpo: esquerda relaxada com balanço ao andar, cotovelo dobrado ao correr, apoio junto à arma ao mirar. Ombros, braços, antebraços e mãos recebem pose explícita; não há retorno à bind/T-pose quando o peso de um clipe muda. A correção também roda no idle do menu e é descartada ao trocar de personagem.
+
+A recarga usa **keyframes procedurais normalizados pelo tempo real de recarga da arma**, inclusive com melhorias: preparação → mão esquerda ao cinto (26–40%) → pega o pente visível → levanta e encaixa sob a pistola (~70%) → volta à pose pronta (100%). A arma inclina até ~32°. Somente tronco/braços são afetados: a animação de pernas continua andando/correndo. O pente acompanha a mão e fica vertical, alinhado à inclinação da arma.
+
+A auditoria com o mixer e ossos reais mede ângulos e rotações, não apenas validade numérica: maior ângulo esquerdo em idle/andar/correr **32,5°**, sem braço lateral em T em 1.452 avaliações, incluindo mira alta/baixa, raiz girada e recarga parada/andando. As quaternions de quadril/pernas permanecem exatamente iguais antes/depois dessa camada. Isso não substitui testar o jogo com WebGL e texturas.
+
+### Jaulas do Acampamento Tellus-2
+
+- **Fechadas na chegada**, sem temporizador que as abra enquanto a jogadora lê cartões. Grades visíveis e com colisão.
+- Avançar pelo **corredor central** (zona x=0, z=1, raio 5,5) dispara a sabotagem do Brandt: alerta, alarme, barulho de metal e grades subindo durante **1,6 s**. Iniciar o hack também dispara a liberação se a zona foi contornada.
+- A colisão da grade só sai depois de atingir a altura segura; os dinos nascem **dentro** das jaulas e seguem até um ponto do lado de fora antes de retomar a IA de combate. Não são teletransportados para o corredor.
+- Leva extra além das patrulhas: **Fácil: 2 raptores; Normal: 2 raptores + 1 bruto; Difícil: 3 raptores + 1 bruto**. Vida continua seguindo a dificuldade.
+- **Evento persistente, uma vez por campanha**, salvo em `cagesReleased`. Ao voltar ao cenário, grades continuam abertas e não surge outra leva. Sobreviventes dessa leva mantêm HP e destino de saída; mortos não voltam. Patrulhas ambientais continuam renovando como antes.
+- Saves anteriores sem a nova flag rearmam o evento e eliminam a antiga abertura automática/fila do Brandt; inventário e itens coletados são preservados. Novo jogo fecha novamente as grades, inclusive se o mapa estava em cache.
+
 ## Auditoria de coerência desta revisão
 
 Foram lidos `README.md`, `ANALISE-ATO3.md`, `AUDITORIA-COERENCIA.md`, `AUDITORIA-DESEMPENHO.md`, `IMPROVEMENTS.md`, `PLANO-MUNDO-COERENTE.md`, `PROMPT-IMPLEMENTACAO-MUNDO.md` e `assets/originais/LEIA-ME.md`, confrontando propostas e história com portas, triggers, flags, eventos, HUD e saves do código.
@@ -96,7 +117,7 @@ node --test tests/*.test.mjs
 
 Os módulos exigem HTTP (não `file://`). Three.js/addons vêm do jsDelivr via importmap e exigem conexão; bloom tem fallback.
 
-A suíte tem **102 testes**, incluindo sequência completa dos três atos nos dois caminhos finais, portas por ato, travas, saves antigos/misturados, isolamento de mapas/preload, resgate opcional, dificuldade e montagem do artefato Pages. A simulação executa o diretor real em VM, com renderização, inimigos e entrada simulados: **não é uma partida humana nem uma prova de balanceamento de combate**.
+A suíte tem **112 testes**, incluindo sequência completa dos três atos nos dois caminhos finais, portas por ato, travas, saves antigos/misturados, isolamento de mapas/preload, resgate opcional, dificuldade, jaulas persistentes, keyframes da recarga e montagem do artefato Pages. A simulação executa o diretor real em VM, com renderização, inimigos e entrada simulados: **não é uma partida humana nem uma prova de balanceamento de combate**.
 
 Auditorias CPU adicionais reproduzíveis, com o Three da mesma versão, sem instalar dependências no projeto:
 
@@ -106,8 +127,8 @@ THREE_ROOT=/tmp/crise-test-deps/node_modules/three node --experimental-vm-module
 THREE_ROOT=/tmp/crise-test-deps/node_modules/three node tests/runtime-animation.mjs
 ```
 
-- Geometria real dos **12 mapas**, chegadas de portas e **64 rotas** até portas, registros e pontos de missão: sem bloqueios na auditoria (diretoria testada com a porta energizada aberta).
-- Esqueletos GLB reais de Marina/Jill, **15 clipes de combate adaptados**, **1.446 amostras** de mistura idle/andar/correr/mira/recarga: quaternions finitos e normalizados. Malhas/texturas não são desenhadas nesse teste.
+- Geometria real dos **12 mapas**, chegadas de portas e **64 rotas** até portas, registros e pontos de missão: sem bloqueios na auditoria (diretoria testada com a porta energizada aberta). Também são testadas **9 saídas de jaulas** (2/3/4 por dificuldade): bloqueadas com a grade fechada e livres com ela aberta.
+- Esqueletos GLB reais de Marina/Jill, **15 clipes de combate adaptados**, **1.446 amostras** de mistura e **1.452 avaliações de pose da Jill**: quaternions finitos, braços fora da T-pose em idle/andar/correr/mira/recarga e pernas não alteradas pela camada de braços. A mão chega ao cinto e volta à arma; o pente aparece e desaparece na sequência. Malhas/texturas não são desenhadas nesse teste.
 - Servidor local `:8765` validado para entregar HTML/módulos.
 - **Não verificado visualmente nesta revisão:** WebGL/GPU, deformação da malha/arma na mão, qualidade visual dos pés/transições/embarque, câmera, FPS, áudio, controles físicos e conclusão por uma pessoa. Não se afirma ausência visual absoluta de T-pose/deslizamento nem “60 FPS garantidos” com base em testes CPU.
 
@@ -130,7 +151,7 @@ Controle: analógico esquerdo move, direito mira; RT atira, LT mira; A interage,
 - `campaign-rules.mjs`: fronteiras, dificuldade e normalização de saves, sem DOM/WebGL.
 - `director.js`: progressão, objetivos, portas/cenas, resgates e finais.
 - `areas.js` / `world.js`: descrições/construção sob demanda, geometria e colisores.
-- `player.js` / `animation-retarget.mjs`: movimento, heroína, camadas e adaptação de animações.
+- `player.js` / `animation-retarget.mjs` / `hero-arms.mjs`: movimento, heroína, camadas e adaptação de animações.
 - `enemies.js` / `combat.js`: IA, dano e munição; `story.js`: história/epílogos; `ui.js` / `main.js`: interface/loop.
 
 Os modelos existentes estão em `assets/`. Fontes não carregadas ficam em `assets/originais/`; consulte seu LEIA-ME e as licenças dos modelos antes de redistribuir. Esta revisão não troca assets nem afirma que o modelo alternativo Jill seja de autoria original.

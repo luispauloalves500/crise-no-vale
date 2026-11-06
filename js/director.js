@@ -4,7 +4,7 @@ import { activateArea, bounds, boxes, castWorld, setDoorLight, setPower, atmo, s
 import { WORLD, SCORE, PLAYER, EP, ENEMY_TYPES } from './config.js';
 import { captureEncounterMemory, restoreEncounterMemory } from './encounter-memory.mjs';
 import { canAccessRecord, canSeeRecord } from './archive-model.mjs';
-import { actOf, currentAct, canTravel, canStartAct3, canFinishCampaign, normalizeCampaignSave, difficultyProfile, patrolComposition } from './campaign-rules.mjs';
+import { CAGE_OPEN_SECONDS, cageReleaseWave, cageGatePose, actOf, currentAct, canTravel, canStartAct3, canFinishCampaign, normalizeCampaignSave, difficultyProfile, patrolComposition } from './campaign-rules.mjs';
 import { G, writeSave, readSave, addEp, readAct3, writeAct3 } from './state.js';
 import { normalizeStreak, finishStreak } from './clean-streak.mjs';
 import { findEscortPath } from './escort-nav.mjs';
@@ -160,14 +160,14 @@ function spawnAreaContents(a, repopulate = false) {
   const s = D.st[a.id], memory = restoreEncounterMemory(s, a.ambient);
   if (repopulate) {
     // Só as patrulhas são renovadas. Eventos, chefes vencidos, registros e itens continuam salvos.
-    const bosses = memory.living.filter(m => ENEMY_TYPES[m.type]?.boss &&
+    const bosses = memory.living.filter(m => m.cageRelease || ENEMY_TYPES[m.type]?.boss &&
       !(m.type === 'colossus' && F.bossDead) && !(m.type === 'matriarca' && F.nestClear) && !(m.type === 'primordio' && F.primDead));
     memory.living = [...a.ambient.map((m, ambientIdx) => ({ ...m, ambientIdx })), ...bosses];
     s.dead = [];
   }
   if (repopulate || !s.visited) {
-    const patrols = memory.living.filter(m => !ENEMY_TYPES[m.type]?.boss);
-    memory.living = [...patrolComposition(patrols, G.difficulty), ...memory.living.filter(m => ENEMY_TYPES[m.type]?.boss)];
+    const patrols = memory.living.filter(m => !m.cageRelease && !ENEMY_TYPES[m.type]?.boss);
+    memory.living = [...patrolComposition(patrols, G.difficulty), ...memory.living.filter(m => m.cageRelease || ENEMY_TYPES[m.type]?.boss)];
   }
   for (const m of memory.living) {
     if (!ENEMY_TYPES[m.type]) continue;
@@ -182,6 +182,7 @@ function spawnAreaContents(a, repopulate = false) {
     e.lastSeen = m.lastSeen && Number.isFinite(m.lastSeen.x) && Number.isFinite(m.lastSeen.z) ? { ...m.lastSeen } : { ...e.home };
     e.investigate = m.investigate && Number.isFinite(m.investigate.x) && Number.isFinite(m.investigate.z) ? { ...m.investigate } : null;
     e.phaseIdx = Number.isInteger(m.phaseIdx) ? m.phaseIdx : 0;
+    if (m.cageRelease) { e.cageRelease = true; e.cageExit = m.cageExit ? { ...m.cageExit } : null; }
     if (e.cfg.boss) D.boss = e;
   }
   D.queue = rearmPendingWarnings(memory.pending);
@@ -236,6 +237,7 @@ export function enterArea(id, doorId, at) {
   spots[0].override = null; bossGlow(null);
   activateArea(a, null);
   D.area = a; G.area = id;
+  syncCages(a, true);
   clearEnemies(); clearPickups(); clearFx(); ui.clearFloaters(); D.queue = []; D.boss = null;
   const p = at || (doorId ? doorArrival(a, doorId) : a.start || doorArrival(a, a.doors[0].id));
   placePlayer(p.x, p.z, p.yaw);
@@ -285,6 +287,7 @@ function canFire(e, first) {
 }
 function fireEncounter(e) {
   D.enc.add(e.id);
+  if (e.cages) { if (F.cagesReleased) return; F.cagesReleased = true; }
   if (e.revisitFrom) { D.queue.push(...scheduleRevisit(e)); return; }
   const base = e.delay || 0;
   if (e.boss && ((D.area.id === 'heliponto' && F.bossDead) || (D.area.id === 'ninho' && F.nestClear) || (D.area.id === 'sede' && F.primDead))) return;
@@ -296,7 +299,8 @@ function fireEncounter(e) {
     if (e.boss) { sfx.bossRoar(); sfx.stinger('boss'); } else sfx.stinger('ambush');
   });
   if (e.beat && BEAT[e.beat]) BEAT[e.beat](e);
-  for (const s of e.spawn || []) D.queue.push({ t: base + (s.delay || 0), type: s.type, x: s.x, z: s.z, from: s.from, boss: e.boss, fx: s.fx });
+  const wave = e.cages ? cageReleaseWave(D.area.cages, G.difficulty) : e.spawn || [];
+  for (const s of wave) D.queue.push({ t: base + (s.delay || 0), type: s.type, x: s.x, z: s.z, from: s.from, boss: e.boss, fx: s.fx, cageRelease: s.cageRelease, cageExit: s.cageExit });
 }
 
 // ---------- v5: momentos roteirizados ----------
@@ -331,13 +335,10 @@ const BEAT = {
   /** Acampamento: o Brandt abre as jaulas e foge pelo portão sul, trancando-o. */
   brandtFlee() {
     showBrandt(-1, 15, Math.PI);
-    setTimeoutGame(1.2, () => story.say(story.LINES.brandt_camp, 'brandt_camp', true));
-    setTimeoutGame(2.6, () => {
-      if (!D.area || D.area.id !== 'acampamento') return;
-      openCages(D.area, false); sfx.alarm(); sfx.slam(); makeNoise(0, 10, 60);
-      flashAt(0, 3, 14, 0xff3020, 120); G.shake = Math.max(G.shake, 0.3);
-      brandtRun([{ x: 4, z: 16.5 }, { x: 4, z: 21 }], 5.6, () => { hideBrandt(); sfx.slam(); ui.feed('O Brandt trancou o portão sul por fora', '#ff8a70'); D.mapDirty = true; });
-    });
+    openCages(D.area, false); sfx.alarm(); sfx.slam(); makeNoise(0, 10, 60);
+    flashAt(0, 3, 14, 0xff3020, 120); G.shake = Math.max(G.shake, 0.3);
+    story.say(story.LINES.brandt_camp, 'brandt_camp', true);
+    brandtRun([{ x: 4, z: 16.5 }, { x: 4, z: 21 }], 5.6, () => { hideBrandt(); sfx.slam(); ui.feed('O Brandt trancou o portão sul por fora', '#ff8a70'); D.mapDirty = true; });
   },
   /** Ninho: cartão, sinalizador do Brandt (barulho) e a Matriarca desperta. */
   nestAwaken() {
@@ -460,12 +461,26 @@ function setupBrandt(a) {
   if (a.refs.boat) a.refs.boat.position.x = F.brandt === 'escaped' ? 80 : 27.5;
   if (F.nestDestroyed) nestDestroyedLook(a);
 }
+function cageCollision(a,g,blocking) {
+  for (const list of a === D.area ? [a.ctx.boxes,boxes] : [a.ctx.boxes]) {
+    const i=list.indexOf(g.box);
+    if(blocking&&i<0)list.push(g.box);else if(!blocking&&i>=0)list.splice(i,1);
+  }
+}
 function openCages(a, instant) {
-  for (const g of (a.refs && a.refs.cageGates) || []) {
-    if (g.open) continue; g.open = 1;
-    const i = a.ctx.boxes.indexOf(g.box); if (i >= 0) a.ctx.boxes.splice(i, 1);
-    if (D.area === a) { const j = boxes.indexOf(g.box); if (j >= 0) boxes.splice(j, 1); }
-    if (instant) g.mesh.position.y = g.h + 0.2;
+  for (const g of a.refs?.cageGates || []) {
+    g.open = 1;
+    if (instant) { g.progress=1; g.mesh.position.y=g.h+.2; cageCollision(a,g,false); }
+  }
+}
+function syncCages(a,instant) {
+  if(F.cagesReleased){openCages(a,instant);return;}
+  for(const g of a.refs?.cageGates || []){g.open=0;g.progress=0;g.mesh.position.y=0;cageCollision(a,g,true);}
+}
+function updateCages(a,dt) {
+  for(const g of a.refs?.cageGates || [])if(g.open){
+    g.progress=Math.min(1,(g.progress||0)+dt/CAGE_OPEN_SECONDS);
+    const pose=cageGatePose(g.progress,g.h);g.mesh.position.y=pose.y;cageCollision(a,g,pose.blocking);
   }
 }
 function arrestBrandt() {
@@ -653,7 +668,7 @@ onAreaBuilt((a) => {
   if (a.id === 'lab') setSideDoor(!!F.power, true);
   if (a.refs.powerLamps) a.refs.powerLamps.forEach((L) => { L.on = !!F.power; });
   if (a.refs.heli) a.refs.heli.group.visible = false;
-  if (a.refs.cageGates && D.enc.has('camp-brandt')) openCages(a, true);
+  syncCages(a, true);
   if (a.id === 'ninho' && F.nestDestroyed) nestDestroyedLook(a);
   syncGates(a, true);
   D.mapDirty = true;
@@ -736,6 +751,7 @@ const CORE_WAVES = [
 const WAVES = { gen: GEN_WAVES, rescue: RESCUE_WAVES, hack: HACK_WAVES, charges: CHARGE_WAVES };
 const WARN = { gen: 'Fique perto do gerador!', rescue: 'Volte para o heliponto!', hack: 'Fique perto do terminal!' };
 function startHack(term) {
+  if (!F.cagesReleased) { const e=D.area.encounters.find(e=>e.cages); if(e)fireEncounter(e); }
   D.event = { kind: 'hack', t: 0, dur: 18, bursts: [0, 6, 12], bi: 0, x: term.x, z: term.z, range: 12, warnT: 0 };
   sfx.alarm(); sfx.siren(); makeNoise(term.x, term.z, 60);
   const L = D.area.refs.gateLamp; if (L) L.base = 40;
@@ -1119,6 +1135,7 @@ export function updateDirector(dt) {
     D.queue.splice(i, 1);
     if (q.kind === 'revisit-cue') { ui.announce(q.message, '#ffb070'); sfx.siren(); sfx.stinger('ambush'); continue; }
     const e = q.x !== undefined ? spawnEnemy(q.type, q.x, q.z) : spawnEnemy(q.type, undefined, undefined, { from: q.from });
+    if (q.cageRelease) { e.cageRelease=true; e.cageExit=q.cageExit ? {...q.cageExit} : null; }
     if (q.fx === 'egg') { burst(e.pos.x, 0.8, e.pos.z, 'spit', 18, 3); shockwave(e.pos.x, e.pos.z, 1.8, 0x40ff80); sfx.mudBurst(); }
     if (q.fx === 'mud') { burst(e.pos.x, 0.3, e.pos.z, 'dust', 26, 4.5); decal(e.pos.x, e.pos.z, 2.6, 0x1a1408); shockwave(e.pos.x, e.pos.z, 2.2, 0x8a7a50); sfx.mudBurst(); G.shake = Math.max(G.shake, 0.3); }
     if (e.cfg.boss) {
@@ -1173,7 +1190,7 @@ export function updateDirector(dt) {
     if (D.fuse <= 0) detonateNest();
   }
   if (nest && D.boatGo && a.refs.boat) { const bt = a.refs.boat; if (bt.position.x < 80) { bt.position.x += dt * 7; bt.position.z += dt * 2.5; } }
-  if (a.refs.cageGates) for (const g of a.refs.cageGates) if (g.open) g.mesh.position.y = damp(g.mesh.position.y, g.h + 0.2, 2.2, dt);
+  updateCages(a,dt);
   if (nest && a.refs.eggMat && !F.nestDestroyed) a.refs.eggMat.emissiveIntensity = 0.45 + 0.3 * Math.sin(G.time * (F.nestFight ? 5 : 1.8));
   // v11: relógio de contaminação (Ato 3) — não mata, mas muda o final
   if (F.act3 && !F.valvesClosed && F.contamT > 0 && !(D.event && D.event.kind === 'flood')) {
