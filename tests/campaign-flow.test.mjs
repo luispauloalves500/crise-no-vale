@@ -20,7 +20,7 @@ const noop = () => {};
 const proxy = new Proxy({}, { get: () => noop });
 function harness(difficulty = 'normal') {
   const AREAS = areaData(), AREA = Object.fromEntries(AREAS.map(a => [a.id, a]));
-  const storage = {}, idleJobs = [], cards = [], messages = [], wins = [];
+  const storage = {}, idleJobs = [], cards = [], messages = [], wins = [], sounds=[];
   const pos = { x: 0, y: 0, z: 0, set(x,y,z) { Object.assign(this,{x,y,z}); } };
   const G = { state:'play', difficulty, cleanStreak:{kills:0}, yaw:0, ep:0, epTotal:0, time:0, combo:0 };
   const survivor = {name:'Dra. Helena Lima',pos:{x:0,z:0},visible:false,following:false,downT:0};
@@ -38,12 +38,13 @@ function harness(difficulty = 'normal') {
       const terminals = {pantano:[{kind:'generator',x:-20.5,z:3}], acampamento:[{kind:'hack',x:-1,z:16.8}],captacao:[{kind:'valves',x:0,z:-8.6}],sede:[{kind:'uplink',x:14,z:-18.6}]};
       const doors=Object.fromEntries(a.doors.map(d=>[d.id,{group:{position:{x:d.side==='W'?a.bounds.minX:d.side==='E'?a.bounds.maxX:d.at,z:d.side==='N'?a.bounds.minZ:d.side==='S'?a.bounds.maxZ:d.at}},gate:{position:{y:0}}}]));
       a.refs={doors,terminals:(terminals[a.id]||[]).map(t=>({...t,glow:{material:{opacity:0}}})),logs:[],powerLamps:[]};
+      if(a.cages){a.refs.cageGates=a.cages.map(c=>{const w=c.big?5:3.6,h=c.big?3.4:2.4,x=c.x+c.face*w/2,box={minX:x-.2,maxX:x+.2,minZ:c.z-w/2,maxZ:c.z+w/2,h};a.ctx.boxes.push(box);return {mesh:{position:{y:0}},box,h,open:0};});}
       if(['porto','ninho','heliponto'].includes(a.id)) a.refs.heli={group:{visible:false,position:{set:noop},rotation:{set:noop}},rotor:{rotation:{y:0}},tailRotor:{rotation:{x:0}},nav:[]};
       return 1;
     },
     unloadArea(a){a.ctx=a.refs=null;return true;}, idle(fn){idleJobs.push(fn)},
     createShaderWarmup:()=>({request:()=>Promise.resolve(true),isBusy:()=>false,invalidate:noop}), compileShaderVariants:noop,
-    activateArea(a){Object.assign(bounds,a.bounds);a.ctx.group.visible=true;}, freeSpot:()=>true,castWorld:()=>Infinity,
+    activateArea(a){Object.assign(bounds,a.bounds);ctx.boxes.splice(0,ctx.boxes.length,...a.ctx.boxes);a.ctx.group.visible=true;}, freeSpot:()=>true,castWorld:()=>Infinity,
     placePlayer(x,z,yaw){pos.set(x,0,z);G.yaw=yaw;}, clearEnemies(){enemies.length=0},clearPickups:noop,clearFx:noop,resetCombat:noop,clearInput:noop,hideBrandt:noop,
     resetPlayer(){ctx.player.hp=100;ctx.player.dead=false;},snapshotBag:()=>({owned:[true,true,true],ammo:[]}),restoreBag:noop,
     resetSurvivor(x,z){Object.assign(survivor,{visible:true,following:false,downT:0,pos:{x,z}})},hideSurvivor(){survivor.visible=false},snapshotSurvivor:()=>({...survivor}),restoreSurvivor:noop,
@@ -54,7 +55,7 @@ function harness(difficulty = 'normal') {
     story:{S:{logs:new Set(),said:new Set()},LINES:new Proxy({}, {get:()=>[]}),BEATS:new Proxy({}, {get:()=>[]}),ACT2_INTRO:['act2'],ACT3_INTRO:['act3'],
       resetStory:noop,storySave:()=>({}),clearSpeech:noop,say:noop,sayOne:noop,speaking:()=>false,cardOpen:()=>false,
       showCard(pages,cb){cards.push(pages);cb?.();}},
-    ui:new Proxy({feed:m=>messages.push(m)}, {get:(t,k)=>t[k]||noop}),sfx:proxy,setPower:noop,setDoorLight:noop,bossGlow:noop,flashAt:noop,burst:noop,decal:noop,shockwave:noop,
+    ui:new Proxy({feed:m=>messages.push(m),announce:m=>messages.push(m)}, {get:(t,k)=>t[k]||noop}),sfx:new Proxy({}, {get:(_,k)=>()=>sounds.push(k)}),setPower:noop,setDoorLight:noop,bossGlow:noop,flashAt:noop,burst:noop,decal:noop,shockwave:noop,
     brandt:{visible:false,pos:{x:19.5,z:6}},showBrandt:noop,brandtRun:noop,brandtCower:noop,brandtCaught:noop,atmo:{},openTerminal:noop,
     animateDoorWalk(dt,p,yaw){pos.set(p.x,0,p.z);G.yaw=yaw},findEscortPath:()=>[],damp:(a,b)=>b,rand:(a,b)=>(a+b)/2,
     canAccessRecord:()=>true,canSeeRecord:()=>true,
@@ -73,7 +74,7 @@ function harness(difficulty = 'normal') {
     assert.deepEqual(Array.from(AREAS.filter(a=>a.ctx?.group.visible),a=>a.id),[id]);
   };
   const event = async (kind,x,z) => {pos.set(x,0,z);ctx.interact();assert.equal(ctx.D.event?.kind,kind);for(let i=0;i<600&&ctx.D.event;i++)await tick();};
-  return {ctx,storage,cards,messages,wins,tick,go,event,flush,AREAS,AREA,G,pos};
+  return {ctx,storage,cards,messages,wins,sounds,tick,go,event,flush,AREAS,AREA,G,pos};
 }
 
 test('grafo tem uma única fronteira terrestre 1→2 e nenhuma porta física para o Ato 3',()=>{
@@ -193,4 +194,32 @@ test('save misturado do Ato 1 não dá a Matriarca por morta nem mantém seus ga
   assert.equal(s.flags.nestClear,undefined);assert.equal(s.flags.campGate,undefined);assert.equal(s.st.ninho,undefined);
   const h=harness();h.storage.main={...s,enc:['nest-awaken','prim-awaken']};h.ctx.startCampaign(true);
   assert.equal(h.ctx.D.enc.has('nest-awaken'),false);assert.equal(h.ctx.D.enc.has('prim-awaken'),false);
+});
+
+for(const difficulty of ['easy','normal','hard'])test(`jaulas ${difficulty}: fechadas na chegada, gatilho visível, colisão até abrir e leva dimensionada`,async()=>{
+  const h=harness(difficulty),c=h.ctx;c.startCampaign(false);c.D.flags.act2=true;c.D.area=null;c.enterArea('acampamento');
+  const a=c.D.area,gates=a.refs.cageGates;await h.tick(160);
+  assert.ok(gates.every(g=>g.open===0&&g.mesh.position.y===0&&c.boxes.includes(g.box)&&a.ctx.boxes.includes(g.box)));
+  assert.equal(c.D.flags.cagesReleased,undefined);
+  h.pos.set(0,0,1);await h.tick();assert.equal(c.D.flags.cagesReleased,true);assert.ok(h.sounds.includes('alarm'));
+  await h.tick(8);assert.ok(gates.every(g=>g.mesh.position.y>0&&g.mesh.position.y<g.h&&c.boxes.includes(g.box)));
+  await h.tick(40);assert.ok(gates.every(g=>g.mesh.position.y===g.h+.2&&!c.boxes.includes(g.box)&&!a.ctx.boxes.includes(g.box)));
+  const released=c.enemies.filter(e=>e.cageRelease);assert.equal(released.length,{easy:2,normal:3,hard:4}[difficulty]);
+  assert.ok(released.every(e=>e.cageExit&&Math.abs(e.cageExit.x-e.pos.x)>3));
+  assert.ok(released.every(e=>e.maxHp===Math.round(config.ENEMY_TYPES[e.type].hp*rules.difficultyProfile(difficulty).enemyHP)));
+});
+test('jaulas persistem abertas; só sobreviventes feridos voltam, sem duplicar a leva no retorno/save',async()=>{
+  const h=harness(),c=h.ctx;c.startCampaign(false);c.D.flags.act2=true;c.D.area=null;c.enterArea('acampamento');h.pos.set(0,0,1);await h.tick(60);
+  const released=c.enemies.filter(e=>e.cageRelease);released[0].hp=17;released[1].dead=true;
+  await h.go('margem');await h.go('acampamento');
+  const survivors=c.enemies.filter(e=>e.cageRelease);assert.equal(survivors.length,2);assert.ok(survivors.some(e=>e.hp===17));
+  assert.ok(c.D.area.refs.cageGates.every(g=>g.open===1&&!c.boxes.includes(g.box)));assert.equal(c.D.queue.filter(q=>q.cageRelease).length,0);
+  const save=c.buildSave('acampamento',{x:-8,z:-18,yaw:0},c.D.flags);h.storage.main=JSON.parse(JSON.stringify(save));c.startCampaign(true);
+  assert.equal(c.D.flags.cagesReleased,true);assert.ok(c.D.area.refs.cageGates.every(g=>g.open===1));
+  c.startCampaign(false);c.D.flags.act2=true;c.D.area=null;c.enterArea('acampamento');assert.ok(c.D.area.refs.cageGates.every(g=>g.open===0&&c.boxes.includes(g.box)));
+});
+test('hack também libera jaulas se a jogadora contornar o gatilho; save legado não as abre na chegada',async()=>{
+  const h=harness(),c=h.ctx;h.storage.main={v:7,area:'acampamento',flags:{act2:true},enc:['camp-brandt','camp-jaula']};c.startCampaign(true);
+  assert.ok(c.D.area.refs.cageGates.every(g=>g.open===0));assert.equal(c.D.enc.has('camp-brandt'),false);
+  h.pos.set(-1,0,16.8);c.interact();assert.equal(c.D.flags.cagesReleased,true);assert.equal(c.D.event.kind,'hack');
 });

@@ -9,6 +9,7 @@ const {MeshoptDecoder}=await import(pathToFileURL(resolve(threeRoot,'examples/js
 import {readFileSync} from 'node:fs';
 import assert from 'node:assert/strict';
 import {retargetCombatClip} from '../js/animation-retarget.mjs';
+import {createHeroArmRig} from '../js/hero-arms.mjs';
 async function rig(file) {
  let b=readFileSync(file);if(file.endsWith('.b64'))b=Buffer.from(b.toString().replace(/\s/g,''),'base64');
  const n=b.readUInt32LE(12),j=JSON.parse(b.subarray(20,20+n));
@@ -24,7 +25,21 @@ const pose=g=>{const m=new Map();g.scene.traverse(o=>{if(o.isBone)m.set(o.name,o
 const sourcePose=pose(marina),targetPose=pose(jill);assert.ok(targetPose.size>40);
 const combat=marina.animations.filter(c=>/Weapon_Idle|Aim_|Reload_|Fire_/.test(c.name)).map(c=>retargetCombatClip(c,sourcePose,targetPose));
 const upper=/Spine1|Spine2|Neck|Head|Shoulder|Arm|ForeArm|Hand/;
-let samples=0, maxNormError=0;
+let samples=0, maxNormError=0, poseSamples=0, maxLeftIdleAngle=0, maxLeftLateral=0;
+const fixed=createHeroArmRig(THREE,jill.scene);
+function checkArms(state){
+ const output=fixed.apply(state),b=fixed.bones,p=n=>b[n].getWorldPosition(new THREE.Vector3());
+ const down=p('Hips').sub(p('Spine2')).normalize(),left=p('LeftArm').sub(p('RightArm')).normalize();
+ for(const side of ['Left','Right']){
+   const dir=p(side+'ForeArm').sub(p(side+'Arm')).normalize(),angle=THREE.MathUtils.radToDeg(dir.angleTo(down)),lateral=Math.abs(dir.dot(left));
+   assert.ok(!(angle>75&&angle<110&&lateral>.80),`${side} em T: ${angle} / ${lateral}`);
+   if(side==='Left'){maxLeftLateral=Math.max(maxLeftLateral,lateral);if(!state.aim&&state.reload==null){maxLeftIdleAngle=Math.max(maxLeftIdleAngle,angle);assert.ok(angle<75,'braço esquerdo deve descansar ao lado do corpo');}}
+ }
+ for(const name of ['LeftShoulder','LeftArm','LeftForeArm','LeftHand','RightShoulder','RightArm','RightForeArm','RightHand']){
+   const rest=new THREE.Quaternion().fromArray(targetPose.get(b[name].name));assert.ok(b[name].quaternion.angleTo(rest)>.005,`${name} ficou em bind`);
+ }
+ poseSamples++;return output;
+}
 for(const name of ['marina','jill']) {
  const model=name==='marina'?marina:jill,cl= name==='marina'?marina.animations:[...jill.animations,...combat];
  const idle=cl.find(c=>c.name==='Weapon_Idle');assert.ok(idle);
@@ -36,9 +51,28 @@ for(const name of ['marina','jill']) {
    const p=i/240,L=Math.sin(Math.PI*p)**2,run=Math.max(0,(p-.25)/.5),rel=p>.45&&p<.75?.9:0,aim=rel?0:.6;
    actions.idleLeg.weight=1-L;actions.walk.weight=L*(1-Math.min(1,run));actions.run.weight=L*Math.min(1,run);
    actions.idleUp.weight=(1-rel)*(1-aim);actions.aim.weight=(1-rel)*aim;actions.reload.weight=rel;mixer.update(1/60);
+   if(name==='jill')checkArms({moving:L,run:Math.min(1,run),phase:p*3,aim,reload:rel?(p-.45)/.30:null});
    model.scene.traverse(o=>{if(o.isBone){const q=o.quaternion.toArray();assert.ok(q.every(Number.isFinite));const err=Math.abs(Math.hypot(...q)-1);maxNormError=Math.max(maxNormError,err);assert.ok(err<1e-5);}});samples++;
   }
   mixer.stopAllAction();mixer.uncacheRoot(model.scene);
  }
 }
-console.log(JSON.stringify({three:THREE.REVISION,combatClipsRetargeted:combat.length,samples,maxNormError,texturesAndMeshes:false},null,2));
+// Estados completos e transições, incluindo raiz girada, mira alta/baixa e recarga andando.
+for(const mode of ['idle','walk','run','aim','reload','walkReload']){
+ const mixer=new THREE.AnimationMixer(jill.scene),clip=jill.animations.find(c=>c.name===(mode==='run'?'Running':'Walking_Woman'));
+ const action=mixer.clipAction(clip).play();
+ for(let i=0;i<=120;i++){
+   const p=i/120;jill.scene.rotation.y=p*.7;mixer.update(1/60);
+   const legs=['Hips','LeftUpLeg','LeftLeg','LeftFoot','RightUpLeg','RightLeg','RightFoot'].map(n=>{const b=jill.scene.getObjectByName('mixamorig'+n)||jill.scene.getObjectByName('mixamorig:'+n);return [b,b.quaternion.clone()];});
+   const state={moving:mode==='idle'||mode==='aim'||mode==='reload'?0:1,run:mode==='run'?1:0,phase:p*3,aim:mode==='aim'?1:0,pitch:Math.sin(p*Math.PI*2)*.3,reload:mode.includes('Reload')||mode==='reload'?p:null};
+   checkArms(state);for(const [b,q]of legs)assert.deepEqual(b.quaternion.toArray(),q.toArray(),'IK/recarga alterou pernas');
+ }
+ mixer.stopAllAction();mixer.uncacheRoot(jill.scene);
+}
+jill.scene.rotation.y=0;
+const belt=checkArms({reload:.32}),insert=checkArms({reload:.70}),unit=fixed.lengths.Left;
+assert.ok(new THREE.Vector3().fromArray(belt.left).distanceTo(new THREE.Vector3().fromArray(belt.belt))<unit*.20,'mão não chegou ao cinto');
+assert.ok(new THREE.Vector3().fromArray(insert.left).distanceTo(new THREE.Vector3().fromArray(insert.right))<unit*.35,'mão não encaixou pente na arma');
+assert.ok(new THREE.Vector3().fromArray(belt.left).distanceTo(new THREE.Vector3().fromArray(insert.left))>unit*.45,'recarga sem movimento visível');
+assert.equal(belt.magazine,true);assert.ok(belt.tilt>.5);checkArms({reload:1});assert.equal(fixed.magazine.visible,false);
+console.log(JSON.stringify({three:THREE.REVISION,combatClipsRetargeted:combat.length,samples,poseSamples,maxLeftIdleAngle,maxLeftLateral,maxNormError,texturesAndMeshes:false},null,2));

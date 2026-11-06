@@ -5,6 +5,7 @@ const threeRoot=process.env.THREE_ROOT || '/tmp/crise-test-deps/node_modules/thr
 const THREE=await import(pathToFileURL(threeRoot+'/build/three.module.js'));
 import vm from 'node:vm';import {readFileSync} from 'node:fs';import {resolve,dirname} from 'node:path';
 import {safeDoorArrival} from '../js/door-safety.mjs';
+import {cageReleaseWave} from '../js/campaign-rules.mjs';
 import {findEscortPath,canStand,segmentClear} from '../js/escort-nav.mjs';
 const noop=()=>{}, grad={addColorStop:noop};
 const draw=new Proxy({getImageData:(x,y,w,h)=>({data:new Uint8ClampedArray(w*h*4)}),createImageData:(w,h)=>({data:new Uint8ClampedArray(w*h*4)}),createLinearGradient:()=>grad,createRadialGradient:()=>grad,measureText:s=>({width:s.length*10})},{get:(t,k)=>t[k]||noop,set:(t,k,v)=>(t[k]=v,true)});
@@ -36,5 +37,13 @@ for(const a of AREAS){
 const cliff=AREAS.find(a=>a.id==='heliponto');const north=safeDoorArrival(cliff,'N',.5,1.6);
 const start={x:-18,z:-10};if(!findEscortPath(start,north,{bounds:cliff.bounds,boxes:cliff.ctx.boxes,circles:cliff.ctx.circles},.5).length)fail.push('rota-norte-heliponto');
 const port=AREAS.find(a=>a.id==='porto');if(!findEscortPath({x:6,z:17},{x:11.1,z:17.25},{bounds:port.bounds,boxes:port.ctx.boxes,circles:port.ctx.circles},.48).length)fail.push('embarque-lima');
+const camp=AREAS.find(a=>a.id==='acampamento');
+let cageRoutes=0;
+for(const difficulty of ['easy','normal','hard'])for(const spawn of cageReleaseWave(camp.cages,difficulty)){
+ const env={bounds:camp.bounds,boxes:camp.ctx.boxes,circles:camp.ctx.circles},r=spawn.type==='brute'?1.1:.6;
+ if(segmentClear(spawn,spawn.cageExit,env,r))fail.push('jaula-inicial-sem-colisao');
+ const open={...env,boxes:env.boxes.filter(b=>!camp.refs.cageGates.some(g=>g.box===b))};
+ if(!segmentClear(spawn,spawn.cageExit,open,r))fail.push('dino-preso-na-jaula-'+difficulty);else cageRoutes++;
+}
 if(THREE.REVISION!=='160')fail.push('versao-three');
-console.log(JSON.stringify({three:THREE.REVISION,renderer:'stub sem WebGL',routes,report,fail},null,2));if(fail.length)process.exitCode=1;
+console.log(JSON.stringify({three:THREE.REVISION,renderer:'stub sem WebGL',routes,cageRoutes,report,fail},null,2));if(fail.length)process.exitCode=1;
