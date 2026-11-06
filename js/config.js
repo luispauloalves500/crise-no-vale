@@ -39,7 +39,7 @@ export const CAMERA = {
 // v11: precisão — spread/aimSpread são o 1º tiro; cada disparo soma `bloom` (até bloomMax) e ele volta com
 // taxa `bloomRec` (1/s, exponencial). Distribuição triangular (mais tiros perto do centro); escopeta em leque estratificado.
 export const WEAPONS = [
-  { id: 'pistol',  name: 'PISTOLA',  size: 12, startRes: Infinity, dmg: 24, rate: 0.2,  spread: 0.015, aimSpread: 0.0035,
+  { id: 'pistol',  name: 'PISTOLA',  size: 12, startRes: 72, resMax: 144, dmg: 24, rate: 0.2,  spread: 0.015, aimSpread: 0.0035,
     bloom: 0.007, bloomMax: 0.028, bloomRec: 6,
     pellets: 1, reload: 1.1, knock: 3, kick: 0.035, range: 45, crit: 1.6,
     noise: 15, shake: 0.09, xkick: 7, flash: 0.55, fov: 0.8, tracer: 0xffe9a0 },
@@ -105,7 +105,7 @@ export const ENEMY_TYPES = {
   // v7: guardiã do NINHO RAIZ (Ato 2) — bruta alfa menor e mais rápida, cicatrizes bioluminescentes verdes
   matriarca:{ name: 'Matriarca', shape: 'brute', hp: 1150, speed: 3.5, dmg: 30, r: 2.1, scale: 2.7, score: 4000, ep: 500, aggro: 99, boss: true,
              color: 0x2a3a30, belly: 0x7a8a6a, stripe: 0x1a6a40, eye: 0x9aff40, horn: 0xd8f0c0, radar: '#40ff90', scar: 0x60ff90,
-             chargeDmg: 36, chargeSpeed: 18, mass: 22, stompR: 6.5, stompDmg: 22,
+             chargeDmg: 36, chargeSpeed: 18, mass: 22, stompR: 6.5, stompDmg: 24,
              stompWind: 1.1, windup: 1.15, wallStun: 3.0, stunGrace: 1.2 },
   // v11: PRIMÓRDIO — chefe final do Ato 3 (sede da Tellus). Bruto ancestral, pele pálida e glândulas ácidas.
   // acid: leque de cuspe ácido (3 projéteis) a média distância; as fases chamam a matilha e chocam ovos.
@@ -119,6 +119,7 @@ export const PICKUPS = {
   MAX_DROPS: 6,          // drops de inimigos simultâneos (itens do mapa não contam)
   MED_HEAL: 40,
   AMMO_SHELLS: 6,
+  AMMO_PISTOL: 24,      // caixas amarelas também abastecem a pistola finita
   DROP_MED: 0.10,
   DROP_AMMO: 0.20,
   AMMO_SMG: 30,          // v6: pente de submetralhadora

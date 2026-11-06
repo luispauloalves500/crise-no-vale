@@ -1,11 +1,12 @@
 // director.js — progressão por ÁREAS (no lugar das ondas): portas e travas, estado de cada área,
 // encontros roteirizados, gerador, escolta, chefe, resgate, objetivos e terminais de save.
-import { activateArea, bounds, boxes, castWorld, setDoorLight, setPower, atmo, spots, bossGlow, flashAt, renderer, camera, scene } from './world.js';
+import { activateArea, bounds, boxes, castWorld, setDoorLight, setPower, atmo, spots, bossGlow, flashAt, renderer, camera, scene, freeSpot } from './world.js';
 import { WORLD, SCORE, PLAYER, EP, ENEMY_TYPES } from './config.js';
 import { captureEncounterMemory, restoreEncounterMemory } from './encounter-memory.mjs';
 import { canAccessRecord, canSeeRecord } from './archive-model.mjs';
 import { G, writeSave, readSave, addEp, readAct3, writeAct3 } from './state.js';
 import { normalizeStreak, finishStreak } from './clean-streak.mjs';
+import { findEscortPath } from './escort-nav.mjs';
 import { safeDoorArrival } from './door-safety.mjs';
 import { passageFor, advancePassage } from './passage-scenes.mjs';
 import { doorPose, doorVectors, DOOR_TIMING, gateVisible } from './door-cinematic.mjs';
@@ -16,7 +17,7 @@ import { quality, onQuality } from './quality.js';
 import { createShaderWarmup, compileShaderVariants } from './shader-warmup.mjs';
 import { post } from './post.js';
 import { idle } from './idle.js';
-import { player, pg, placePlayer, snapshotBag, restoreBag, resetPlayer, animateDoorWalk } from './player.js';
+import { player, pg, placePlayer, snapshotBag, restoreBag, resetPlayer, animateDoorWalk, animateBoarding, weapons } from './player.js';
 import { openTerminal } from './shop.js';
 import { enemies, spawnEnemy, clearEnemies, enemyEvents, makeNoise } from './enemies.js';
 import { spawnPickup, clearPickups, combatEvents, resetCombat } from './combat.js';
@@ -116,7 +117,7 @@ function objective() {
   if (!D.visited.has('heliponto')) return ['Siga pelo portão leste do pátio até o heliponto', 'heliponto'];
   if (!F.bossDead) return ['Derrote o Colosso', 'heliponto'];
   if (F.act2) return objectiveAct2();
-  if (!D.event || D.event.kind !== 'rescue') return ['Aperte E na marca H para resgate — ou siga pelo portão leste (Ato 2)', 'heliponto'];
+  if (!D.event || D.event.kind !== 'rescue') return ['E na marca H: embarcar para o Ato 2 — ou siga pela trilha leste', 'heliponto'];
   return ['Aguente até o helicóptero chegar!', 'heliponto'];
 }
 /** v7: cadeia de objetivos do Ato 2 (rio abaixo atrás do Brandt). */
@@ -153,12 +154,20 @@ function rememberAreaThreats(a) {
   if (!a || !D.st[a.id]) return;
   Object.assign(D.st[a.id], captureEncounterMemory(enemies, D.queue));
 }
-function spawnAreaContents(a) {
+function spawnAreaContents(a, repopulate = false) {
   const s = D.st[a.id], memory = restoreEncounterMemory(s, a.ambient);
+  if (repopulate) {
+    // Só as patrulhas são renovadas. Eventos, chefes vencidos, registros e itens continuam salvos.
+    const bosses = memory.living.filter(m => ENEMY_TYPES[m.type]?.boss &&
+      !(m.type === 'colossus' && F.bossDead) && !(m.type === 'matriarca' && F.nestClear) && !(m.type === 'primordio' && F.primDead));
+    memory.living = [...a.ambient.map((m, ambientIdx) => ({ ...m, ambientIdx })), ...bosses];
+    s.dead = [];
+  }
   for (const m of memory.living) {
     if (!ENEMY_TYPES[m.type] || !Number.isFinite(m.x) || !Number.isFinite(m.z)) continue;
-    // Restaura sem rugido/partículas extras: o dinossauro nunca deixou o cenário.
-    const e = spawnEnemy(m.type, m.x, m.z, { alert: false, ambientIdx: Number.isInteger(m.ambientIdx) ? m.ambientIdx : undefined });
+    // Não surgir em cima da chegada ou dentro de obstáculos (inclui saves antigos).
+    const relocate = repopulate && (Math.hypot(m.x - player.pos.x, m.z - player.pos.z) < 8 || !freeSpot(m.x, m.z, ENEMY_TYPES[m.type].r));
+    const e = spawnEnemy(m.type, relocate ? undefined : m.x, relocate ? undefined : m.z, { alert: false, ambientIdx: Number.isInteger(m.ambientIdx) ? m.ambientIdx : undefined });
     e.hp = Math.min(e.maxHp, Math.max(1, Number.isFinite(m.hp) ? m.hp : e.maxHp));
     e.lastHp = e.hp; // HP antigo de save não equivale a um novo disparo
     if (Number.isFinite(m.yaw)) e.yaw = m.yaw;
@@ -212,7 +221,15 @@ export function enterArea(id, doorId, at) {
   clearEnemies(); clearPickups(); clearFx(); ui.clearFloaters(); D.queue = []; D.boss = null;
   const p = at || (doorId ? doorArrival(a, doorId) : a.start || doorArrival(a, a.doors[0].id));
   placePlayer(p.x, p.z, p.yaw);
-  spawnAreaContents(a);
+  spawnAreaContents(a, !!prev && prev !== a);
+  // Uma única caixa por visita, ao alcance e fora do personagem, para não travar retornos com pouca munição.
+  if (weapons[0].mag + weapons[0].res < 48) {
+    const fx = Math.sin(p.yaw), fz = Math.cos(p.yaw);
+    for (const d of [2, 1.2, 0]) {
+      const x = p.x + fx * d, z = p.z + fz * d;
+      if (freeSpot(x, z, 0.4)) { spawnPickup('pistolammo', x, z); break; }
+    }
+  }
   setupSurvivor(a);
   setupBrandt(a);
   syncGates(a, true);
@@ -509,6 +526,7 @@ export function skipPassage() {
 }
 function updateTransition(dt) {
   const T = D.trans;
+  if (T.kind === 'boarding') { updateBoarding(dt); return; }
   if (T.sceneActive) {
     const progress = advancePassage(T.sceneTime, dt, T.scene.duration);
     T.sceneTime = progress.time;
@@ -711,7 +729,7 @@ function updateEvent(dt) {
     if (nestArea) {
       ui.banner('O GARÇA-1 POUSOU', 'E na marca H: voar para casa · E junto ao piloto: Porto Anil', 4.5);
       story.say(story.LINES.act3_offer, 'act3_offer', true); D.mapDirty = true;
-    } else if (onWin) onWin();
+    } else startBoarding();
   } else if (E.kind === 'flood') {
     F.valvesClosed = true; if (F.contamT > 0) F.contamOk = true;
     floodGateLook(D.area); syncGates(D.area, false); sfx.slam(); G.shake = Math.max(G.shake, 0.4);
@@ -908,7 +926,7 @@ function saveGame(term) {
   ui.banner('PROGRESSO SALVO', 'Vida restaurada — ' + a.name, 2.2);
   return true;
 }
-const SAVE_V = 6;
+const SAVE_V = 6; // formato compatível; restoreBag migra reservas -1/Infinity para munição finita
 export function hasSave() { return !!readSave(); }
 /** v11: existe ponto de partida do Ato 3? */
 export function hasAct3() { const s = readAct3(); return !!(s && AREA[s.area]); }
@@ -970,7 +988,7 @@ enemyEvents.onKilled = (e) => {
   } else if (e.cfg.boss) {
     F.bossFight = false; F.bossDead = true; D.boss = null; syncGates(D.area, false);
     // a matilha foge quando o alfa cai
-    sfx.bossRoar(); ui.banner('COLOSSO ABATIDO', 'Aperte E na marca H para resgate, ou siga pelo portão leste!', 4.2);
+    sfx.bossRoar(); ui.banner('COLOSSO ABATIDO', 'E na marca H: helicóptero para o Ato 2 · ou siga pelo portão leste!', 4.2);
     objectiveDone(); G.score += SCORE.OBJECTIVE;
     bossGlow(null); flashAt(e.pos.x, 2, e.pos.z, 0xff6020, 260); G.shake = Math.max(G.shake, 0.9);
     setTimeoutGame(1.4, () => story.say(story.LINES.boss_dead, 'boss_dead', true));
@@ -1139,7 +1157,7 @@ export function hudData() {
   if (survivor.visible && survivor.downT > 0) sub = `⚠ ${survivor.name} caída — chegue perto e aperte E`;
   else if (a.id !== target && !D.trans) { const w = pathHint(a.id, target); if (w) sub = sub || w; }
   if (a.id === 'ninho' && F.nestClear && !F.brandt && D.brandtT > 0) sub = `⛓ Brandt no cais (leste) — o barco liga em ${Math.ceil(D.brandtT)} s`;
-  if (F.bossDead && !F.act2 && !F.rescued && a.id === 'heliponto' && !D.event) sub = sub || 'Escolha: E na marca H encerra o Ato 1; portão leste inicia o Ato 2';
+  if (F.bossDead && !F.act2 && !F.rescued && a.id === 'heliponto' && !D.event) sub = sub || 'E na marca H: helicóptero para o Ato 2 · portão leste: seguir a pé';
   if (F.act3 && !F.valvesClosed && F.contamT > 0) sub = `☣ Contaminação chega à cidade em ${Math.ceil(F.contamT)} s` + (sub ? ' · ' + sub : '');
   else if (F.act3 && F.contaminated && !F.valvesClosed) sub = '☣ A água já desce para a cidade — feche as comportas mesmo assim' + (sub ? ' · ' + sub : '');
   const E = D.event;
@@ -1193,6 +1211,79 @@ export function endStats() {
     logsTotal: F.act3Win ? story.TOTAL_LOGS : F.act2Win ? story.ACT1_LOGS.length + story.ACT2_LOGS.length : story.ACT1_LOGS.length, ending: story.ending(F), epTotal: G.epTotal,
   };
 }
+// ---------- embarque do Ato 1: aproximação, pouso, porta, degrau e decolagem ----------
+function startBoarding() {
+  const a = D.area, h = a.helipad;
+  if (!a.refs.heli || !D.heli || !h) return;
+  const stage = { x: h.x + 6.5, z: h.z + 2.5 };
+  const route = findEscortPath(player.pos, stage, { bounds: a.bounds, boxes: a.ctx.boxes, circles: a.ctx.circles }, player.r);
+  if (!route.length) {
+    F.rescued = false; ui.feed('Aproxime-se da lateral livre do heliponto e chame o resgate novamente.', '#ffb070'); return;
+  }
+  D.trans = { kind: 'boarding', phase: 'clear-pad', t: 0, route, index: 0,
+    point: { x: pg.position.x, z: pg.position.z, y: 0 }, yaw: G.yaw,
+    shot: { x: h.x + 10, y: 3.6, z: h.z + 8, tx: h.x + 1.3, ty: 1.4, tz: h.z + 1 } };
+  // O helicóptero espera no alto enquanto Marina sai do disco do rotor.
+  D.heli.landing = false; D.heli.heading = 0;
+  G.transitioning = true; clearInput(); story.clearSpeech();
+}
+function updateBoarding(dt) {
+  const T = D.trans, a = D.area, h = a.helipad, H = D.heli, R = a.refs.heli;
+  T.t += dt;
+  const go = (phase) => { T.phase = phase; T.t = 0; };
+  let moving = false, crouch = 0;
+  if (T.phase === 'clear-pad' || T.phase === 'walk-door') {
+    const target = T.route[T.index], dx = target.x - T.point.x, dz = target.z - T.point.z;
+    const d = Math.hypot(dx, dz), step = Math.min(d, dt * 2.2);
+    if (d > 0.001) {
+      T.point.x += dx / d * step; T.point.z += dz / d * step;
+      // Giro contínuo, sem inverter o corpo ao mudar de segmento.
+      const yaw = Math.atan2(dx, dz), delta = Math.atan2(Math.sin(yaw - T.yaw), Math.cos(yaw - T.yaw));
+      T.yaw += delta * Math.min(1, dt * 9); moving = true;
+    }
+    if (d <= step + 0.001 && ++T.index >= T.route.length) {
+      if (T.phase === 'clear-pad') { H.landing = true; go('land'); }
+      else { T.stepFrom = { ...T.point }; go('step-in'); }
+    }
+  } else if (T.phase === 'land') {
+    if ((H.land || 0) >= 1 && T.t > 0.5) {
+      // Porta na lateral direita; caminho contorna a frente, não atravessa a fuselagem.
+      T.route = [{ x: h.x + 3.2, z: h.z + 2.5 }, { x: h.x + 2.1, z: h.z + 0.25 }];
+      T.index = 0; go('walk-door');
+    }
+  } else if (T.phase === 'step-in') {
+    const u = Math.min(1, T.t / 2), e = u * u * (3 - 2 * u);
+    T.point.x = T.stepFrom.x + (h.x + 0.45 - T.stepFrom.x) * e;
+    T.point.z = h.z + 0.25;
+    // Pé no estribo (0,25 m), depois no piso da cabine (0,55 m); tronco sob o batente.
+    T.point.y = u < 0.5 ? Math.sin(u * Math.PI) * 0.25 : 0.25 + (u - 0.5) * 0.6;
+    T.yaw += Math.atan2(Math.sin(-Math.PI / 2 - T.yaw), Math.cos(-Math.PI / 2 - T.yaw)) * Math.min(1, dt * 8);
+    moving = u < 1; crouch = Math.sin(u * Math.PI / 2);
+    if (u >= 1) { go('takeoff'); pg.visible = false; }
+  } else if (T.phase === 'takeoff') {
+    const u = Math.min(1, T.t / 3), e = u * u * (3 - 2 * u);
+    H.departure = e;
+    if (R.boardingDoor) R.boardingDoor.position.z = -1.6 + 1.85 * Math.min(1, T.t / 0.8);
+    ui.setFade(Math.max(0, (u - 0.7) / 0.3));
+    if (u >= 1) {
+      F.act1Rescued = true; F.rescued = false; // o resgate do ninho continua disponível no Ato 2
+      spots[0].override = null; clearInput(); D.trans = null; G.transitioning = false;
+      // A entrada mantém inventário, registros, flags e aciona o cartão do Ato 2 (sem tela de vitória).
+      enterArea('margem'); streamAround(D.area); ui.setFade(0);
+      return;
+    }
+  }
+  if (T.phase !== 'takeoff') animateBoarding(dt, { ...T.point, moving }, T.yaw, crouch);
+  else pg.visible = false; // só oculta quando o corpo inteiro já está dentro da cabine
+  updateHeli(dt);
+  // Enquadramento único pelo lado da porta, recuado só até o primeiro obstáculo.
+  const S = T.shot, dx = 8.7, dz = 7, d = Math.hypot(dx, dz);
+  const clear = Math.min(d, castWorld(S.tx, S.tz, dx / d, dz / d, d, 3.2) - 0.4);
+  S.x = Math.max(a.bounds.minX + 0.6, Math.min(a.bounds.maxX - 0.6, S.tx + dx / d * Math.max(1, clear)));
+  S.z = Math.max(a.bounds.minZ + 0.6, Math.min(a.bounds.maxZ - 0.6, S.tz + dz / d * Math.max(1, clear)));
+  S.ty = 1.4 + (H.departure || 0) * 3;
+}
+
 /** Helicóptero de resgate: chega durante o evento e pousa na vitória (roda também no estado 'win'). */
 export function updateHeli(dt) {
   const H = D.heli, a = D.area; if (!H || !a || !a.refs.heli) return;
@@ -1204,8 +1295,12 @@ export function updateHeli(dt) {
   const u = Math.min(1, (k - 0.3) / 0.7), e = 1 - Math.pow(1 - u, 2.2);
   const x = -18 + (pad.x + 18) * e, z = -70 + (pad.z + 70) * e;
   let y = 26 - 18 * e + Math.sin(H.t * 1.3) * 0.25;
-  if (H.landing) { H.land = Math.min(1, (H.land || 0) + dt * 0.45); y = 8 - 7.6 * H.land; }
-  R.group.position.set(x, y, z); R.group.rotation.set(H.landing ? 0 : 0.12 * (1 - e) - 0.05, 0.35 * (1 - e) + Math.PI * 0.08, Math.sin(H.t * 0.9) * 0.04);
+  if (H.landing) { H.land = Math.min(1, (H.land || 0) + dt * 0.45); y = 8 * (1 - H.land); }
+  const heading = H.heading ?? Math.PI * 0.08;
+  // Pouso e embarque usam exatamente o mesmo ponto; nada de tremor/rolagem no chão.
+  const lift = H.departure || 0;
+  R.group.position.set(x + lift * 2, y + lift * 10, z + lift * 7);
+  R.group.rotation.set(H.landing ? -lift * 0.08 : 0.12 * (1 - e) - 0.05, heading + 0.35 * (1 - e), H.landing ? 0 : Math.sin(H.t * 0.9) * 0.04);
   R.rotor.rotation.y += dt * 28; R.tailRotor.rotation.x += dt * 34;
   if (R.beacon) R.beacon.material.opacity = Math.sin(H.t * 9) > 0.6 ? 1 : 0.1;
   R.nav.forEach((n, i) => { n.material.opacity = Math.sin(H.t * 5 + i * 3) > 0 ? 1 : 0.25; });

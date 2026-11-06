@@ -5,7 +5,7 @@ import { buildContactShadows } from './contact-shadows.js';
 // Coordenadas locais centradas na origem. Norte = -Z, Leste = +X.
 import * as THREE from 'three';
 import * as W from './world.js';
-import { mulberry32, labelTex } from './utils.js';
+import { mulberry32, labelTex, mergeGeos } from './utils.js';
 import { WORLD } from './config.js';
 import { collectLod } from './lod.js';
 
@@ -19,17 +19,42 @@ const { MATS } = W;
  *  doors: [{id, side, at, to, toDoor, lock?}]   lock = id de trava avaliada pelo diretor
  *  start?                 ponto inicial (só a primeira área)
  *  pickups: [{id, kind, x, z}]                  itens fixos do mapa (somem ao serem pegos)
- *  ambient: [{type, x, z}]                      inimigos de patrulha (mortos continuam mortos)
+ *  ambient: [{type, x, z}]                      patrulhas renovadas em cada travessia (chefes e história persistem)
  *  encounters: [{id, on, ...}]                  emboscadas / matilhas roteirizadas (ver director.js)
  *  logs: [{id, x, z, yaw}]                      registros (tablets) com a história — texto em story.js
  *  build(ctx) -> refs                           monta a geometria; refs usados pelo diretor
  */
 
+// Pintura e balizadores estáticos do cais em UM lote (sem luzes/sprites extras).
+function quayHelipad(ctx, { x, z, r }) {
+  const ring = new THREE.RingGeometry(r, r + 0.3, 40), box = new THREE.BoxGeometry(1, 1, 1);
+  const parts = [{ geo: ring, r: [-Math.PI / 2, 0, 0], p: [x, 0.025, z], c: 0xe6bf38 }];
+  for (const [dx, w, d] of [[-0.7, 0.3, 2.2], [0.7, 0.3, 2.2], [0, 1.4, 0.3]])
+    parts.push({ geo: box, s: [w, 0.02, d], p: [x + dx, 0.03, z], c: 0xe6bf38 });
+  for (let i = 0; i < 8; i++) {
+    const a = i * Math.PI / 4;
+    parts.push({ geo: box, s: [0.18, 0.1, 0.18], p: [x + Math.cos(a) * (r + 0.6), 0.05, z + Math.sin(a) * (r + 0.6)], c: 0x60ff90 });
+  }
+  const geo = mergeGeos(parts); ring.dispose(); box.dispose();
+  ctx.group.add(new THREE.Mesh(geo, new THREE.MeshBasicMaterial({ vertexColors: true })));
+}
+
+// Porta e estribo leves: compartilhados pelas duas aeronaves de resgate, sem novos modelos/texturas.
+function rescueHelicopter() {
+  const heli = W.helicopter(false), g = heli.group;
+  const opening = W.boxMesh(MATS.dark, 0.06, 1.7, 1.5); opening.position.set(1.31, 1.4, 0.25); g.add(opening);
+  const door = W.boxMesh(MATS.metal, 0.08, 1.65, 1.45); door.position.set(1.38, 1.4, -1.6); g.add(door);
+  const step = W.boxMesh(MATS.post, 0.65, 0.12, 1.3); step.position.set(1.5, 0.25, 0.25); g.add(step);
+  heli.boardingDoor = door;
+  return heli;
+}
+
 export const AREAS = [
   // ------------------------------------------------------------------ 1. CAIS
   {
     id: 'porto', save: true, name: 'CAIS DO PORTO', sub: 'Borda da selva — o barco não volta mais',
-    map: { x: 2, y: 4 }, bounds: { minX: -22, maxX: 22, minZ: -18, maxZ: 16 },
+    map: { x: 2, y: 4 }, bounds: { minX: -22, maxX: 22, minZ: -18, maxZ: 26 },
+    quayPad: { x: 13, z: 17, r: 5.8 },
     mood: { fog: 0x0b1620, density: 0.026, sky: 0x7a8faa, groundCol: 0x0a0f10, hemi: 1.2, moonCol: 0xa8c0f0, moon: 1.35,
       rain: 1, lightning: true, fireflies: false, exposure: 1.15,
       // perf: o cais é a 1ª área (shaders frios + modelos carregando) — menos gotas em Baixo/Médio
@@ -38,6 +63,7 @@ export const AREAS = [
     doors: [{ id: 'N', side: 'N', at: 0, to: 'ruinas', toDoor: 'S' }],
     pickups: [
       { id: 'p1med', kind: 'med', x: -15, z: 6 },
+      { id: 'p1ammo', kind: 'ammo', x: 2, z: 9 },
       { id: 'p1gren', kind: 'grenade', x: 16, z: -3 },
     ],
     ambient: [{ type: 'raptor', x: -8, z: -12 }, { type: 'raptor', x: 10, z: -13 }],
@@ -47,29 +73,37 @@ export const AREAS = [
         spawn: [{ type: 'raptor', from: 'E' }, { type: 'raptor', from: 'W', delay: 0.8 }] },
     ],
     build(ctx) {
-      const b = this.bounds;
-      W.ground(ctx, b, W.groundTex.sand, 30, { puddles: 8, patchCol: 0x1a160c });
+      const b = this.bounds, shore = 16;
+      W.ground(ctx, { ...b, maxZ: shore }, W.groundTex.sand, 30, { puddles: 8, patchCol: 0x1a160c });
       // mar ao sul + píer de tábuas
-      const sea = new THREE.Mesh(new THREE.PlaneGeometry(140, 40), MATS.water); sea.rotation.x = -Math.PI / 2; sea.position.set(0, -0.2, b.maxZ + 21); ctx.group.add(sea);
-      W.solid(ctx, 0, b.maxZ - 1, 10, 6, 0.25, MATS.plank, 0, false);
-      W.solid(ctx, 0, b.maxZ + 8, 4, 16, 0.25, MATS.plank, -0.1, false);
-      for (let i = 0; i < 6; i++) W.solid(ctx, (i % 2 ? 1.8 : -1.8), b.maxZ + 2 + i * 2.6, 0.3, 0.3, 1.2, MATS.bark, -0.8, false);
+      const sea = new THREE.Mesh(new THREE.PlaneGeometry(140, 40), MATS.water); sea.rotation.x = -Math.PI / 2; sea.position.set(0, -0.2, shore + 21); ctx.group.add(sea);
+      W.solid(ctx, 0, shore - 1, 10, 6, 0.25, MATS.plank, 0, false);
+      W.solid(ctx, 0, shore + 8, 4, 16, 0.25, MATS.plank, -0.1, false);
+      for (let i = 0; i < 6; i++) W.solid(ctx, (i % 2 ? 1.8 : -1.8), shore + 2 + i * 2.6, 0.3, 0.3, 1.2, MATS.bark, -0.8, false);
       // contêineres enferrujados formando corredores
-      [[-12, -4, 6, 2.6, 0x8a4a2a], [-12, -7, 6, 2.6, 0x2a5a6a], [12, 2, 2.6, 6, 0x8a4a2a], [8, -8, 6, 2.6, 0x7a6a24], [-5, 4, 2.6, 5, 0x6a2a24], [17, -12, 6, 2.6, 0x2a5a6a]]
+      [[-12, -4, 6, 2.6, 0x8a4a2a], [-12, -7, 6, 2.6, 0x2a5a6a], [15, -2, 2.6, 6, 0x8a4a2a], [8, -8, 6, 2.6, 0x7a6a24], [-5, 4, 2.6, 5, 0x6a2a24]]
         .forEach(([x, z, w, d, c]) => W.container(ctx, x, z, w, d, 2.6, c));
       W.solid(ctx, -12, -5.5, 6.1, 5.7, 0.2, MATS.rust, 2.6, false);
-      [[-3, 8, 1.2], [3.6, 6.5, 1], [14, 8, 1.2], [-16, 10, 1.1], [6, -2, 1], [-18, -12, 1.2]].forEach((c) => W.crate(ctx, ...c));
+      [[-3, 8, 1.2], [3.6, 6.5, 1], [18, -11, 1.2], [-16, 10, 1.1], [6, -2, 1], [-18, -12, 1.2]].forEach((c) => W.crate(ctx, ...c));
       // guindaste / galpão
       W.building(ctx, -17, 1, 6, 8, 4.5, MATS.metal, 0.15);
       // barco abandonado no fim do píer (quem trouxe a agente já fugiu — este é o da estação, afundado)
       const hull = new THREE.Mesh(new THREE.CylinderGeometry(1.1, 0.7, 6, 8, 1, false, 0, Math.PI), MATS.rust);
-      hull.rotation.set(Math.PI / 2, 0, Math.PI); hull.position.set(5, -0.35, b.maxZ + 12); hull.rotation.y = 0.3; ctx.group.add(hull);
-      W.solid(ctx, 17, 10, 0.5, 0.5, 9, MATS.stripe); W.solid(ctx, 13.5, 10, 7.5, 0.5, 0.5, MATS.stripe, 9, false);
+      hull.rotation.set(Math.PI / 2, 0, Math.PI); hull.position.set(5, -0.35, shore + 12); hull.rotation.y = 0.3; ctx.group.add(hull);
+      // Guindaste passa para o cais de carga oeste, fora do corredor aéreo.
+      W.solid(ctx, -19, 10, 0.5, 0.5, 9, MATS.stripe); W.solid(ctx, -15.5, 10, 7.5, 0.5, 0.5, MATS.stripe, 9, false);
+      // Plataforma aberta sobre a água, ligada à terra pela faixa leste; nunca bloqueia o portão norte.
+      W.solid(ctx, 13, 17, 16, 16, 0.24, MATS.concrete, -0.24, false);
+      quayHelipad(ctx, this.quayPad);
+      // Fora dos pisos do píer e da plataforma é água, não chão invisível caminhável.
+      ctx.boxes.push(...[
+        [-22, -2, 18, 26], [-22, -5, 16, 18], [2, 5, 18, 26], [21, 22, 16, 26], [5, 21, 25, 26],
+      ].map(([minX, maxX, minZ, maxZ]) => ({ minX, maxX, minZ, maxZ, h: 0.2 })));
       // cerca do lado norte com o portão das ruínas
       W.perimeter(ctx, b, 2.2, MATS.metal, [{ side: 'N', at: 0, half: 2.4 }, { side: 'S', at: 0, half: 30 }], 0.3);
       W.treeRing(ctx, { ...b, maxZ: b.minZ + 1 }, 40, 2, 14, true);
       for (let i = 0; i < 26; i++) { const s = i % 2 ? -1 : 1; W.tree(ctx, s * (b.maxX + 2 + ctx.rng() * 10), b.minZ + ctx.rng() * (b.maxZ - b.minZ), false, 1 + ctx.rng() * 0.8, true); }
-      W.grass(ctx, b, 300, 0x3a4a28);
+      W.grass(ctx, { ...b, maxX: 5, maxZ: shore - 1 }, 220, 0x3a4a28);
       W.lamp(ctx, -6, 12, 0xffb060); W.lamp(ctx, 7, 10, 0xffa050); W.lamp(ctx, -10, -9.5, 0xff8a40); W.lamp(ctx, 10, -5, 0xff8a40); W.lamp(ctx, 2, -15, 0xff2020, 'pulse', 26);
       return {
         doors: { N: W.doorway(ctx, 'N', 0, b) },
@@ -315,8 +349,8 @@ export const AREAS = [
 
   // ------------------------------------------------------------------ 6. HELIPONTO
   {
-    id: 'heliponto', name: 'HELIPONTO DO PENHASCO', sub: 'Ponto de extração — algo enorme guarda a pista',
-    map: { x: 3, y: 1 }, bounds: { minX: -24, maxX: 24, minZ: -24, maxZ: 22 },
+    id: 'heliponto', name: 'HELIPONTO DO PENHASCO', sub: 'Plataforma de extração sobre o rio — pista livre para o Garça-1',
+    map: { x: 3, y: 1 }, bounds: { minX: -24, maxX: 24, minZ: -30, maxZ: 22 },
     mood: { fog: 0x1a0a0c, density: 0.024, sky: 0xa05050, groundCol: 0x0a0404, hemi: 0.95, moonCol: 0xffb0a0, moon: 1.0,
       rain: 1, lightning: true, fireflies: false, exposure: 1.15, moonPos: [-10, 40, 20],
       spots: [{ x: 20, h: 10, z: -20, tx: 0, tz: -8, color: 0xffe0d0, sweep: 9, speed: 0.3 }, { x: -21.5, h: 7.5, z: 19, tx: 0, tz: -4, color: 0xffd8c8, sweep: 8, speed: 0.42 }] },
@@ -327,9 +361,9 @@ export const AREAS = [
       { id: 'p6med', kind: 'med', x: -20, z: 0 }, { id: 'p6gren', kind: 'grenade', x: 20, z: 0 },
       { id: 'p6crate', kind: 'crate', x: -12, z: 15 }, // v6
     ],
-    ambient: [],
+    ambient: [{ type: 'raptor', x: -8, z: 12 }, { type: 'raptor', x: 8, z: 12 }],
     logs: [{ id: 'log7', x: 6.6, z: -19.2, yaw: 0.3 }, { id: 'log9', x: -19.5, z: -12, yaw: Math.PI / 2 }], // v6: log9 = rádio de campo da Tellus-2
-    helipad: { x: 0, z: -15, r: 4 },
+    helipad: { x: 0, z: -19, r: 5.8 },
     encounters: [
       { id: 'boss', on: 'enter', first: true, delay: 1.5, boss: true, msg: 'O COLOSSO bloqueia o heliponto!', spawn: [{ type: 'colossus', x: 0, z: -8 }] },
     ],
@@ -343,7 +377,11 @@ export const AREAS = [
         W.rock(ctx, Math.cos(a) * d, Math.sin(a) * d, s, false);
       }
       W.perimeter(ctx, b, 1.1, MATS.stripe, [{ side: 'W', at: -10, half: 2.4 }, { side: 'E', at: -2, half: 2.4 }], 0.3);
-      W.helipadMark(ctx, 0, -15, 4);
+      // Apron de concreto na ponta do penhasco; água abaixo, cauda/rotor livres de carga e portões.
+      W.solid(ctx, 0, -19, 18, 18, 0.2, MATS.concrete, -0.2, false);
+      W.helipadMark(ctx, this.helipad.x, this.helipad.z, this.helipad.r);
+      const river = new THREE.Mesh(new THREE.PlaneGeometry(90, 35), MATS.water);
+      river.rotation.x = -Math.PI / 2; river.position.set(0, -1.8, -47.5); ctx.group.add(river);
       // coberturas e destroços para se esconder do Colosso
       W.wall(ctx, -10, 6, 6, 1, 2.6); W.wall(ctx, 10, 6, 6, 1, 2.6); W.wall(ctx, -14, -8, 1, 6, 2.2); W.wall(ctx, 14, -8, 1, 6, 2.2);
       [[-4, 14, 1.2], [5, 16, 1.2], [-18, -18, 1.1], [18, -18, 1.1]].forEach((c) => W.crate(ctx, ...c));
@@ -357,9 +395,9 @@ export const AREAS = [
       ctx.boxes.push({ minX: 9.4, maxX: 13.6, minZ: -23.4, maxZ: -18.8, h: 2.6 });
       W.fireLight(ctx, 11, -20.2, 1.2, 30);
       // helicóptero de resgate (aparece no fim)
-      const heli = W.helicopter(false); heli.group.visible = false; ctx.group.add(heli.group);
+      const heli = rescueHelicopter(); heli.group.visible = false; ctx.group.add(heli.group);
       W.lamp(ctx, -12, -15, 0xff3020, 'pulse', 30, 3); W.lamp(ctx, 12, -15, 0xff3020, 'pulse', 30, 3); W.lamp(ctx, -16, 10, 0xffa060); W.lamp(ctx, 16, 10, 0xffa060);
-      W.lamp(ctx, 0, -20, 0xfff0c0, 'steady', 18, 3);
+      W.lamp(ctx, 0, -28.5, 0xfff0c0, 'steady', 18, 3);
       // v6: rádio de campo da equipe Tellus-2 (antena fina + caixa), ao lado do registro 9
       const rbox = W.boxMesh(MATS.dark, 0.7, 0.45, 0.5); rbox.position.set(-21, 0.23, -13.2); ctx.group.add(rbox);
       const ant = W.boxMesh(MATS.metal, 0.04, 1.8, 0.04); ant.position.set(-21.2, 1.3, -13.3); ctx.group.add(ant);
@@ -576,7 +614,7 @@ export const AREAS = [
       boat.position.set(27.5, 0, 6); ctx.group.add(boat);
       // clareira de extração (sudoeste): marca H improvisada com sinalizadores
       W.helipadMark(ctx, -13, -9, 3.4);
-      const heli = W.helicopter(false); heli.group.visible = false; ctx.group.add(heli.group);
+      const heli = rescueHelicopter(); heli.group.visible = false; ctx.group.add(heli.group);
       W.lamp(ctx, 21, 9, 0xffb060, 'flicker', 18, 2.4);
       W.lamp(ctx, -17.5, -12.5, 0xff3020, 'pulse', 22, 2.6);
       // ossos e restos da equipe Tellus-2
@@ -699,7 +737,7 @@ export const AREAS = [
       { id: 'p12smg', kind: 'smgammo', x: 18, z: -16 },
       { id: 'p12crate', kind: 'crate', x: 16, z: 4 },
     ],
-    ambient: [],
+    ambient: [{ type: 'raptor', x: -9, z: 9 }, { type: 'spitter', x: 9, z: -4 }],
     logs: [{ id: 'log16', x: -19.5, z: 2, yaw: Math.PI / 2 }],
     core: { x: 0, z: -15 }, uplink: { x: 14, z: -18.6 },
     encounters: [

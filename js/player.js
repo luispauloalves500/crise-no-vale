@@ -231,6 +231,8 @@ async function loadHeroInner(choice = 'marina') {
   A.walk = heroAction(clips, ['Walking_Woman', 'Walking'], { lower: true });
   A.run = heroAction(clips, ['Running', 'Walking'], { lower: true });
   A.walkUp = heroAction(clips, ['Walking_Woman', 'Walking'], { swing: true });
+  A.boardUp = heroAction(clips, ['Walking_Woman', 'Walking'], { upper: true });
+  if (A.boardUp) A.boardUp.timeScale = 0;
   A.runUp = heroAction(clips, ['Running', 'Walking'], { swing: true });
   // v11: o tempo dos clipes de locomoção é dirigido pela fase compartilhada (updateHero), não pelo mixer
   for (const a of [A.walk, A.run, A.walkUp, A.runUp]) if (a) a.timeScale = 0;
@@ -365,6 +367,11 @@ function updateHero(dt, mk) {
   };
   swingFor(A.walkUp, A.walk, (A.runUp === A.walkUp ? walkN + runN : walkN) * 0.8);
   if (A.runUp !== A.walkUp) swingFor(A.runUp, A.run, runN * 1.1);
+  if (A.boardUp) {
+    hero.boardW = damp(hero.boardW || 0, hero.boarding ? 1 : 0, 9, dt);
+    A.boardUp.setEffectiveWeight(hero.boardW); A.boardUp.time = hero.ph * A.boardUp.getClip().duration;
+    if (hero.boardW > 0.001) for (const a of [A.idle, A.aim, A.walkUp, A.runUp, ...hero.fires, ...hero.reloads]) if (a) a.setEffectiveWeight(a.getEffectiveWeight() * (1 - hero.boardW));
+  }
   hero.mixer.update(player.dead ? 0 : dt);
   if (!player.dead && Math.abs(hero.legYaw) > 0.003 && hero.hips && hero.spine0) {
     const ly = hero.legYaw * L * (1 - ease(clamp(hero.relW, 0, 1))); // recarga manda no tronco
@@ -383,7 +390,7 @@ function updateHero(dt, mk) {
   // braço direito levanta a arma para a mira (os clipes de arma do GLB mantêm o braço baixo):
   // ombro→mão e cano (+Y do soquete) giram em direção ao centro da mira, com peso suave
   // entrada rápida, saída mais lenta; a curva smoothstep tira o tranco no começo e no fim do movimento
-  const want = player.dead || hero.relW > 0.2 ? 0 : (G.aiming || hero.fireT > -0.7) ? 1 : 0.55; // 0.55 = pose pronta (arma à frente)
+  const want = player.dead || hero.boarding || hero.relW > 0.2 ? 0 : (G.aiming || hero.fireT > -0.7) ? 1 : 0.55; // 0.55 = pose pronta (arma à frente)
   hero.raiseW = damp2(hero.raiseW, want, 16, 5, dt);
   const r = ease(clamp(hero.raiseW, 0, 1)) * (1 - hero.relW);
   if (r > 0.01 && hero.armR && hero.handR) {
@@ -408,7 +415,11 @@ export const upLevel = (k) => Math.min(bag.up[k] | 0, UPGRADES[k] ? UPGRADES[k].
 /** Limites que crescem com a Bolsa tática. */
 export const medMax = () => INVENTORY.MED_MAX + upLevel('bag');
 export const grenadeMax = () => GRENADE.MAX + upLevel('bag');
-export const resMax = (i) => weapons[i].resMax ?? Infinity;
+export const resMax = (i) => weapons[i].resMax;
+// -1/Infinity/null eram reservas infinitas em saves antigos; nunca os propagar.
+function finiteAmmo(value, max, fallback) {
+  return Math.min(max, Math.max(0, Math.floor(Number.isFinite(value) && value >= 0 ? value : fallback)));
+}
 /**
  * Recalcula os atributos das armas a partir de WEAPONS + bag.up, mantendo mag/res
  * (o pente é cortado se o tamanho diminuir, ex.: salvo antigo sem upgrade).
@@ -427,7 +438,7 @@ export function applyUpgrades() {
       const st = upLevel('smgStab'); w.spread *= 1 - 0.2 * st; w.aimSpread *= 1 - 0.2 * st; w.kick *= 1 - 0.25 * st; w.xkick *= 1 - 0.25 * st; w.bloom *= 1 - 0.2 * st;
       w.resMax += 30 * upLevel('bag');
     }
-    w.mag = Math.min(mag, w.size); w.res = res === Infinity ? Infinity : Math.min(res, w.resMax ?? Infinity);
+    w.mag = finiteAmmo(mag, w.size, w.size); w.res = finiteAmmo(res, w.resMax, w.startRes);
   });
   bag.meds = Math.min(bag.meds, medMax()); bag.grenades = Math.min(bag.grenades, grenadeMax());
 }
@@ -448,7 +459,7 @@ function updateWeapons(dt) {
     arms.reloading -= dt;
     if (arms.reloading <= 0) {
       const w = curWeapon(), take = Math.min(w.size - w.mag, w.res);
-      w.mag += take; if (w.res !== Infinity) w.res -= take; sfx.reloadEnd();
+      w.mag += take; w.res -= take; sfx.reloadEnd();
     }
   }
   arms.flashT -= dt;
@@ -497,11 +508,14 @@ export function useMed() {
 }
 /** Coloca o jogador num ponto (troca de área / carregar jogo). */
 export function placePlayer(x, z, yaw) {
-  player.pos.set(x, 0, z); player.kx = player.kz = 0; G.yaw = yaw; G.pitch = -0.12;
-  pg.position.set(x, 0, z); pg.rotation.y = yaw; snapCamera();
+  player.pos.set(x, 0, z); player.kx = player.kz = player.vx = player.vz = player.spd = 0;
+  player.moving = player.running = false; pg.rotation.x = 0; body.rotation.x = 0;
+  gunRig.visible = true; hero.boarding = false; hero.boardW = hero.boardTime = 0; G.aiming = false; G.yaw = Number.isFinite(yaw) ? yaw : Math.PI; G.pitch = -0.12;
+  pg.position.set(x, 0, z); pg.rotation.y = G.yaw; pg.visible = true;
+  hero.loco = hero.blend = hero.legYaw = 0; updateHero(0, motionK()); snapCamera();
 }
 export function snapshotBag() {
-  return { owned: [...bag.owned], grenades: bag.grenades, meds: bag.meds, armor: bag.armor, up: { ...bag.up }, hp: player.hp, cur: arms.cur, ammo: weapons.map((w) => ({ mag: w.mag, res: w.res === Infinity ? -1 : w.res })) };
+  return { owned: [...bag.owned], grenades: bag.grenades, meds: bag.meds, armor: bag.armor, up: { ...bag.up }, hp: player.hp, cur: arms.cur, ammo: weapons.map((w) => ({ mag: w.mag, res: finiteAmmo(w.res, w.resMax, w.startRes) })) };
 }
 export function restoreBag(s) {
   // v6: salvos antigos (v5) tinham só 2 armas e nenhum colete — completa com padrões
@@ -514,7 +528,7 @@ export function restoreBag(s) {
   player.hp = PLAYER.HP; // terminal restaura a vida
   weapons.forEach((w, i) => {
     const a = s.ammo && s.ammo[i];
-    if (a) { w.mag = Math.min(a.mag, w.size); w.res = a.res < 0 ? Infinity : Math.min(a.res, w.resMax ?? Infinity); }
+    if (a) { w.mag = finiteAmmo(a.mag, w.size, w.size); w.res = finiteAmmo(a.res, w.resMax, w.startRes); }
     else { w.mag = w.size; w.res = w.startRes; }
   });
   arms.cur = bag.owned[s.cur] ? s.cur : 0; showGun(arms.cur);
@@ -534,7 +548,7 @@ export function resetPlayer() {
 // Move só a representação da personagem durante a cena; a posição de jogo muda na chegada.
 export function animateDoorWalk(dt, point, yaw, moving) {
   const prevX = pg.position.x, prevZ = pg.position.z;
-  pg.position.set(point.x, 0, point.z); pg.rotation.y = yaw; pg.visible = true;
+  pg.position.set(point.x, point.y ?? 0, point.z); pg.rotation.y = yaw; pg.visible = true;
   G.yaw = yaw; G.aiming = false;
   player.vx = moving ? (point.x - prevX) / Math.max(dt, 0.001) : 0;
   player.vz = moving ? (point.z - prevZ) / Math.max(dt, 0.001) : 0;
@@ -546,6 +560,20 @@ export function animateDoorWalk(dt, point, yaw, moving) {
     legL.rotation.x = sw; legR.rotation.x = -sw;
   }
   updateHero(dt, motionK());
+}
+
+/** Embarque: mantém o mixer de locomoção, guarda a arma e inclina para entrar na cabine. */
+export function animateBoarding(dt, point, yaw, crouch = 0) {
+  arms.reloading = 0; hero.fireT = -9; hero.boarding = true; G.pitch = 0;
+  animateDoorWalk(dt, point, yaw, !!point.moving);
+  hero.boardTime = (hero.boardTime || 0) + dt; gunRig.visible = hero.boardTime < 0.35;
+  // A rotação é absoluta na malha de reserva; nos ossos o mixer recompõe a pose a cada quadro.
+  body.rotation.x = crouch * 0.4;
+  armR.rotation.x = Math.sin(player.phase) * 0.3; armL.rotation.x = -armR.rotation.x;
+  if (hero.ok && hero.spine0) {
+    _ax.set(Math.cos(yaw), 0, -Math.sin(yaw));
+    rotWorld(hero.spine0, _q2.setFromAxisAngle(_ax, crouch * 0.45));
+  }
 }
 
 // ---------- atualização ----------
@@ -610,27 +638,34 @@ function boundRay(ox, oz, dx, dz) {
   if (dz > 1e-4) t = Math.min(t, (bounds.maxZ - oz) / dz); else if (dz < -1e-4) t = Math.min(t, (bounds.minZ - oz) / dz);
   return Math.max(0, t);
 }
-function snapCamera() { pivot.set(player.pos.x, CAMERA.HEIGHT, player.pos.z); camDist = CAMERA.DIST; recoil = 0; }
+function snapCamera() {
+  pivot.set(player.pos.x, CAMERA.HEIGHT, player.pos.z); shoulderCur = 0; camDist = 0; recoil = 0;
+  G.shake = G.fovKick = 0; hero.fovBase = CAMERA.FOV;
+  // Posiciona a câmera REAL ainda sob o fade, não só seu pivô. Nenhum quadro vem da área anterior.
+  updateCamera(0, true);
+}
 
-export function updateCamera(dt) {
+export function updateCamera(dt, snap = false) {
   const fx = Math.sin(G.yaw), fz = Math.cos(G.yaw), rx = -fz, rz = fx;
   // pivô segue o jogador com suavização (sem atrasar a mira, que usa yaw/pitch direto)
   pivot.x = damp(pivot.x, player.pos.x, CAMERA.FOLLOW, dt);
   pivot.z = damp(pivot.z, player.pos.z, CAMERA.FOLLOW, dt);
   // ombro: lado escolhido com V, recolhe se houver parede ao lado
   const wantSh = (G.aiming ? CAMERA.SHOULDER * 0.85 : CAMERA.SHOULDER) * G.shoulder;
-  const side = castWorld(pivot.x, pivot.z, rx * Math.sign(wantSh), rz * Math.sign(wantSh), Math.abs(wantSh) + 0.3, 1.8);
+  const side = Math.min(castWorld(pivot.x, pivot.z, rx * Math.sign(wantSh), rz * Math.sign(wantSh), Math.abs(wantSh) + 0.3, 1.8),
+    boundRay(pivot.x, pivot.z, rx * Math.sign(wantSh), rz * Math.sign(wantSh)));
   const sh = Math.sign(wantSh) * Math.max(0, Math.min(Math.abs(wantSh), side - 0.3));
-  shoulderCur = damp(shoulderCur, sh, 10, dt);
+  shoulderCur = snap || Math.abs(sh) < Math.abs(shoulderCur) ? sh : damp(shoulderCur, sh, 10, dt);
   const hx = pivot.x + rx * shoulderCur, hz = pivot.z + rz * shoulderCur, hy = CAMERA.HEIGHT;
   // distância desejada + colisão com paredes/árvores (entra rápido, sai devagar)
   const mk = motionK(); // v6: movimento reduzido corta tremor e recuo da câmera
   const pitch = G.pitch + recoil * mk;
   const want = G.aiming ? CAMERA.AIM_DIST : CAMERA.DIST;
   const back = Math.cos(pitch) * want;
-  const hit = Math.min(castWorld(hx, hz, -fx, -fz, back + 0.4, 1.8), boundRay(hx, hz, -fx, -fz) + 0.6);
-  const target = clamp(hit - 0.35, CAMERA.MIN_DIST, back);
-  camDist = target < camDist ? damp(camDist, target, 30, dt) : damp(camDist, target, 5, dt);
+  const hit = Math.min(castWorld(hx, hz, -fx, -fz, back + 0.4, 1.8), boundRay(hx, hz, -fx, -fz) - 0.05);
+  // Encostada na parede, prioriza a colisão mesmo abaixo da distância mínima confortável.
+  const target = Math.max(0.05, Math.min(back, hit - 0.35));
+  camDist = snap || target < camDist ? target : damp(camDist, target, 5, dt);
   const up = -Math.sin(pitch) * want * (camDist / Math.max(back, 0.01));
   camera.position.set(hx - fx * camDist, Math.max(0.6, hy + up + 0.3), hz - fz * camDist);
   look.set(hx + fx * 10, hy + Math.sin(pitch) * 10.5 + 0.1, hz + fz * 10);

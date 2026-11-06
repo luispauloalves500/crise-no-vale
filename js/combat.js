@@ -174,6 +174,8 @@ export function damageEnemy(e, d, dx, dz, knock) {
   bloodBurst(e.pos.x, 1.2 * e.cfg.scale, e.pos.z, heavy, dx, dz);
   decal(e.pos.x, e.pos.z, heavy ? 1.5 * e.cfg.scale : 1.6);
   if (!e.cfg.boss) {
+    // Estoque finito no chão: cada patrulha renovada devolve munição coletável, não tiros grátis.
+    spawnPickup('pistolammo', e.pos.x, e.pos.z);
     const r = Math.random();
     const ammoKind = () => (bag.owned[2] && Math.random() < 0.5 ? 'smgammo' : 'ammo'); // v6: com a submetralhadora, metade das caixas é de pente
     if (r < PICKUPS.DROP_MED) spawnPickup('med', e.pos.x, e.pos.z);
@@ -316,7 +318,8 @@ function tryCollect(p) {
     case 'crate': {
       // v6: caixa de suprimentos brilhante — abre com munição para o que você tem e um kit médico
       const got = [];
-      const sg = weapons[1], sm = weapons[2];
+      const sg = weapons[1], sm = weapons[2], pi = weapons[0];
+      if (pi.res < resMax(0)) { const a = Math.min(36, resMax(0) - pi.res); pi.res += a; got.push(`+${a} balas de pistola`); }
       if (bag.owned[1] && sg.res < resMax(1)) { const a = Math.min(8, resMax(1) - sg.res); sg.res += a; got.push(`+${a} cartuchos`); }
       if (bag.owned[2] && sm.res < resMax(2)) { const a = Math.min(45, resMax(2) - sm.res); sm.res += a; got.push(`+${a} balas`); }
       if (!bag.owned[1] && !bag.owned[2] && sg.res < resMax(1)) { const a = Math.min(6, resMax(1) - sg.res); sg.res += a; got.push(`+${a} cartuchos`); }
@@ -327,11 +330,20 @@ function tryCollect(p) {
       burst(p.x, 0.9, p.z, 'dust', 8, 2);
       break;
     }
+    case 'pistolammo': {
+      const pi = weapons[0];
+      if (pi.res >= resMax(0)) return full('Balas de pistola no máximo');
+      const add = Math.min(PICKUPS.AMMO_PISTOL, resMax(0) - pi.res);
+      pi.res += add; ui.feed(`+${add} balas de pistola`, '#ffe070');
+      break;
+    }
     default: {
-      const sg = weapons[1];
-      if (sg.res >= resMax(1)) return full(ui.STR.ammoFull);
-      const add = Math.min(PICKUPS.AMMO_SHELLS, resMax(1) - sg.res);
-      sg.res += add; ui.feed(ui.STR.ammo(add) + (bag.owned[1] ? '' : ' (ache a escopeta!)'), '#ffe070');
+      // Caixas amarelas são universais: saves e mapas antigos também abastecem a pistola.
+      const sg = weapons[1], pi = weapons[0], got = [];
+      if (pi.res < resMax(0)) { const a = Math.min(PICKUPS.AMMO_PISTOL, resMax(0) - pi.res); pi.res += a; got.push(`+${a} balas de pistola`); }
+      if (sg.res < resMax(1)) { const a = Math.min(PICKUPS.AMMO_SHELLS, resMax(1) - sg.res); sg.res += a; got.push(ui.STR.ammo(a)); }
+      if (!got.length) return full('Munição no máximo');
+      ui.feed(got.join(' · '), '#ffe070');
     }
   }
   return true;
